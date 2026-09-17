@@ -73,9 +73,9 @@ of these dictionaries carries word frequencies, so there is nothing to score
 competing segmentations with.
 
 Runs are segmented between non-Chinese characters, which are dropped. A
-full-width comma and an interpunct are exceptions, because about 1,900
-headwords contain the first (couplets and proverbs) and about 400 contain
-the second (transliterated names); both are skipped when no word covers
+full-width comma and an interpunct are exceptions, because 1,469 entries
+have a comma in a headword (couplets and proverbs) and 197 have an
+interpunct (transliterated names); both are skipped when no word covers
 them.
 
 ### Other scripts
