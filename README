@@ -5,8 +5,8 @@ sources are excluded from git repo but noted in dict/README.
 
 ## multizhdict
 
-Segments a string of Chinese characters into words and prints one Chinese
-and one English definition for each:
+Segments a string of Chinese characters into words and prints every
+definition the dictionaries have for each, longest first:
 
     ./multizhdict 我愛北京天安門
     echo 我愛北京天安門 | ./multizhdict
@@ -32,28 +32,30 @@ installed copy sits outside this checkout and so finds neither: point
 
 ### Output
 
-Two lines per word, separated from the next word by a rule as wide as the
-terminal. Every line carries the same four fields in the same order —
+One line per definition, separated from the next word by a rule as wide as
+the terminal. Every line carries the same four fields in the same order —
 traditional, simplified, pinyin, definition — padded into columns by
 display width, with blanks where a dictionary has nothing for a field.
 `-tsv` emits single tabs instead, for feeding something else.
 
-The first line of each pair is the Chinese definition and the second is the
-English one. Each comes from the first of its two sources that has the word:
+Every entry any of the four sources has for the word is printed, longest
+definition first, which is how the other readings of a character like 行
+show up. A source with no entry for the word contributes nothing at all, so
+a word only the Chinese dictionaries carry comes out as Chinese lines alone.
+Definitions of equal display width keep load order, which is the order of
+the sources below and, within one file, the order the entries appear in it.
+The first two are Chinese and the last two English, but nothing in the
+output marks which source a line came from:
 
-| line    | primary source                           | fallback                  |
-| ------- | ---------------------------------------- | ------------------------- |
-| Chinese | dict/MoEDICT/MoEDict-05-Simp03-cards.txt | dict/ccdict_additions.tsv |
-| English | dict/cedict_parsed.tsv                   | dict/cedict_additions.tsv |
+1. dict/MoEDICT/MoEDict-05-Simp03-cards.txt
+2. dict/ccdict_additions.tsv
+3. dict/cedict_parsed.tsv
+4. dict/cedict_additions.tsv
 
-A line reading `(no 中文)` or `(no English)` is a word that no source on
-that side has. It repeats the word because no column does, so a word that
-neither side has is still identifiable.
-
-`-all` prints every matching entry rather than the first per side, which is
-how to see the other readings of a character like 行. The Chinese entries
-still come before the English ones, but with no dictionary column there is
-nothing to say which of a side's two sources an entry came from.
+A word that no source has gets one line instead, `字典查無「X」`, flush left
+rather than in the columns. It is the only line that repeats the input,
+which is what makes such a word identifiable at all: with no entry it fills
+no column.
 
 ### Segmentation
 
