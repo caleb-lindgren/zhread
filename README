@@ -6,7 +6,7 @@ sources are excluded from git repo but noted in dict/README.
 ## multizhdict
 
 Segments a string of Chinese characters into words and prints every
-definition the dictionaries have for each, longest first:
+definition the dictionaries have for each, Chinese before English:
 
     ./multizhdict 我愛北京天安門
     echo 我愛北京天安門 | ./multizhdict
@@ -38,19 +38,23 @@ traditional, simplified, pinyin, definition — padded into columns by
 display width, with blanks where a dictionary has nothing for a field.
 `-tsv` emits single tabs instead, for feeding something else.
 
-Every entry any of the four sources has for the word is printed, longest
-definition first, which is how the other readings of a character like 行
-show up. A source with no entry for the word contributes nothing at all, so
-a word only the Chinese dictionaries carry comes out as Chinese lines alone.
-Definitions of equal display width keep load order, which is the order of
-the sources below and, within one file, the order the entries appear in it.
-The first two are Chinese and the last two English, but nothing in the
-output marks which source a line came from:
+Every entry any of the four sources has for the word is printed, which is
+how the other readings of a character like 行 show up. The Chinese lines
+come first, then the English ones, and each language is ordered by
+decreasing definition width on its own: sorting the whole group at once
+would interleave the two, because a long English gloss outruns a short
+Chinese one. A source with no entry for the word contributes nothing at
+all, so a word only the Chinese dictionaries carry comes out as Chinese
+lines alone.
 
-1. dict/MoEDICT/MoEDict-05-Simp03-cards.txt
-2. dict/ccdict_additions.tsv
-3. dict/cedict_parsed.tsv
-4. dict/cedict_additions.tsv
+| language | dictionary                               | additions                 |
+| -------- | ---------------------------------------- | ------------------------- |
+| Chinese  | dict/MoEDICT/MoEDict-05-Simp03-cards.txt | dict/ccdict_additions.tsv |
+| English  | dict/cedict_parsed.tsv                   | dict/cedict_additions.tsv |
+
+Nothing in the output says which of a language's two sources a line came
+from. Definitions of equal width keep load order: the dictionary before its
+additions, and within one file the order the entries appear in it.
 
 A word that no source has gets one line instead, `字典查無「X」`, flush left
 rather than in the columns. It is the only line that repeats the input,
