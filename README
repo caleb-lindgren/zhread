@@ -33,10 +33,10 @@ installed copy sits outside this checkout and so finds neither: point
 ### Output
 
 Two lines per word, separated from the next word by a rule as wide as the
-terminal. Every line carries the same fields in the same order — word,
-dictionary, traditional, simplified, pinyin, definition — padded into
-columns by display width, with blanks where a dictionary has nothing for a
-field. `-tsv` emits single tabs instead, for feeding something else.
+terminal. Every line carries the same four fields in the same order —
+traditional, simplified, pinyin, definition — padded into columns by
+display width, with blanks where a dictionary has nothing for a field.
+`-tsv` emits single tabs instead, for feeding something else.
 
 The first line of each pair is the Chinese definition and the second is the
 English one. Each comes from the first of its two sources that has the word:
@@ -47,8 +47,13 @@ English one. Each comes from the first of its two sources that has the word:
 | English | dict/cedict_parsed.tsv                   | dict/cedict_additions.tsv |
 
 A line reading `(no 中文)` or `(no English)` is a word that no source on
-that side has. `-all` prints every matching entry rather than the first per
-side, which is how to see the other readings of a character like 行.
+that side has. It repeats the word because no column does, so a word that
+neither side has is still identifiable.
+
+`-all` prints every matching entry rather than the first per side, which is
+how to see the other readings of a character like 行. The Chinese entries
+still come before the English ones, but with no dictionary column there is
+nothing to say which of a side's two sources an entry came from.
 
 ### Segmentation
 
