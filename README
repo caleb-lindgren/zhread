@@ -1,3 +1,84 @@
 # ankitools
 
-Scripts and files for my Anki study of Mandarin. Some large dictionary sources are excluded from git repo but noted in dict/README.
+Scripts and files for my Anki study of Mandarin. Some large dictionary
+sources are excluded from git repo but noted in dict/README.
+
+## multizhdict
+
+Segments a string of Chinese characters into words and prints one Chinese
+and one English definition for each:
+
+    ./multizhdict 我愛北京天安門
+    echo 我愛北京天安門 | ./multizhdict
+
+`multizhdict` is a wrapper that pipes `gomultizhdict` into `less -S`, which
+truncates long lines rather than wrapping them so that the columns stay
+lined up; scroll sideways with the arrow keys. Run `gomultizhdict` directly
+to send the output anywhere else. Input may be traditional or simplified:
+both headword forms of every entry are matched.
+
+### Building
+
+    make                 # builds bin/gomultizhdict
+    make test
+    make install         # PREFIX=/usr/local
+
+Go 1.21 or later and nothing outside its standard library.
+
+The binary finds the dictionaries by looking for a `dict` directory at or
+above its own location, and then at or above the working directory. An
+installed copy sits outside this checkout and so finds neither: point
+`MULTIZHDICT_DICT` at the absolute path of `dict/`, or pass `-dict`.
+
+### Output
+
+Two lines per word, separated from the next word by a rule as wide as the
+terminal. Every line carries the same fields in the same order — word,
+dictionary, traditional, simplified, pinyin, definition — padded into
+columns by display width, with blanks where a dictionary has nothing for a
+field. `-tsv` emits single tabs instead, for feeding something else.
+
+The first line of each pair is the Chinese definition and the second is the
+English one. Each comes from the first of its two sources that has the word:
+
+| line    | primary source                           | fallback                  |
+| ------- | ---------------------------------------- | ------------------------- |
+| Chinese | dict/MoEDICT/MoEDict-05-Simp03-cards.txt | dict/ccdict_additions.tsv |
+| English | dict/cedict_parsed.tsv                   | dict/cedict_additions.tsv |
+
+A line reading `(no 中文)` or `(no English)` is a word that no source on
+that side has. `-all` prints every matching entry rather than the first per
+side, which is how to see the other readings of a character like 行.
+
+### Segmentation
+
+| -seg | segmentation                                           |
+| ---- | ------------------------------------------------------ |
+| fmm  | forward maximum matching: longest word from the left   |
+| bmm  | backward maximum matching: longest word from the right |
+| bidi | both, then the tie-break below (the default)           |
+
+Maximum matching takes the longest dictionary word starting at the current
+position, then resumes after it, falling back to a single character where no
+longer word is known. Run forward it errs in a predictable direction:
+wherever a long word and a shorter one share a prefix it takes the long one,
+so 研究生命起源 comes out as 研究生 / 命 / 起源. Run backward it makes a
+different set of mistakes, and the two agree except where the run is
+genuinely ambiguous. `bidi` runs both and prefers the result with fewer
+words, then the one with fewer single-character words, then the backward
+one.
+
+A unigram-frequency model — what jieba does — would beat all three, but none
+of these dictionaries carries word frequencies, so there is nothing to score
+competing segmentations with.
+
+Runs are segmented between non-Chinese characters, which are dropped. A
+full-width comma and an interpunct are exceptions, because about 1,900
+headwords contain the first (couplets and proverbs) and about 400 contain
+the second (transliterated names); both are skipped when no word covers
+them.
+
+### Other scripts
+
+`add_words_ccdict.py` builds Anki rows for a list of words, prompting for
+anything the dictionaries lack. `scripts/` holds one-off column fixes.
