@@ -63,11 +63,12 @@ no column.
 
 ### Segmentation
 
-| -seg | segmentation                                           |
-| ---- | ------------------------------------------------------ |
-| fmm  | forward maximum matching: longest word from the left   |
-| bmm  | backward maximum matching: longest word from the right |
-| bidi | both, then the tie-break below (the default)           |
+| -seg    | segmentation                                                     |
+| ------- | ---------------------------------------------------------------- |
+| viterbi | best-scoring path under a unigram word-frequency model (default) |
+| fmm     | forward maximum matching: longest word from the left             |
+| bmm     | backward maximum matching: longest word from the right           |
+| bidi    | both maximum matches, then the tie-break below                   |
 
 Maximum matching takes the longest dictionary word starting at the current
 position, then resumes after it, falling back to a single character where no
@@ -79,9 +80,32 @@ genuinely ambiguous. `bidi` runs both and prefers the result with fewer
 words, then the one with fewer single-character words, then the backward
 one.
 
-A unigram-frequency model — what jieba does — would beat all three, but none
-of these dictionaries carries word frequencies, so there is nothing to score
-competing segmentations with.
+Where both of those criteria tie, `bidi` is choosing arbitrarily, and
+arbitrarily is sometimes wrong. 交流感 is 交流 / 感 forwards and 交 / 流感
+backwards: two words either way, one single character either way, so the
+backward reading wins only because it is the fallback, even though 流感 is a
+much less common word than 交流.
+
+`viterbi` scores the candidates instead. Each word is given the probability
+count/total from dict/jieba/dict.txt, a segmentation scores the product over
+its words, and the best path through the lattice of dictionary words is
+taken. Every word carries a factor of 1/total, so the model penalises using
+more words on its own — bidi's first criterion arrived at from the counts
+rather than asserted — and it reads 交流感 as 交流 / 感, 交流 being some 40
+times commoner than 流感.
+
+Only jieba's counts are per word. Unihan's kFrequency and kHanyuPinlu, in
+dict/Unihan/, are per character, and no per-character score can separate two
+segmentations of one run: both readings of 交流感 are made of 交, 流 and 感,
+so any score summed over the characters is the same for the two. A
+dictionary word the table does not list, which is most of what the additions
+files carry, scores as one occurrence — rarer than anything listed but still
+a word, so 露鋒方筆館閣體 stays 露鋒 / 方筆 / 館閣體 rather than coming apart
+into characters. Reading the table costs about 17 ms a query here, taking 39
+ms to 56 ms, the file being 4.9 MB against the 49 MB of definition sources.
+
+`viterbi` is the only mode that reads dict/jieba/dict.txt, and it fails with
+an error if the file is missing; the other three never open it.
 
 Runs are segmented between non-Chinese characters, which are dropped. A
 full-width comma and an interpunct are exceptions, because 1,469 entries
