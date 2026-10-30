@@ -85,6 +85,7 @@ func main() {
 	if err := s.Init(); err != nil {
 		fail(err)
 	}
+	s.SetStyle(stDef)
 	reqs := make(chan segReq, 1)
 	go segWorker(dict, o.pron, reqs, func(r segRes) {
 		s.PostEvent(tcell.NewEventInterrupt(r))

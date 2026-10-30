@@ -1,0 +1,44 @@
+#!/bin/bash
+# Read a Chinese text file with gozhread, in its own st window in the font
+# multizhdict is opened with, and return to this shell at once.
+#
+#     zhread [options] FILE
+#
+# ZHREAD_FONT changes the font. Without st or a display, or with
+# ZHREAD_WINDOW=0, gozhread runs in this terminal instead.
+
+self=$(readlink -f "${BASH_SOURCE[0]}")
+root=$(dirname "$self")
+
+prog=
+for cand in "$root/bin/gozhread" "$root/gozhread"; do
+    if [[ -x "$cand" ]]; then
+        prog=$cand
+        break
+    fi
+done
+if [[ -z "$prog" ]]; then
+    prog=$(command -v gozhread)
+fi
+if [[ -z "$prog" ]]; then
+    echo "zhread: gozhread not found; run 'make' in $root" >&2
+    exit 1
+fi
+
+font="Liberation Mono:pixelsize=24:antialias=true:autohint=true"
+font=${ZHREAD_FONT:-$font}
+file=${@: -1}
+
+# Usage errors and a missing file are reported here rather than in a
+# window that would close before they could be read.
+if [[ $# -eq 0 || ! -f "$file" || ${ZHREAD_WINDOW:-1} == 0 ]] ||
+    ! command -v st >/dev/null ||
+    [[ -z "$DISPLAY" && -z "$WAYLAND_DISPLAY" ]]; then
+    exec "$prog" "$@"
+fi
+
+# The window stays open after a failure, until Enter, so the error can be
+# read.
+st -t "「$(basename "$file")」" -f "$font" -e bash -c \
+    '"$@" || read -rp "(Enter to close)"' zhread "$prog" "$@" \
+    >/dev/null 2>&1 &

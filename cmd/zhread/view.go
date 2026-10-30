@@ -35,6 +35,7 @@ type view struct {
 	pron    string
 
 	w, h     int
+	ph       int // rows of the definitions pane, rule included
 	rows     []drow
 	firstRow []int // index into rows of each line's first row
 	top      int   // first row on screen
@@ -53,17 +54,31 @@ type view struct {
 	input  []rune
 	inBack bool
 	dr     *draft
+	queue  []*draft // the selection's cards still to come after dr
 	quit   bool
 }
 
+// Colours from vis's zenburn theme (lua/themes/zenburn.lua). Every one is
+// in the xterm 256-colour palette, so a terminal without true colour, st
+// among them, shows them exactly.
+func hex(c int32) tcell.Color { return tcell.NewHexColor(c) }
+
+// The vis style each comes from is named after it.
 var (
-	stDef    = tcell.StyleDefault
-	stCarded = stDef.Foreground(tcell.ColorOlive)
-	stSel    = stDef.Reverse(true)
-	stHead   = stDef.Bold(true)
-	stDim    = stDef.Foreground(tcell.ColorGray)
-	stWarn   = stDef.Foreground(tcell.ColorMaroon).Bold(true)
-	stWord   = stDef.Bold(true).Underline(true)
+	stDef = tcell.StyleDefault.Foreground(hex(0xd7d7d7)).
+		Background(hex(0x3a3a3a)) // DEFAULT
+	stCarded = stDef.Foreground(hex(0xf0dfaf)) // REGEX
+	stSel    = stDef.Background(hex(0x5f875f)) // SELECTION
+	stCursor = stDef.Foreground(hex(0x1c1c1c)).
+			Background(hex(0x87afaf)).Bold(true) // CURSOR_PRIMARY
+	stHead   = stDef.Foreground(hex(0xffd7af)).Bold(true) // DEFINITION
+	stPinyin = stDef.Foreground(hex(0xd7d7af))            // FUNCTION
+	stHint   = stDef.Foreground(hex(0x87af87))            // COMMENT
+	stRule   = stDef.Foreground(hex(0x585858))            // EOF
+	stStatus = stDef.Foreground(hex(0xafaf87)).
+			Background(hex(0x303030)).Bold(true) // STATUS_FOCUSED
+	stWarn = stDef.Foreground(hex(0xd78787)).Bold(true) // STRING
+	stWord = stHead.Underline(true)
 )
 
 func (v *view) run() error {
@@ -84,13 +99,9 @@ func (v *view) run() error {
 }
 
 // layout: the text above, the definitions pane below it, a status line.
-func (v *view) textH() int { return v.h - 1 - v.paneH() }
-func (v *view) paneH() int {
-	if v.h < 10 {
-		return 0
-	}
-	return min(max(v.h/3, 4), 14)
-}
+// The pane is as tall as the current definitions need, up to half the
+// screen; draw sets ph from them before laying out the text.
+func (v *view) textH() int { return v.h - 1 - v.ph }
 
 // wrap splits every line into display rows for the current width.
 func (v *view) wrap() {
@@ -185,17 +196,25 @@ func (v *view) draw() {
 		v.s.Show()
 		return
 	}
+	head, pane := v.pane()
+	v.ph = 0
+	if v.h >= 6 {
+		need := 1
+		for _, t := range pane {
+			need += v.height(0, t.text)
+		}
+		v.ph = min(need, v.h/2)
+	}
 	v.scroll()
 	th := v.textH()
 	for y := 0; y < th && v.top+y < len(v.rows); y++ {
 		v.drawRow(y, v.rows[v.top+y])
 	}
-	v.drawPane(th)
+	if v.ph > 0 {
+		v.drawPane(th, head, pane)
+	}
+	v.s.HideCursor()
 	v.drawStatus()
-	r := v.rowOf(v.cl, v.cc)
-	row := v.rows[r]
-	x := zhdict.Width(string(v.d.lines[v.cl][row.start:v.cc]))
-	v.s.ShowCursor(x, r-v.top)
 	v.s.Show()
 }
 
@@ -212,6 +231,10 @@ func (v *view) drawRow(y int, r drow) {
 			}
 		}
 	}
+	cursor := r.line == v.cl && v.mode != prompt
+	if cursor && len(line) == 0 {
+		v.s.SetContent(0, y, ' ', nil, stCursor)
+	}
 	x := 0
 	for c := r.start; c < r.end; c++ {
 		st := stDef
@@ -220,6 +243,9 @@ func (v *view) drawRow(y int, r drow) {
 		}
 		if v.selected(r.line, c) {
 			st = stSel
+		}
+		if cursor && c == v.cc {
+			st = stCursor
 		}
 		v.s.SetContent(x, y, line[c], nil, st)
 		x += zhdict.Width(string(line[c]))
@@ -246,6 +272,19 @@ func (v *view) put(x, y, maxY int, text []rune,
 	return y + 1
 }
 
+// height is how many rows put would take for text from column x.
+func (v *view) height(x int, text []rune) int {
+	cx, n := x, 1
+	for _, r := range text {
+		rw := zhdict.Width(string(r))
+		if cx+rw > v.w && cx > x {
+			cx, n = x, n+1
+		}
+		cx += rw
+	}
+	return n
+}
+
 func plain(st tcell.Style) func(int) tcell.Style {
 	return func(int) tcell.Style { return st }
 }
@@ -269,50 +308,60 @@ func (v *view) lookup() (string, *zhdict.Probe) {
 	return "", nil
 }
 
-func (v *view) drawPane(y0 int) {
-	ph := v.paneH()
-	if ph == 0 {
-		return
-	}
-	maxY := y0 + ph
-	for x := 0; x < v.w; x++ {
-		v.s.SetContent(x, y0, '─', nil, stDim)
-	}
+// styled is a piece of text with a style for each rune.
+type styled struct {
+	text  []rune
+	style func(int) tcell.Style
+}
+
+// pane is what the definitions pane shows: a heading for the rule above
+// it, and the lines below.
+func (v *view) pane() (string, []styled) {
 	word, p := v.lookup()
 	if word == "" {
-		return
+		return "", nil
 	}
 	head := " " + word + " "
 	if v.rec.words[word] {
 		head += "(carded) "
 	}
-	v.put(1, y0, y0+1, []rune(head), plain(stHead))
-	y := y0 + 1
 	if p == nil {
-		v.put(0, y, maxY, []rune("…"), plain(stDim))
-		return
+		return head, []styled{{[]rune("…"), plain(stHint)}}
 	}
 	g := p.Rows(word)
 	if g.Notice != "" {
-		v.put(0, y, maxY, []rune(g.Notice), plain(stDim))
-		return
+		return head, []styled{{[]rune(g.Notice), plain(stHint)}}
 	}
+	var out []styled
 	for i, r := range g.Rows {
 		if i >= g.Zh && !v.showEn {
 			break
 		}
 		py := []rune(r[2] + "  ")
-		y = v.put(0, y, maxY, append(py, []rune(r[3])...),
+		out = append(out, styled{append(py, []rune(r[3])...),
 			func(i int) tcell.Style {
 				if i < len(py) {
-					return stHead
+					return stPinyin
 				}
 				return stDef
-			})
+			}})
 	}
 	if !v.showEn && len(g.Rows) > g.Zh {
-		v.put(0, y, maxY, []rune(fmt.Sprintf("(e: %d English)",
-			len(g.Rows)-g.Zh)), plain(stDim))
+		out = append(out, styled{[]rune(fmt.Sprintf(
+			"(e: %d English)", len(g.Rows)-g.Zh)), plain(stHint)})
+	}
+	return head, out
+}
+
+func (v *view) drawPane(y0 int, head string, lines []styled) {
+	maxY := y0 + v.ph
+	for x := 0; x < v.w; x++ {
+		v.s.SetContent(x, y0, '─', nil, stRule)
+	}
+	v.put(1, y0, y0+1, []rune(head), plain(stHead))
+	y := y0 + 1
+	for _, l := range lines {
+		y = v.put(0, y, maxY, l.text, l.style)
 	}
 }
 
@@ -333,9 +382,12 @@ func (v *view) drawStatus() {
 	}
 	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines),
 		filepath.Base(v.d.path))
-	v.put(0, y, y+1, []rune(left), plain(stDef))
+	for x := 0; x < v.w; x++ {
+		v.s.SetContent(x, y, ' ', nil, stStatus)
+	}
+	v.put(0, y, y+1, []rune(left), plain(stStatus))
 	rx := v.w - zhdict.Width(right)
-	v.put(max(rx, 0), y, y+1, []rune(right), plain(stDim))
+	v.put(max(rx, 0), y, y+1, []rune(right), plain(stStatus))
 	if v.mode == prompt {
 		v.s.ShowCursor(zhdict.Width(left), y)
 	}
@@ -681,24 +733,70 @@ func (v *view) openCard() {
 	pr.Load(v.dict)
 	pr.LoadPron(v.dict)
 	pr.PronPref = v.pron
-	dr := &draft{p: p, ws: ws, we: we, span: newSpan(p.text, ws, we),
-		defs: pr.Rows(word),
-		src:  fmt.Sprintf("%s:%d", filepath.Base(v.d.path), l1+1)}
-	dr.sel = make([]bool, len(dr.defs.Rows))
-	if dr.defs.Zh > 0 {
-		dr.sel[0] = true
+
+	// A selection no dictionary has as one word is split into the
+	// words that do have definitions, a card each, so selecting a
+	// phrase cards its words.
+	spans := [][2]int{{ws, we}}
+	if len(pr.Rows(word).Rows) == 0 {
+		mode := zhdict.SegViterbi
+		if pr.LoadFreq(v.dict) != nil {
+			mode = zhdict.SegBidi
+		}
+		seg := func(run []rune) []string {
+			return pr.Segment([][]rune{run}, mode)
+		}
+		spans = nil
+		for _, t := range tokenize(p.text[ws:we], seg) {
+			w := string(p.text[ws+t.start : ws+t.end])
+			if t.han && len(pr.Rows(w).Rows) > 0 {
+				spans = append(spans,
+					[2]int{ws + t.start, ws + t.end})
+			}
+		}
+		if len(spans) == 0 {
+			v.msg = "no definitions for any word in " + word
+			return
+		}
 	}
-	if len(dr.defs.Rows) > dr.defs.Zh {
-		dr.sel[dr.defs.Zh] = true
-	}
+
 	// The text is traditional if converting it to simplified changes
 	// more of it than converting it to traditional does.
 	text := string(p.text)
-	dr.trad = changed(text, v.conv.t2s.Convert(text)) >
+	trad := changed(text, v.conv.t2s.Convert(text)) >
 		changed(text, v.conv.s2t.Convert(text))
-	f := dr.forms(v.conv)
-	dr.dups = v.rec.dups(f.wordS, f.wordT)
-	v.dr, v.mode = dr, card
+	src := fmt.Sprintf("%s:%d", filepath.Base(v.d.path), l1+1)
+	v.queue = nil
+	for i, sp := range spans {
+		ws, we := sp[0], sp[1]
+		dr := &draft{p: p, ws: ws, we: we,
+			span: newSpan(p.text, ws, we),
+			defs: pr.Rows(string(p.text[ws:we])),
+			src:  src, trad: trad, n: i + 1, of: len(spans)}
+		dr.sel = make([]bool, len(dr.defs.Rows))
+		if dr.defs.Zh > 0 {
+			dr.sel[0] = true
+		}
+		if len(dr.defs.Rows) > dr.defs.Zh {
+			dr.sel[dr.defs.Zh] = true
+		}
+		v.queue = append(v.queue, dr)
+	}
+	v.nextCard()
+}
+
+// nextCard shows the next card of the selection, or returns to reading
+// when there are none left. The duplicate check runs only now, so a word
+// the selection repeats is caught against the card just saved for it.
+func (v *view) nextCard() {
+	if len(v.queue) == 0 {
+		v.mode, v.dr = normal, nil
+		return
+	}
+	v.dr, v.queue = v.queue[0], v.queue[1:]
+	f := v.dr.forms(v.conv)
+	v.dr.dups = v.rec.dups(f.wordS, f.wordT)
+	v.mode = card
 }
 
 func changed(a, b string) int {
@@ -733,7 +831,9 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	r := ev.Rune()
 	switch {
 	case ev.Key() == tcell.KeyEscape || r == 'q':
-		v.mode, v.dr = normal, nil
+		v.mode, v.dr, v.queue = normal, nil, nil
+	case r == 'n':
+		v.nextCard()
 	case ev.Key() == tcell.KeyEnter || r == 'y':
 		if len(dr.dups) > 0 && !dr.saving {
 			dr.saving = true
@@ -748,7 +848,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 				v.msg += " / " + f.wordT
 			}
 		}
-		v.mode, v.dr = normal, nil
+		v.nextCard()
 	case strings.ContainsRune("[]{}", r):
 		dr.span.move(r)
 		dr.saving = false
@@ -769,13 +869,16 @@ func (v *view) drawCard() {
 	if f.wordT != f.wordS {
 		head += " / " + f.wordT
 	}
+	if dr.of > 1 {
+		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
+	}
 	y := v.put(0, 0, maxY, []rune(head), plain(stHead)) + 1
 	ctx := func(label string, rs []rune, ws, we int) {
 		lr := []rune(label + "  ")
 		style := func(i int) tcell.Style {
 			switch i -= len(lr); {
 			case i < 0:
-				return stDim
+				return stHint
 			case i >= ws && i < we:
 				return stWord
 			}
@@ -801,7 +904,7 @@ func (v *view) drawCard() {
 		if i == dr.cur {
 			st = stSel
 		} else if !dr.sel[i] {
-			st = stDim
+			st = stHint
 			// one row each for the rest, so the list stays short
 			text = clip(text, v.w)
 		}
@@ -832,7 +935,11 @@ func (v *view) drawCard() {
 	}
 	help := "[ ] left edge  { } right edge  j k space: definitions" +
 		"  Enter: save  Esc: cancel"
-	st := stDim
+	if dr.of > 1 {
+		help = "[ ] { } context  j k space: definitions" +
+			"  Enter: save  n: skip  Esc: cancel the rest"
+	}
+	st := stHint
 	if dr.saving {
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn

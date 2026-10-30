@@ -5,12 +5,12 @@ LIB := $(wildcard internal/*/*.go) go.mod go.sum
 
 .PHONY: all install clean test apkg
 
-all: bin/gomultizhdict bin/zhread
+all: bin/gomultizhdict bin/gozhread
 
 bin/gomultizhdict: $(wildcard cmd/gomultizhdict/*.go) $(LIB)
 	$(GO) build -o $@ ./cmd/gomultizhdict
 
-bin/zhread: $(wildcard cmd/zhread/*.go) $(LIB)
+bin/gozhread: $(wildcard cmd/zhread/*.go) $(LIB)
 	$(GO) build -o $@ ./cmd/zhread
 
 # anki/zhread.apkg, the note type for Anki, rebuilt after a template change.
@@ -32,7 +32,8 @@ test: all
 install: all
 	install -d $(PREFIX)/bin
 	install -m 755 bin/gomultizhdict $(PREFIX)/bin/gomultizhdict
-	install -m 755 bin/zhread $(PREFIX)/bin/zhread
+	install -m 755 bin/gozhread $(PREFIX)/bin/gozhread
+	install -m 755 zhread $(PREFIX)/bin/zhread
 	install -m 755 multizhdict $(PREFIX)/bin/multizhdict
 	@echo
 	@echo "Set MULTIZHDICT_DICT=$(CURDIR)/dict in your shell profile,"

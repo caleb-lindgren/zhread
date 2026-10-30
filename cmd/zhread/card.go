@@ -232,6 +232,7 @@ type draft struct {
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once
+	n, of  int  // this is card n of the selection's of
 }
 
 // context returns the context's text and the word's offsets in it, with

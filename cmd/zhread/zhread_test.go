@@ -154,6 +154,7 @@ func newTestView(t *testing.T, text string) (*view,
 		t.Fatal(err)
 	}
 	s.SetSize(60, 20)
+	s.SetStyle(stDef)
 	v := &view{s: s, d: d, dict: dict, rec: rec,
 		reqs:    make(chan segReq, 100),
 		convDir: filepath.Join(dir, "opencc"), deck: "test",
@@ -329,5 +330,69 @@ func TestMakeCard(t *testing.T) {
 	keys(v, "⎋")
 	if n := len(v.rec.cards); n != 1 {
 		t.Errorf("%d cards after cancelling, want 1", n)
+	}
+}
+
+func TestSplitCard(t *testing.T) {
+	v, s := newTestView(t, book)
+	// 讨论了企业 is no dictionary's word, so it becomes a card for
+	// each word in it that has a definition: 讨论, 了, 企业.
+	keys(v, "/讨论了企业⏎vllll⏎")
+	if v.mode != card || v.dr.of != 3 {
+		t.Fatalf("mode %d, %d cards:\n%s", v.mode, v.dr.of,
+			strings.Join(screen(s), "\n"))
+	}
+	if !onScreen(s, "New card: 讨论") || !onScreen(s, "(1 of 3)") {
+		t.Errorf("first card:\n%s", strings.Join(screen(s), "\n"))
+	}
+	keys(v, "⏎n") // save 讨论, skip 了
+	if !onScreen(s, "New card: 企业") {
+		t.Errorf("third card:\n%s", strings.Join(screen(s), "\n"))
+	}
+	keys(v, "⏎")
+	if v.mode != normal {
+		t.Errorf("mode %d after the last card", v.mode)
+	}
+	var got []string
+	for _, c := range v.rec.cards {
+		got = append(got, c.simp)
+	}
+	if strings.Join(got, " ") != "讨论 企业" {
+		t.Errorf("saved %v, want 讨论 企业", got)
+	}
+}
+
+func TestPaneFits(t *testing.T) {
+	v, s := newTestView(t, book)
+	// want is the pane's height for what it shows: the rule and the
+	// rows its lines wrap to, at most half the screen.
+	want := func() int {
+		_, lines := v.pane()
+		n := 1
+		for _, l := range lines {
+			n += v.height(0, l.text)
+		}
+		return min(n, v.h/2)
+	}
+	// On the blank line there is no word: the pane is just its rule.
+	keys(v, "j")
+	if v.ph != 1 {
+		t.Errorf("blank line: pane %d rows, want 1", v.ph)
+	}
+	keys(v, "j")
+	wide := v.ph
+	if wide < 2 || wide != want() {
+		t.Errorf("我们: pane %d rows, want %d", v.ph, want())
+	}
+	if v.textH() != v.h-1-wide {
+		t.Errorf("text %d rows with a %d-row pane", v.textH(), wide)
+	}
+	// After the terminal narrows, the pane is measured again.
+	s.SetSize(40, 20)
+	v.rows = nil
+	v.draw()
+	if v.ph <= wide || v.ph != want() {
+		t.Errorf("at 40 columns: pane %d rows, want %d (%d at 60)",
+			v.ph, want(), wide)
 	}
 }
