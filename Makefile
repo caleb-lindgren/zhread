@@ -1,7 +1,7 @@
 GO ?= go
 PREFIX ?= /usr/local
 
-SRC := $(wildcard cmd/gomultizhdict/*.go) go.mod
+SRC := $(wildcard cmd/gomultizhdict/*.go internal/zhdict/*.go) go.mod
 
 .PHONY: all install clean test
 

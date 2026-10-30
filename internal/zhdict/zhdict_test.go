@@ -1,0 +1,476 @@
+package zhdict
+
+import (
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+)
+
+func TestSplitN(t *testing.T) {
+	got := splitN([]byte("a\tb\tc\td\te"), '\t', 4)
+	want := []string{"a", "b", "c", "d\te"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d fields, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if string(got[i]) != want[i] {
+			t.Errorf("field %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+	short := splitN([]byte("a\tb"), '\t', 4)
+	if string(short[1]) != "b" || short[2] != nil || short[3] != nil {
+		t.Errorf("missing fields not nil: %q", short)
+	}
+}
+
+func TestUnquote(t *testing.T) {
+	cases := map[string]string{
+		`plain`:                    "plain",
+		`"class ""A""; top grade"`: `class "A"; top grade`,
+		`"no inner quotes"`:        "no inner quotes",
+		`a "quote" mid-field`:      `a "quote" mid-field`,
+	}
+	for in, want := range cases {
+		if got := unquote([]byte(in)); got != want {
+			t.Errorf("unquote(%s) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCleanPleco(t *testing.T) {
+	const mark = string(sectionMark)
+	in := mark + "如：「甲」。" + mark + mark + "似：乙" + mark
+	want := "如：「甲」。 ｜ 似：乙"
+	if got := cleanPleco([]byte(in)); got != want {
+		t.Errorf("cleanPleco = %q, want %q", got, want)
+	}
+	if got := cleanPleco([]byte("plain\x02def")); got != "plaindef" {
+		t.Errorf("control character not dropped: %q", got)
+	}
+}
+
+func TestHanRuns(t *testing.T) {
+	// A comma joins, a Latin letter and a full stop split, and the
+	// trailing joiner of a run is dropped with it.
+	got := HanRuns("我愛A國，你好。天氣·晴，")
+	want := []string{"我愛", "國，你好", "天氣·晴"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d runs %q, want %d",
+			len(got), got, len(want))
+	}
+	for i := range want {
+		if string(got[i]) != want[i] {
+			t.Errorf("run %d = %q, want %q",
+				i, string(got[i]), want[i])
+		}
+	}
+	if n := len(HanRuns("hello, world")); n != 0 {
+		t.Errorf("got %d runs for Latin input, want 0", n)
+	}
+}
+
+func TestWidth(t *testing.T) {
+	cases := map[string]int{
+		"abc": 3,
+		"中文":  4,
+		"｜":   2,
+		"dào": 3,
+		"中a文": 5,
+	}
+	for in, want := range cases {
+		if got := Width(in); got != want {
+			t.Errorf("width(%q) = %d, want %d", in, got, want)
+		}
+	}
+	if got := Pad("中", 6); got != "中    " {
+		t.Errorf("pad(中, 6) = %q", got)
+	}
+}
+
+func TestPickBidi(t *testing.T) {
+	fewer := []string{"研究", "生命", "起源"}
+	more := []string{"研究生", "命", "起源"}
+	if got := pickBidi(more, fewer); !reflect.DeepEqual(got, fewer) {
+		t.Errorf("fewer words not preferred: %q", got)
+	}
+	// Equal word counts, so the single-character count decides.
+	a := []string{"甲乙", "丙丁"}
+	b := []string{"甲", "乙丙丁"}
+	if got := pickBidi(a, b); !reflect.DeepEqual(got, a) {
+		t.Errorf("fewer single-character words not preferred: %q", got)
+	}
+}
+
+// newTestProbe builds a probe over the real dictionaries, skipping the test
+// where they are not present.
+// testDict opens the dictionaries once for every test that needs them.
+func testDict(t *testing.T) *Dict {
+	t.Helper()
+	testDictOnce.Do(func() {
+		var dir string
+		if dir, testDictErr = FindDir(""); testDictErr == nil {
+			testDictVal, testDictErr = Open(dir)
+		}
+	})
+	if testDictErr != nil {
+		t.Skipf("dictionaries unavailable: %v", testDictErr)
+	}
+	return testDictVal
+}
+
+var (
+	testDictOnce sync.Once
+	testDictVal  *Dict
+	testDictErr  error
+)
+
+func newTestProbe(t *testing.T, input string) *Probe {
+	t.Helper()
+	p := NewProbe(HanRuns(input))
+	p.Load(testDict(t))
+	return p
+}
+
+// newTestFreqProbe is newTestProbe with the frequency table loaded, which
+// -seg viterbi needs.
+func newTestFreqProbe(t *testing.T, input string) *Probe {
+	t.Helper()
+	p := newTestProbe(t, input)
+	if err := p.LoadFreq(testDict(t)); err != nil {
+		t.Skipf("frequency table unavailable: %v", err)
+	}
+	return p
+}
+
+func TestSegment(t *testing.T) {
+	cases := []struct {
+		in   string
+		mode string
+		want string
+	}{
+		{"研究生命起源", SegFMM, "研究生/命/起源"},
+		{"研究生命起源", SegViterbi, "研究/生命/起源"},
+		{"研究生命起源", SegBMM, "研究/生命/起源"},
+		{"研究生命起源", SegBidi, "研究/生命/起源"},
+		{"我愛北京天安門", SegBidi, "我/愛/北京/天安門"},
+		// Traditional and simplified input segment alike.
+		{"我爱北京天安门", SegBidi, "我/爱/北京/天安门"},
+		// Words carried only by the additions files.
+		{"露鋒方筆館閣體", SegBidi, "露鋒/方筆/館閣體"},
+		{"人臉識別綜合國力", SegBidi, "人臉識別/綜合國力"},
+		// Punctuation delimits runs and is dropped.
+		{"你好，世界！", SegBidi, "你好/世界"},
+	}
+	for _, c := range cases {
+		p := newTestProbe(t, c.in)
+		if c.mode == SegViterbi {
+			p = newTestFreqProbe(t, c.in)
+		}
+		got := strings.Join(p.Segment(HanRuns(c.in), c.mode), "/")
+		if got != c.want {
+			t.Errorf("segment(%q, %s) = %q, want %q",
+				c.in, c.mode, got, c.want)
+		}
+	}
+}
+
+func TestRows(t *testing.T) {
+	// 𪚥 is in none of the four sources, so it exercises the notice.
+	p := newTestProbe(t, "中文汪森𪚥")
+
+	// Both sides have 中文, and the Chinese line comes first. The two
+	// definitions distinguish the lines; the other three fields agree.
+	g := p.Rows("中文")
+	if g.Notice != "" {
+		t.Fatalf("notice for a word the dictionaries have: %q",
+			g.Notice)
+	}
+	if len(g.Rows) != 2 {
+		t.Fatalf("got %d rows for 中文, want 2", len(g.Rows))
+	}
+	for _, r := range g.Rows {
+		for i, f := range r {
+			if f == "" {
+				t.Errorf("row %q: field %d empty", r, i)
+			}
+		}
+	}
+	if !strings.HasPrefix(g.Rows[0][3], "特指漢族的語言及文字。") {
+		t.Errorf("first line is not the Chinese definition: %q",
+			g.Rows[0][3])
+	}
+	if g.Rows[1][3] != "Chinese language" {
+		t.Errorf("second line is not the English definition: %q",
+			g.Rows[1][3])
+	}
+
+	// 汪森 is in ccdict_additions.tsv and in no English source. The
+	// missing English definition adds no line at all.
+	g = p.Rows("汪森")
+	if g.Notice != "" {
+		t.Fatalf("notice for a word one dictionary has: %q", g.Notice)
+	}
+	if len(g.Rows) == 0 {
+		t.Fatal("no rows for 汪森")
+	}
+	for _, r := range g.Rows {
+		if r[0] != "汪森" || r[NFields-1] == "" {
+			t.Errorf("row = %q, want a real 汪森 entry", r)
+		}
+	}
+
+	// No source has 𪚥, so the group is the notice and nothing else.
+	g = p.Rows("𪚥")
+	if g.Rows != nil {
+		t.Errorf("got %d rows for a word no source has: %q",
+			len(g.Rows), g.Rows)
+	}
+	if want := noticeFor("𪚥"); g.Notice != want {
+		t.Errorf("notice = %q, want %q", g.Notice, want)
+	}
+}
+
+// TestRowOrder pins the ordering on synthetic entries, so it does not move
+// when a dictionary does. The source indices are real ones, since that is
+// what rows reads the language from, and the TSV layout is what
+// entry.fields parses.
+func TestRowOrder(t *testing.T) {
+	const srcZh, srcEn = 1, 3
+	if sources[srcZh].lang != LangZh || sources[srcZh].kind != kindTSV {
+		t.Fatalf("source %d is not a Chinese TSV", srcZh)
+	}
+	if sources[srcEn].lang != LangEn || sources[srcEn].kind != kindTSV {
+		t.Fatalf("source %d is not an English TSV", srcEn)
+	}
+	mk := func(src int32, def string) entry {
+		return entry{line: []byte("中\t中\tzhōng\t" + def), src: src}
+	}
+	// One English definition is wider than one of the Chinese ones, so a
+	// single sort over the whole group would interleave the languages.
+	p := &Probe{hits: map[string][]entry{"中": {
+		mk(srcZh, "短"),
+		mk(srcEn, "a long English definition"),
+		mk(srcZh, "一個比較長的中文解釋"),
+		mk(srcEn, "short"),
+	}}}
+	var got []string
+	for _, r := range p.Rows("中").Rows {
+		got = append(got, r[NFields-1])
+	}
+	want := []string{
+		"一個比較長的中文解釋",
+		"短",
+		"a long English definition",
+		"short",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("rows = %q, want %q", got, want)
+	}
+}
+
+// TestRenderNotice checks that a notice starts at column 0 and does not
+// widen the columns the rows are padded into.
+// TestLongHeadword covers the path in Probe.offer for headwords longer than
+// maxCandRunes, which are never enumerated as candidates.
+func TestLongHeadword(t *testing.T) {
+	const long = "無一事而不學，無一時而不學，無一處而不得"
+	runs := HanRuns(long)
+	p := NewProbe(runs)
+	p.Load(testDict(t))
+	// The headword is longer than maxCandRunes, so it was never
+	// enumerated as a candidate and can only be reached through the
+	// substring test in Probe.longMatch.
+	if len(p.Lookup(long)) == 0 {
+		t.Errorf("long headword %q not matched", long)
+	}
+}
+
+// TestViterbi covers what the frequency model buys over maximum matching.
+// The first case is the one it was added for: both maximum matches give two
+// words with one single character among them, so bidi's criteria both tie
+// and it falls through to the backward result, which is the wrong one.
+func TestViterbi(t *testing.T) {
+	cases := []struct{ in, bidi, viterbi string }{
+		// 流感 is a real but uncommon word; 交流 is a common one.
+		{"交流感", "交/流感", "交流/感"},
+		// 要是 and 竟是 are words, so the backward match swallows
+		// the character that belongs to the word before them.
+		{"這主要是我的問題", "這/主/要是/我/的/問題",
+			"這/主要/是/我/的/問題"},
+		{"他究竟是誰", "他/究/竟是/誰", "他/究竟/是/誰"},
+		// The same three-character shape where the backward result
+		// is the right one, so the counts have to agree with it
+		// rather than reverse every such split.
+		{"他來自己的家", "他/來/自己/的/家", "他/來/自己/的/家"},
+	}
+	for _, c := range cases {
+		p := newTestFreqProbe(t, c.in)
+		runs := HanRuns(c.in)
+		got := strings.Join(p.Segment(runs, SegBidi), "/")
+		if got != c.bidi {
+			t.Errorf("bidi(%q) = %q, want %q", c.in, got, c.bidi)
+		}
+		got = strings.Join(p.Segment(runs, SegViterbi), "/")
+		if got != c.viterbi {
+			t.Errorf("viterbi(%q) = %q, want %q",
+				c.in, got, c.viterbi)
+		}
+	}
+}
+
+// TestViterbiUnknownWords checks the unknownCount floor from both sides. A
+// word only the additions files carry has no count, and has to survive
+// anyway; a run no dictionary knows at all has to come apart into
+// characters rather than be taken as one long word.
+func TestViterbiUnknownWords(t *testing.T) {
+	p := newTestFreqProbe(t, "露鋒方筆館閣體")
+	got := strings.Join(p.Segment(HanRuns("露鋒方筆館閣體"), SegViterbi), "/")
+	if want := "露鋒/方筆/館閣體"; got != want {
+		t.Errorf("viterbi = %q, want %q", got, want)
+	}
+	for _, w := range []string{"露鋒", "方筆", "館閣體"} {
+		if p.freq[w] != 0 {
+			t.Errorf("%q has count %d; the case no longer "+
+				"exercises the unknownCount floor",
+				w, p.freq[w])
+		}
+	}
+}
+
+// TestViterbiJoiner checks that a joiner no word covers is dropped rather
+// than emitted as a word of its own, as it is by fmm and bmm. Scoring it
+// like a word would also bias the model against splitting there.
+func TestViterbiJoiner(t *testing.T) {
+	p := newTestFreqProbe(t, "國，你好")
+	got := strings.Join(p.Segment(HanRuns("國，你好"), SegViterbi), "/")
+	if want := "國/你好"; got != want {
+		t.Errorf("viterbi = %q, want %q", got, want)
+	}
+	// A joiner inside a headword is kept, since a word covers it.
+	p = newTestFreqProbe(t, "卡爾·馬克思")
+	got = strings.Join(p.Segment(HanRuns("卡爾·馬克思"), SegViterbi), "/")
+	if want := "卡爾·馬克思"; got != want {
+		t.Errorf("viterbi = %q, want %q", got, want)
+	}
+}
+
+// TestNoMatchTerminates covers maxTry's floor of one character. 𪚥 is in
+// none of the sources, so maxRunes stays 0; without the floor every
+// segmenter takes a zero-length word and loops forever.
+func TestNoMatchTerminates(t *testing.T) {
+	p := newTestProbe(t, "𪚥")
+	if p.maxRunes != 0 {
+		t.Fatalf("maxRunes = %d; 𪚥 now matches something and the "+
+			"test no longer covers the empty-match case",
+			p.maxRunes)
+	}
+	for _, mode := range []string{SegFMM, SegBMM, SegBidi} {
+		got := p.Segment(HanRuns("𪚥"), mode)
+		if len(got) != 1 || got[0] != "𪚥" {
+			t.Errorf("segment(𪚥, %s) = %q, want [𪚥]",
+				mode, got)
+		}
+	}
+}
+
+func TestFreqLine(t *testing.T) {
+	cases := []struct {
+		in    string
+		word  string
+		count int64
+		ok    bool
+	}{
+		{"交流 5027 n", "交流", 5027, true},
+		{"一 217830", "一", 217830, true}, // no POS tag
+		{"", "", 0, false},
+		{"交流", "", 0, false},     // no count
+		{"交流 x n", "", 0, false}, // count not a number
+	}
+	for _, c := range cases {
+		w, n, ok := freqLine([]byte(c.in))
+		if w != c.word || n != c.count || ok != c.ok {
+			t.Errorf("freqLine(%q) = %q, %d, %v; want %q, %d, %v",
+				c.in, w, n, ok, c.word, c.count, c.ok)
+		}
+	}
+}
+
+// TestFreqLookup checks the traditional-to-simplified path: jieba's table is
+// keyed on simplified headwords, and a traditional candidate finds its count
+// through the simplified headword of an entry matched for it, with no
+// conversion table involved.
+func TestFreqLookup(t *testing.T) {
+	p := newTestFreqProbe(t, "交流感學習")
+	// 學習 is traditional and appears in the table only as 学习.
+	if p.freq["學習"] == 0 {
+		t.Error("no count for 學習 through its simplified headword")
+	}
+	if p.freq["交流"] <= p.freq["流感"] {
+		t.Errorf("交流 (%d) is not commoner than 流感 (%d); the "+
+			"交流感 case no longer turns on the counts",
+			p.freq["交流"], p.freq["流感"])
+	}
+	if p.freqTotal <= 0 {
+		t.Errorf("freqTotal = %d, want the sum of the table",
+			p.freqTotal)
+	}
+}
+
+func TestReadings(t *testing.T) {
+	p := newTestProbe(t, "企業和模認識垃圾")
+	if err := p.LoadPron(testDict(t)); err != nil {
+		t.Skipf("reading table unavailable: %v", err)
+	}
+	// readings of word's lines, as printed, keyed by definition prefix
+	read := func(word, def string) string {
+		t.Helper()
+		for _, r := range p.Rows(word).Rows {
+			if strings.HasPrefix(r[3], def) {
+				return r[2]
+			}
+		}
+		t.Fatalf("no line of %s starts %q", word, def)
+		return ""
+	}
+	cases := []struct{ word, def, cn, tw string }{
+		// Taiwan reading in MoEDict, Mainland in CC-CEDICT.
+		{"企業", "從事生產", "qǐ yè (TW qì yè)", "qì yè (CN qǐ yè)"},
+		{"企業", "company", "qǐ yè (TW qì yè)", "qì yè (CN qǐ yè)"},
+		// MoEDict already gives the Mainland reading.
+		{"認識", "① 曾經相識", "rèn shi (TW rèn shì)",
+			"rèn shì (CN rèn shi)"},
+		// hàn is Taiwan's alone; hé "sum" is hé on both sides, and
+		// the surname is not the hé of "and".
+		{"和", "<1>連之語音", "hé (TW hàn)", "hàn (CN hé)"},
+		{"和", "◆ <名>", "hé", "hé"},
+		{"和", "surname", "Hé", "Hé"},
+		// mó is a Mainland reading too, so the row mó → mú, which is
+		// about another sense, is not applied to it.
+		{"模", "◆ <名>  ｜ ① 範式", "mó", "mó"},
+	}
+	for _, pref := range []string{PronCN, PronTW} {
+		p.PronPref = pref
+		for _, c := range cases {
+			want := c.cn
+			if pref == PronTW {
+				want = c.tw
+			}
+			if got := read(c.word, c.def); got != want {
+				t.Errorf("-pron %s: %s %q: got %q, want %q",
+					pref, c.word, c.def, got, want)
+			}
+		}
+	}
+
+	// CC-CEDICT's own note moves from the definition to the reading.
+	p.PronPref = PronCN
+	if got := read("垃圾", "trash"); got != "lā jī (TW lè sè)" {
+		t.Errorf("垃圾: got reading %q", got)
+	}
+	for _, r := range p.Rows("垃圾").Rows {
+		if strings.Contains(r[3], "Taiwan pr.") {
+			t.Errorf("note left in definition: %q", r[3])
+		}
+	}
+}
