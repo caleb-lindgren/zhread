@@ -211,25 +211,29 @@ fields are left empty and only the simplified cards are made.
 ### The card file
 
 Cards are appended to cards.tsv in the repository root (`-cards` to
-change), which is the record of what has been carded and what the Anki
-package is made from. Commit it: it is how the record survives.
+change). It is the record of what has been carded and the file Anki imports.
+Commit it: it is how the record survives.
 
 ### Into Anki
 
-    make apkg
+Once, import anki/zhread.apkg (File > Import, or open it). It creates the
+zhread note type: the eleven fields, the four card types and the styling
+from anki/. It holds one placeholder note, which has no cards and so never
+comes up in study; Anki imports a note type only along with a note that
+uses it, so a package without one would create nothing.
 
-builds cards.apkg from cards.tsv (the first run makes a Python venv in .venv
-with genanki). Import it with File > Import, or by opening it. The package
-carries the zhread note type, its four card types and their styling from
-anki/, so there is nothing to set up in Anki first.
+After that, import cards.tsv with File > Import whenever there are new
+cards. Its first lines are Anki's import headers, naming the note type,
+the deck (`-deck`) and the GUID column, so the import dialog needs no
+settings. The GUID is a hash of the word and its context, so importing the
+whole file again updates the notes Anki already has and adds the new ones,
+without duplicates and keeping review history. An update overwrites the
+note's fields, so fix a card in cards.tsv rather than in Anki, or the next
+import undoes the fix.
 
-Import the whole package again after making more cards. Every note keeps
-the GUID zhread gave it, a hash of the word and its context, and the note
-type and deck keep fixed IDs, so Anki updates the notes it already has and
-adds the new ones rather than duplicating anything; review history is kept.
-An update overwrites the note's fields, so fix a card in cards.tsv rather
-than in Anki, or the next import undoes the fix. Template changes in anki/
-reach Anki the same way.
+After changing a template in anki/, run `make apkg` (the first run makes a
+Python venv in .venv with genanki) and import anki/zhread.apkg again: the
+note type keeps a fixed ID, so Anki updates it in place.
 
 The recognition card shows the context with the word in bold, and asks for
 the reading and meaning. The cloze card shows the context with the word
@@ -237,7 +241,3 @@ blanked and the definitions below, and asks for the word; the definitions
 have the word blanked too, since MoE's examples often quote it. English
 definitions sit behind a fold on both. The 繁 cards are made only for notes
 with a Traditional field, that is, where the two scripts differ.
-
-cards.tsv also starts with Anki's text-import headers (note type, deck from
-`-deck`, GUID column), so it can be imported directly once the note type
-exists, but the package is the simpler route.

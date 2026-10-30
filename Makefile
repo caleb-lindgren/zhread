@@ -13,7 +13,8 @@ bin/gomultizhdict: $(wildcard cmd/gomultizhdict/*.go) $(LIB)
 bin/zhread: $(wildcard cmd/zhread/*.go) $(LIB)
 	$(GO) build -o $@ ./cmd/zhread
 
-# cards.apkg, for importing into Anki, from the cards zhread has made.
+# anki/zhread.apkg, the note type for Anki, rebuilt after a template change.
+# It is committed, so this is needed only when anki/ changes.
 apkg: .venv/.installed
 	.venv/bin/python scripts/make_apkg.py
 
