@@ -201,13 +201,13 @@ func (v *view) draw() {
 
 func (v *view) drawRow(y int, r drow) {
 	line := v.d.lines[r.line]
-	carded := map[int]bool{}
+	hl := map[int]bool{}
 	if v.d.toks[r.line] != nil {
 		for _, t := range v.d.toks[r.line] {
 			if t.han && t.end > r.start && t.start < r.end &&
 				v.rec.words[string(line[t.start:t.end])] {
 				for c := t.start; c < t.end; c++ {
-					carded[c] = true
+					hl[c] = true
 				}
 			}
 		}
@@ -215,7 +215,7 @@ func (v *view) drawRow(y int, r drow) {
 	x := 0
 	for c := r.start; c < r.end; c++ {
 		st := stDef
-		if carded[c] {
+		if hl[c] {
 			st = stCarded
 		}
 		if v.selected(r.line, c) {

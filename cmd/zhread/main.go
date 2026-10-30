@@ -34,15 +34,12 @@ options:
 type convs struct{ s2t, t2s *opencc.Converter }
 
 func main() {
-	var o struct{ dict, cards, known, pron, deck string }
+	var o struct{ dict, cards, pron, deck string }
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default: found as\n"+
 			"multizhdict finds it)")
 	flag.StringVar(&o.cards, "cards", "",
 		"card file to append to (default: cards.tsv beside dict/)")
-	flag.StringVar(&o.known, "known", "",
-		"words carded before, for the duplicate check\n"+
-			"(default: known.tsv beside dict/)")
 	flag.StringVar(&o.pron, "pron", zhdict.PronCN,
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
 	flag.StringVar(&o.deck, "deck", "Chinese reading",
@@ -68,9 +65,6 @@ func main() {
 	if o.cards == "" {
 		o.cards = filepath.Join(repo, "cards.tsv")
 	}
-	if o.known == "" {
-		o.known = filepath.Join(repo, "known.tsv")
-	}
 	dict, err := zhdict.Open(dir)
 	if err != nil {
 		fail(err)
@@ -79,7 +73,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	rec, err := loadRecord(o.cards, o.known)
+	rec, err := loadRecord(o.cards)
 	if err != nil {
 		fail(err)
 	}

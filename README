@@ -212,9 +212,7 @@ fields are left empty and only the simplified cards are made.
 
 Cards are appended to cards.tsv in the repository root (`-cards` to
 change), which is both the Anki import file and the record of what has been
-carded. Commit it: it is how the record survives. The duplicate check also
-reads known.tsv, the words of the old Anki deck and of the lists in
-archive/, made by `scripts/make_known.py` (see its docstring).
+carded. Commit it: it is how the record survives.
 
 The file starts with Anki's import headers: the note type, the deck
 (`-deck`), and a GUID column. The GUID is a hash of the word and its

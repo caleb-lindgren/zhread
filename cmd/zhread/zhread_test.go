@@ -84,9 +84,9 @@ func TestSpanMove(t *testing.T) {
 
 func TestDups(t *testing.T) {
 	rec := &record{words: map[string]bool{}}
-	rec.add(known{simp: "交流", trad: "交流"})
-	rec.add(known{simp: "头发", trad: "頭髮"})
-	rec.add(known{trad: "企業"})
+	rec.add(carded{simp: "交流", trad: "交流"})
+	rec.add(carded{simp: "头发", trad: "頭髮"})
+	rec.add(carded{trad: "企業"})
 	cases := map[string]int{
 		"交流":  1, // the same word
 		"交流感": 1, // contains a carded word
@@ -117,7 +117,7 @@ func TestMark(t *testing.T) {
 }
 
 // newTestView opens text in a reader on a simulated screen, with the whole
-// file segmented, cards going to a temporary file, and no known words.
+// file segmented, and cards going to a temporary file.
 func newTestView(t *testing.T, text string) (*view,
 	tcell.SimulationScreen) {
 	t.Helper()
@@ -145,8 +145,7 @@ func newTestView(t *testing.T, text string) (*view,
 		rq.text = append(rq.text, line)
 	}
 	d.apply(segment(dict, zhdict.PronCN, rq))
-	rec, err := loadRecord(filepath.Join(tmp, "cards.tsv"),
-		filepath.Join(tmp, "known.tsv"))
+	rec, err := loadRecord(filepath.Join(tmp, "cards.tsv"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -133,15 +133,14 @@ func (s *span) move(key rune) {
 	}
 }
 
-// record is everything already carded: the cards this program wrote and
-// the words of the older decks and lists in known.tsv.
+// record is everything already carded: the cards in cards.tsv.
 type record struct {
 	path  string // cards.tsv
-	cards []known
+	cards []carded
 	words map[string]bool // both forms of every word, for highlighting
 }
 
-type known struct {
+type carded struct {
 	simp, trad, py, def, ctx, src string
 }
 
@@ -150,26 +149,21 @@ var fields = []string{"Simplified", "Traditional", "Pinyin", "DefZh",
 	"DefEn", "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source",
 	"Added"}
 
-func loadRecord(cardsPath, knownPath string) (*record, error) {
+func loadRecord(cardsPath string) (*record, error) {
 	rec := &record{path: cardsPath, words: map[string]bool{}}
 	err := readTSV(cardsPath, func(f []string) {
 		if len(f) >= 12 {
-			rec.add(known{f[1], f[2], f[3], f[4], strip(f[6]),
+			rec.add(carded{f[1], f[2], f[3], f[4], strip(f[6]),
 				f[11]})
 		}
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = readTSV(knownPath, func(f []string) {
-		if len(f) >= 5 && f[0] != "simp" {
-			rec.add(known{f[0], f[1], f[2], f[3], "", f[4]})
-		}
-	})
-	return rec, err
+	return rec, nil
 }
 
-func (rec *record) add(k known) {
+func (rec *record) add(k carded) {
 	rec.cards = append(rec.cards, k)
 	for _, w := range []string{k.simp, k.trad} {
 		if w != "" {
@@ -206,8 +200,8 @@ func readTSV(path string, f func([]string)) error {
 
 // dups are the cards whose word equals, contains, or is contained in
 // either form of the new one.
-func (rec *record) dups(forms ...string) []known {
-	var out []known
+func (rec *record) dups(forms ...string) []carded {
+	var out []carded
 	for _, k := range rec.cards {
 	match:
 		for _, f := range forms {
@@ -234,7 +228,7 @@ type draft struct {
 	defs   zhdict.Group
 	sel    []bool // which of defs.Rows go on the card
 	cur    int    // the definition under the cursor
-	dups   []known
+	dups   []carded
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once
@@ -386,7 +380,7 @@ func (rec *record) save(note []string, deck string) error {
 	if err := w.Error(); err != nil {
 		return err
 	}
-	rec.add(known{note[1], note[2], note[3], note[4], strip(note[6]),
+	rec.add(carded{note[1], note[2], note[3], note[4], strip(note[6]),
 		note[10]})
 	return nil
 }
