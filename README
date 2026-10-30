@@ -211,37 +211,33 @@ fields are left empty and only the simplified cards are made.
 ### The card file
 
 Cards are appended to cards.tsv in the repository root (`-cards` to
-change), which is both the Anki import file and the record of what has been
-carded. Commit it: it is how the record survives.
+change), which is the record of what has been carded and what the Anki
+package is made from. Commit it: it is how the record survives.
 
-The file starts with Anki's import headers: the note type, the deck
-(`-deck`), and a GUID column. The GUID is a hash of the word and its
-context, so importing the whole file again updates the notes already in
-Anki rather than adding them twice.
+### Into Anki
 
-### Setting up Anki
+    make apkg
 
-Once, before the first import, make the note type the file names:
+builds cards.apkg from cards.tsv (the first run makes a Python venv in .venv
+with genanki). Import it with File > Import, or by opening it. The package
+carries the zhread note type, its four card types and their styling from
+anki/, so there is nothing to set up in Anki first.
 
-1. Tools > Manage Note Types > Add > "Add: Basic", named `zhread`.
-2. Fields: rename and add until they are, in this order: Simplified,
-   Traditional, Pinyin, DefZh, DefEn, Context, Cloze, ContextTrad,
-   ClozeTrad, Source, Added.
-3. Cards: make four card types with the templates in anki/, and paste
-   anki/style.css as the styling:
+Import the whole package again after making more cards. Every note keeps
+the GUID zhread gave it, a hash of the word and its context, and the note
+type and deck keep fixed IDs, so Anki updates the notes it already has and
+adds the new ones rather than duplicating anything; review history is kept.
+An update overwrites the note's fields, so fix a card in cards.tsv rather
+than in Anki, or the next import undoes the fix. Template changes in anki/
+reach Anki the same way.
 
-| card type        | front                       | back                       |
-| ---------------- | --------------------------- | -------------------------- |
-| Recognition (简) | recognition_simp_front.html | recognition_simp_back.html |
-| Cloze (简)       | cloze_simp_front.html       | cloze_simp_back.html       |
-| Recognition (繁) | recognition_trad_front.html | recognition_trad_back.html |
-| Cloze (繁)       | cloze_trad_front.html       | cloze_trad_back.html       |
+The recognition card shows the context with the word in bold, and asks for
+the reading and meaning. The cloze card shows the context with the word
+blanked and the definitions below, and asks for the word; the definitions
+have the word blanked too, since MoE's examples often quote it. English
+definitions sit behind a fold on both. The 繁 cards are made only for notes
+with a Traditional field, that is, where the two scripts differ.
 
-Then File > Import cards.tsv, with existing notes set to update. The
-recognition card shows the context with the word in bold, and asks for the
-reading and meaning. The cloze card shows the context with the word blanked and
-the definitions below, and asks for the word; the definitions have the word
-blanked too, since MoE's examples often quote it. English definitions sit
-behind a fold on both. The 繁 cards are generated only for notes with a
-Traditional field, that is, where the two scripts differ.
-
+cards.tsv also starts with Anki's text-import headers (note type, deck from
+`-deck`, GUID column), so it can be imported directly once the note type
+exists, but the package is the simpler route.

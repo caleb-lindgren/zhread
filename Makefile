@@ -3,7 +3,7 @@ PREFIX ?= /usr/local
 
 LIB := $(wildcard internal/*/*.go) go.mod go.sum
 
-.PHONY: all install clean test
+.PHONY: all install clean test apkg
 
 all: bin/gomultizhdict bin/zhread
 
@@ -12,6 +12,15 @@ bin/gomultizhdict: $(wildcard cmd/gomultizhdict/*.go) $(LIB)
 
 bin/zhread: $(wildcard cmd/zhread/*.go) $(LIB)
 	$(GO) build -o $@ ./cmd/zhread
+
+# cards.apkg, for importing into Anki, from the cards zhread has made.
+apkg: .venv/.installed
+	.venv/bin/python scripts/make_apkg.py
+
+.venv/.installed: requirements.txt
+	python3 -m venv .venv
+	.venv/bin/pip install -q -r requirements.txt
+	touch $@
 
 test: all
 	$(GO) test ./...
