@@ -61,6 +61,36 @@ rather than in the columns. It is the only line that repeats the input,
 which is what makes such a word identifiable at all: with no entry it fills
 no column.
 
+### Taiwan and Mainland readings
+
+MoEDict gives Taiwan readings and CC-CEDICT Mainland ones. Where the two
+differ, the Mainland reading is printed first and the Taiwan one noted
+after it, on every line for the word whichever dictionary it came from:
+
+    企業  企业  qǐ yè (TW qì yè)  從事生產、運輸、貿易等經濟活動…
+    企業  企业  qǐ yè (TW qì yè)  company; firm; enterprise; …
+
+`-pron tw` prints the Taiwan reading first instead: `qì yè (CN qǐ yè)`.
+
+The differences come from the cross-strait dictionary (兩岸詞典), which
+gives both readings for every entry where they differ; dict/csld_pron.tsv
+holds the 6,440 of its rows that differ in pronunciation rather than only
+in notation (see dict/README). A reading is looked up in the column for the
+side its dictionary speaks for, and in the other column too for MoEDict,
+which sometimes already gives the Mainland reading (認識 rèn shi).
+CC-CEDICT's own "Taiwan pr. [...]" note, when it ends a definition, moves
+into the reading column; one inside parentheses applies to a single sense
+and stays where it is.
+
+The table's rows are per sense but do not say which sense, so a row is not
+applied where it could belong to another entry. A Taiwan reading that
+CC-CEDICT also gives the word is left alone: MoEDict's 模 mó "model" is
+mó on the Mainland too, and the table's 模 mó → mú is about 模 "mould".
+Likewise a Mainland reading is not matched when the dictionary has the
+row's other reading as an entry of its own: 和 hé "sum" is not the 和 hàn
+"and" that the Mainland reads hé. Such entries, and any word the table
+does not have, print the reading their dictionary gives, unmarked.
+
 ### Segmentation
 
 | -seg    | segmentation                                                     |
