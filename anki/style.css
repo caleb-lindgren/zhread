@@ -1,0 +1,17 @@
+.card {
+  font-family: "Noto Sans CJK TC", "PingFang TC", sans-serif;
+  font-size: 20px;
+  line-height: 1.6;
+  text-align: left;
+  max-width: 40em;
+  margin: 0 auto;
+}
+.ctx { font-size: 28px; margin: 0.5em 0; }
+.ctx b { color: #c0392b; }
+.cloze { color: #2e6fd8; font-weight: bold; }
+.word { font-size: 32px; }
+.py { color: #555; }
+.def { font-size: 18px; }
+.src { color: #999; font-size: 12px; margin-top: 1em; }
+details summary { color: #2e6fd8; cursor: pointer; font-size: 16px; }
+.nightMode .py { color: #aaa; }

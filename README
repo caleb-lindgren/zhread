@@ -19,11 +19,13 @@ both headword forms of every entry are matched.
 
 ### Building
 
-    make                 # builds bin/gomultizhdict
+    make                 # builds bin/gomultizhdict and bin/zhread
     make test
     make install         # PREFIX=/usr/local
 
-Go 1.21 or later and nothing outside its standard library.
+Go 1.24 or later. multizhdict uses nothing outside the standard library;
+zhread uses tcell for the terminal, which `make` fetches through the Go
+module proxy on the first build.
 
 The binary finds the dictionaries by looking for a `dict` directory at or
 above its own location, and then at or above the working directory. An
@@ -147,3 +149,101 @@ them.
 
 `add_words_ccdict.py` builds Anki rows for a list of words, prompting for
 anything the dictionaries lack. `scripts/` holds one-off column fixes.
+
+## zhread
+
+A reader for Chinese text files that makes Anki cards of the words you
+select, each with the sentence it came from:
+
+    zhread book.txt
+
+The words of the text come from the same segmenter as multizhdict, run in
+the background a screenful at a time, and the definitions of the word under
+the cursor (or of the selection) are shown below the text, Chinese only
+until `e` adds the English. Readings are Mainland first, as in
+multizhdict; `-pron tw` reverses that. Words already carded are coloured.
+
+| keys            | action                                         |
+| --------------- | ---------------------------------------------- |
+| `h j k l`       | character left, line down, line up, right      |
+| `w b`           | next word, previous word                       |
+| `0 $`, `g0 g$`  | start, end of the line; of the screen row      |
+| `gj gk`, arrows | screen row down, up                            |
+| `gg G`          | first line, last line (or line N with a count) |
+| `^D ^U ^F ^B`   | half page down, up; page down, up              |
+| `/ ?`, `n N`    | search forward, back (a Go regexp); repeat     |
+| `* #`           | search for the word under the cursor           |
+| `v V`, Enter    | select by character, by line; make a card      |
+| `m`, `'`        | bookmark this line, go to the bookmark         |
+| `e`             | show or hide English definitions               |
+| `q`             | quit                                           |
+
+Counts work as in vi (`5j`, `3w`). The bookmark is one per file: setting it
+replaces the old one, and opening the file goes to it. Bookmarks are kept
+in `$XDG_STATE_HOME/zhread/bookmarks` (`~/.local/state` by default), with
+the start of the marked line, so the mark finds its line again after the
+file is edited above it.
+
+### Making a card
+
+Select the word with `v` and press Enter. The preview shows:
+
+- **The context**, in both scripts. It starts as the sentence holding the
+  word: the text between sentence-ending marks (。！？…), with any closing
+  quotes or brackets after them. A sentence under 12 characters (「好。」)
+  gets the sentence before it, or after it at the start of a paragraph; one
+  over 60 is cut to the clauses nearest the word, at ，；：、. `[` and `]`
+  move the left edge a clause left or right, `{` and `}` the right edge.
+  Lines not separated by a blank line are one paragraph, so a sentence
+  hard-wrapped across lines is found whole.
+- **The definitions**, all of them, Chinese first. `j`/`k` move and Space
+  ticks the ones that fit the context; the first Chinese and first English
+  are ticked to start with. The reading comes from the first ticked one.
+- **Cards already made** for the same word, or for a word containing it or
+  contained in it, in either script, with their context. When there are
+  any, Enter asks again before saving.
+
+Enter saves, Esc cancels. The other script's context comes from OpenCC's
+s2tw or tw2s, chosen by which changes the paragraph more (see dict/README
+for why OpenCC). When the word is the same in both scripts, the traditional
+fields are left empty and only the simplified cards are made.
+
+### The card file
+
+Cards are appended to cards.tsv in the repository root (`-cards` to
+change), which is both the Anki import file and the record of what has been
+carded. Commit it: it is how the record survives. The duplicate check also
+reads known.tsv, the words of the old Anki deck and of the lists in
+archive/, made by `scripts/make_known.py` (see its docstring).
+
+The file starts with Anki's import headers: the note type, the deck
+(`-deck`), and a GUID column. The GUID is a hash of the word and its
+context, so importing the whole file again updates the notes already in
+Anki rather than adding them twice.
+
+### Setting up Anki
+
+Once, before the first import, make the note type the file names:
+
+1. Tools > Manage Note Types > Add > "Add: Basic", named `zhread`.
+2. Fields: rename and add until they are, in this order: Simplified,
+   Traditional, Pinyin, DefZh, DefEn, Context, Cloze, ContextTrad,
+   ClozeTrad, Source, Added.
+3. Cards: make four card types with the templates in anki/, and paste
+   anki/style.css as the styling:
+
+| card type        | front                       | back                       |
+| ---------------- | --------------------------- | -------------------------- |
+| Recognition (简) | recognition_simp_front.html | recognition_simp_back.html |
+| Cloze (简)       | cloze_simp_front.html       | cloze_simp_back.html       |
+| Recognition (繁) | recognition_trad_front.html | recognition_trad_back.html |
+| Cloze (繁)       | cloze_trad_front.html       | cloze_trad_back.html       |
+
+Then File > Import cards.tsv, with existing notes set to update. The
+recognition card shows the context with the word in bold, and asks for the
+reading and meaning. The cloze card shows the context with the word blanked and
+the definitions below, and asks for the word; the definitions have the word
+blanked too, since MoE's examples often quote it. English definitions sit
+behind a fold on both. The 繁 cards are generated only for notes with a
+Traditional field, that is, where the two scripts differ.
+

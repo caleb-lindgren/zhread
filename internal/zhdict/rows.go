@@ -9,6 +9,7 @@ const NFields = 4
 // dictionary has the word, a notice standing in for them.
 type Group struct {
 	Rows   [][NFields]string
+	Zh     int // how many of Rows, from the start, are Chinese
 	Notice string
 }
 
@@ -25,6 +26,7 @@ func (p *Probe) Rows(word string) Group {
 		return Group{Notice: noticeFor(word)}
 	}
 	rows := make([][NFields]string, 0, len(hits))
+	zh := 0
 	for _, lang := range []int{LangZh, LangEn} {
 		start := len(rows)
 		for _, e := range hits {
@@ -39,8 +41,11 @@ func (p *Probe) Rows(word string) Group {
 				return Width(b[NFields-1]) -
 					Width(a[NFields-1])
 			})
+		if lang == LangZh {
+			zh = len(rows)
+		}
 	}
-	return Group{Rows: rows}
+	return Group{Rows: rows, Zh: zh}
 }
 
 // noticeFor names a word that no dictionary has. It is the only line that

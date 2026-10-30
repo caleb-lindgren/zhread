@@ -1,0 +1,17 @@
+{{#Traditional}}<div class=ctx>{{ClozeTrad}}</div>
+{{#DefZh}}<div class=def>{{DefZh}}</div>
+{{#DefEn}}<details><summary>English</summary>
+<div class=def>{{DefEn}}</div></details>{{/DefEn}}{{/DefZh}}
+{{^DefZh}}<div class=def>{{DefEn}}</div>{{/DefZh}}
+<script>
+/* Blank the word wherever the definitions quote it: MoE examples often
+   do, which would give the answer away. */
+(function () {
+  var forms = ["{{text:Simplified}}", "{{text:Traditional}}"];
+  document.querySelectorAll(".def").forEach(function (e) {
+    forms.forEach(function (w) {
+      if (w) e.innerHTML = e.innerHTML.split(w).join("[…]");
+    });
+  });
+})();
+</script>{{/Traditional}}
