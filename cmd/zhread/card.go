@@ -288,8 +288,9 @@ func (dr *draft) forms(conv convs) forms {
 
 // note builds the card's fields. The traditional ones are left empty when
 // the word is the same in both scripts, which is what keeps Anki from
-// generating the traditional cards.
-func (dr *draft) note(f forms) []string {
+// generating the traditional cards. The reading carries the other side's
+// only when both is set, as the pane shows it only after t.
+func (dr *draft) note(f forms, both bool) []string {
 	var py string
 	var zh, en []string
 	for i, r := range dr.defs.Rows {
@@ -298,12 +299,15 @@ func (dr *draft) note(f forms) []string {
 		}
 		if py == "" {
 			py = r[2]
+			if !both {
+				py = zhdict.Preferred(py)
+			}
 		}
-		d := html.EscapeString(r[3])
 		if i < dr.defs.Zh {
-			zh = append(zh, d)
+			zh = append(zh,
+				moeText(r[3], "<br>", html.EscapeString))
 		} else {
-			en = append(en, d)
+			en = append(en, html.EscapeString(r[3]))
 		}
 	}
 	var trad, ctxT, clozeT string
@@ -321,6 +325,16 @@ func (dr *draft) note(f forms) []string {
 		ctxS, mark(f.ctxS, f.wsS, f.weS, true), ctxT, clozeT,
 		html.EscapeString(dr.src), time.Now().Format("2006-01-02"),
 	}
+}
+
+// moeText joins the parts of a MoEDict definition with sep, each passed
+// through esc.
+func moeText(def, sep string, esc func(string) string) string {
+	var ps []string
+	for _, l := range zhdict.MoELines(def) {
+		ps = append(ps, esc(l.Text))
+	}
+	return strings.Join(ps, sep)
 }
 
 // mark renders a context as HTML with the word in bold, or for the cloze

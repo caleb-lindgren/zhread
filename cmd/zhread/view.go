@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -44,18 +47,21 @@ type view struct {
 	want   int // column j and k aim for
 	al, ac int // visual anchor
 	mode   int
+	pfrom  int  // the mode the prompt was opened from
+	pchar  rune // the prompt's kind: / to search, : for a command
 	pend   rune // first key of a two-key command (g)
 	count  int
 	showEn bool
+	showTW bool // also show the other reading: TW, or CN with -pron tw
+	help   bool // the pane shows the keys instead of definitions
 	msg    string
 
-	pat    *regexp.Regexp
-	back   bool // last search went backward
-	input  []rune
-	inBack bool
-	dr     *draft
-	queue  []*draft // the selection's cards still to come after dr
-	quit   bool
+	pat   *regexp.Regexp
+	back  bool // last search went backward
+	input []rune
+	dr    *draft
+	queue []*draft // the selection's cards still to come after dr
+	quit  bool
 }
 
 // Colours from vis's zenburn theme (lua/themes/zenburn.lua). Every one is
@@ -74,7 +80,10 @@ var (
 	stHead   = stDef.Foreground(hex(0xffd7af)).Bold(true) // DEFINITION
 	stPinyin = stDef.Foreground(hex(0xd7d7af))            // FUNCTION
 	stHint   = stDef.Foreground(hex(0x87af87))            // COMMENT
-	stRule   = stDef.Foreground(hex(0x585858))            // EOF
+	stRule   = stDef.Foreground(hex(0xffd7af))            // DEFINITION
+	stPos    = stDef.Foreground(hex(0xd7afaf)).Bold(true) // CONSTANT
+	stEx     = stDef.Foreground(hex(0x87d7d7))            // NUMBER
+	stRel    = stDef.Foreground(hex(0xafaf87))            // KEYWORD
 	stStatus = stDef.Foreground(hex(0xafaf87)).
 			Background(hex(0x303030)).Bold(true) // STATUS_FOCUSED
 	stWarn = stDef.Foreground(hex(0xd78787)).Bold(true) // STRING
@@ -196,14 +205,20 @@ func (v *view) draw() {
 		v.s.Show()
 		return
 	}
-	head, pane := v.pane()
+	pane := v.pane()
 	v.ph = 0
 	if v.h >= 6 {
 		need := 1
 		for _, t := range pane {
-			need += v.height(0, t.text)
+			need += v.height(t.x, t.text)
 		}
-		v.ph = min(need, v.h/2)
+		// The keys may take all but a few rows of text; definitions,
+		// half the screen.
+		top := v.h / 2
+		if v.help {
+			top = v.h - 3
+		}
+		v.ph = min(need, top)
 	}
 	v.scroll()
 	th := v.textH()
@@ -211,7 +226,7 @@ func (v *view) draw() {
 		v.drawRow(y, v.rows[v.top+y])
 	}
 	if v.ph > 0 {
-		v.drawPane(th, head, pane)
+		v.drawPane(th, pane)
 	}
 	v.s.HideCursor()
 	v.drawStatus()
@@ -231,7 +246,7 @@ func (v *view) drawRow(y int, r drow) {
 			}
 		}
 	}
-	cursor := r.line == v.cl && v.mode != prompt
+	cursor := r.line == v.cl && (v.mode != prompt || v.pchar == ':')
 	if cursor && len(line) == 0 {
 		v.s.SetContent(0, y, ' ', nil, stCursor)
 	}
@@ -292,7 +307,7 @@ func plain(st tcell.Style) func(int) tcell.Style {
 // lookup is the word the definitions pane shows: the selection, or the
 // word under the cursor, with the probe that can look it up.
 func (v *view) lookup() (string, *zhdict.Probe) {
-	if v.mode == visual || v.mode == vline {
+	if v.selecting() {
 		l1, c1, l2, c2 := v.selRange()
 		if l1 != l2 {
 			return "", nil
@@ -308,60 +323,163 @@ func (v *view) lookup() (string, *zhdict.Probe) {
 	return "", nil
 }
 
-// styled is a piece of text with a style for each rune.
+// styled is a line of text from column x, with a style for each rune.
 type styled struct {
+	x     int
 	text  []rune
 	style func(int) tcell.Style
 }
 
-// pane is what the definitions pane shows: a heading for the rule above
-// it, and the lines below.
-func (v *view) pane() (string, []styled) {
+// piece is a run of text in one style.
+type piece struct {
+	text string
+	st   tcell.Style
+}
+
+// line joins pieces into one styled line from column x.
+func line(x int, ps ...piece) styled {
+	var text []rune
+	var ends []int
+	var sts []tcell.Style
+	for _, p := range ps {
+		text = append(text, []rune(p.text)...)
+		ends, sts = append(ends, len(text)), append(sts, p.st)
+	}
+	return styled{x, text, func(i int) tcell.Style {
+		for k, e := range ends {
+			if i < e {
+				return sts[k]
+			}
+		}
+		return stDef
+	}}
+}
+
+// moeStyle is the style of each kind of MoELine.
+var moeStyle = [...]tcell.Style{
+	zhdict.MoEText:    stDef,
+	zhdict.MoEPos:     stPos,
+	zhdict.MoESense:   stDef,
+	zhdict.MoEExample: stEx,
+	zhdict.MoECite:    stHint,
+	zhdict.MoERel:     stRel,
+}
+
+// pane is what the definitions pane shows below its rule: each definition
+// with the word and its reading on its first line, or the keys.
+func (v *view) pane() []styled {
+	if v.help {
+		return helpLines()
+	}
 	word, p := v.lookup()
 	if word == "" {
-		return "", nil
-	}
-	head := " " + word + " "
-	if v.rec.words[word] {
-		head += "(carded) "
+		return nil
 	}
 	if p == nil {
-		return head, []styled{{[]rune("…"), plain(stHint)}}
+		return []styled{line(0, piece{"…", stHint})}
 	}
 	g := p.Rows(word)
 	if g.Notice != "" {
-		return head, []styled{{[]rune(g.Notice), plain(stHint)}}
+		return []styled{line(0, piece{g.Notice, stHint})}
 	}
 	var out []styled
 	for i, r := range g.Rows {
-		if i >= g.Zh && !v.showEn {
+		// English is shown on e, or at once when there is no Chinese.
+		if i >= g.Zh && !v.showEn && g.Zh > 0 {
 			break
 		}
-		py := []rune(r[2] + "  ")
-		out = append(out, styled{append(py, []rune(r[3])...),
-			func(i int) tcell.Style {
-				if i < len(py) {
-					return stPinyin
-				}
-				return stDef
-			}})
+		head := []piece{{word, stHead},
+			{"  " + v.reading(r[2]), stPinyin}}
+		if i == 0 && v.rec.words[word] {
+			head = append(head, piece{"  (carded)", stHint})
+		}
+		if i >= g.Zh {
+			out = append(out, line(0,
+				append(head, piece{"  " + r[3], stDef})...))
+			continue
+		}
+		out = append(out, moeLines(head, zhdict.MoELines(r[3]))...)
 	}
-	if !v.showEn && len(g.Rows) > g.Zh {
-		out = append(out, styled{[]rune(fmt.Sprintf(
-			"(e: %d English)", len(g.Rows)-g.Zh)), plain(stHint)})
-	}
-	return head, out
+	return out
 }
 
-func (v *view) drawPane(y0 int, head string, lines []styled) {
+// reading is a definition's reading, without the other side's unless t
+// has asked for it.
+func (v *view) reading(py string) string {
+	if v.showTW {
+		return py
+	}
+	return zhdict.Preferred(py)
+}
+
+// moeLines lays out a MoEDict definition: its first part on the line with
+// the word, then a line for each part of speech, sense under it, and
+// example, quotation and synonym list under the sense.
+func moeLines(head []piece, ls []zhdict.MoELine) []styled {
+	var out []styled
+	base, sense := 2, false
+	for i, l := range ls {
+		p := piece{l.Text, moeStyle[l.Kind]}
+		x := base
+		switch l.Kind {
+		case zhdict.MoEPos:
+			base, sense, x = 4, false, 2
+		case zhdict.MoEText, zhdict.MoESense:
+			sense = true
+		default:
+			if sense {
+				x = base + 2
+			}
+		}
+		if i == 0 {
+			out = append(out, line(0, append(head,
+				piece{"  ", stDef}, p)...))
+			continue
+		}
+		out = append(out, line(x, p))
+	}
+	if len(ls) == 0 {
+		out = append(out, line(0, head...))
+	}
+	return out
+}
+
+// keyHelp is what ? shows in the pane.
+var keyHelp = [][2]string{
+	{"h j k l", "character left, line down, line up, right"},
+	{"w b", "next word, previous word"},
+	{"0 $  g0 g$", "start, end of the line; of the screen row"},
+	{"gj gk", "screen row down, up"},
+	{"gg G", "first line, last line (or line N with a count)"},
+	{"^D ^U ^F ^B", "half page down, up; page down, up"},
+	{"/ n N", "search (a Go regexp); next, previous match"},
+	{"* #", "search for the word under the cursor"},
+	{"v V  Enter", "select by character, by line; make a card"},
+	{":>cmd", "in v or V: pipe the selection to a shell command"},
+	{"m '", "bookmark this line, go to the bookmark"},
+	{"e", "show or hide English definitions"},
+	{"t", "show or hide the other reading (Taiwan)"},
+	{"? Esc", "show, hide this help"},
+	{"q", "quit"},
+}
+
+func helpLines() []styled {
+	var out []styled
+	for _, k := range keyHelp {
+		out = append(out, line(0, piece{fmt.Sprintf("%-12s", k[0]),
+			stHead}, piece{k[1], stDef}))
+	}
+	return out
+}
+
+func (v *view) drawPane(y0 int, lines []styled) {
 	maxY := y0 + v.ph
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y0, '─', nil, stRule)
 	}
-	v.put(1, y0, y0+1, []rune(head), plain(stHead))
 	y := y0 + 1
 	for _, l := range lines {
-		y = v.put(0, y, maxY, l.text, l.style)
+		y = v.put(l.x, y, maxY, l.text, l.style)
 	}
 }
 
@@ -370,11 +488,7 @@ func (v *view) drawStatus() {
 	left := v.msg
 	switch v.mode {
 	case prompt:
-		c := "/"
-		if v.inBack {
-			c = "?"
-		}
-		left = c + string(v.input)
+		left = string(v.pchar) + string(v.input)
 	case visual:
 		left = "-- VISUAL --  Enter: make a card"
 	case vline:
@@ -393,13 +507,26 @@ func (v *view) drawStatus() {
 	}
 }
 
+// selMode is the visual mode a selection is shown in, also while a
+// prompt opened from it is open.
+func (v *view) selMode() int {
+	if v.mode == prompt {
+		return v.pfrom
+	}
+	return v.mode
+}
+
+func (v *view) selecting() bool {
+	return v.selMode() == visual || v.selMode() == vline
+}
+
 // selRange is the selection, start before end, end column inclusive.
 func (v *view) selRange() (l1, c1, l2, c2 int) {
 	l1, c1, l2, c2 = v.al, v.ac, v.cl, v.cc
 	if l2 < l1 || l2 == l1 && c2 < c1 {
 		l1, c1, l2, c2 = l2, c2, l1, c1
 	}
-	if v.mode == vline {
+	if v.selMode() == vline {
 		c1, c2 = 0, max(v.lineLen(l2)-1, 0)
 	}
 	c2 = min(c2, max(v.lineLen(l2)-1, 0))
@@ -407,7 +534,7 @@ func (v *view) selRange() (l1, c1, l2, c2 int) {
 }
 
 func (v *view) selected(l, c int) bool {
-	if v.mode != visual && v.mode != vline {
+	if !v.selecting() {
 		return false
 	}
 	l1, c1, l2, c2 := v.selRange()
@@ -430,7 +557,7 @@ func (v *view) key(ev *tcell.EventKey) {
 	n := max(v.count, 1)
 	switch ev.Key() {
 	case tcell.KeyEscape:
-		v.mode, v.pend, v.count = normal, 0, 0
+		v.mode, v.pend, v.count, v.help = normal, 0, 0, false
 		return
 	case tcell.KeyEnter:
 		if v.mode == visual || v.mode == vline {
@@ -506,8 +633,14 @@ func (v *view) runeKey(r rune) {
 		if !counted {
 			v.count = 0
 		}
-	case '/', '?':
-		v.mode, v.input, v.inBack = prompt, nil, r == '?'
+	case '/':
+		v.openPrompt('/')
+	case ':':
+		if v.selecting() {
+			v.openPrompt(':')
+		}
+	case '?':
+		v.help = !v.help
 	case 'n', 'N':
 		for ; n > 0; n-- {
 			v.search(v.back != (r == 'N'))
@@ -545,6 +678,8 @@ func (v *view) runeKey(r rune) {
 		}
 	case 'e':
 		v.showEn = !v.showEn
+	case 't':
+		v.showTW = !v.showTW
 	case 'q':
 		if v.mode == normal {
 			v.quit = true
@@ -640,14 +775,33 @@ func (v *view) lookupTok() (string, tok) {
 	return "", tok{}
 }
 
+func (v *view) openPrompt(c rune) {
+	v.pfrom, v.mode, v.pchar, v.input = v.mode, prompt, c, nil
+}
+
+// closePrompt returns to the mode the prompt was opened from: a search
+// in visual mode moves the end of the selection, as in vi. A command
+// ends the selection.
+func (v *view) closePrompt() {
+	v.mode = v.pfrom
+	if v.pchar == ':' {
+		v.mode = normal
+	}
+}
+
 func (v *view) promptKey(ev *tcell.EventKey) {
 	switch ev.Key() {
 	case tcell.KeyEscape:
-		v.mode = normal
+		v.closePrompt()
 	case tcell.KeyEnter:
-		v.mode = normal
+		if v.pchar == ':' {
+			v.command(string(v.input))
+			v.closePrompt()
+			return
+		}
+		v.closePrompt()
 		if len(v.input) == 0 && v.pat != nil {
-			v.back = v.inBack
+			v.back = false
 			v.search(v.back)
 			return
 		}
@@ -656,17 +810,77 @@ func (v *view) promptKey(ev *tcell.EventKey) {
 			v.msg = err.Error()
 			return
 		}
-		v.pat, v.back = re, v.inBack
+		v.pat, v.back = re, false
 		v.search(v.back)
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		if len(v.input) > 0 {
 			v.input = v.input[:len(v.input)-1]
 		} else {
-			v.mode = normal
+			v.closePrompt()
 		}
 	case tcell.KeyRune:
 		v.input = append(v.input, ev.Rune())
 	}
+}
+
+// command runs a command typed at the : prompt. The one command is
+// >cmd, which pipes the selection to cmd.
+func (v *view) command(c string) {
+	c = strings.TrimSpace(c)
+	switch {
+	case c == "":
+	case strings.HasPrefix(c, ">"):
+		if c = strings.TrimSpace(c[1:]); c == "" {
+			v.msg = "no command after >"
+			return
+		}
+		v.pipe(c, v.selText())
+	default:
+		v.msg = "not a command: " + c
+	}
+}
+
+// selText is the selected text, its lines joined by newlines.
+func (v *view) selText() string {
+	l1, c1, l2, c2 := v.selRange()
+	var sb strings.Builder
+	for l := l1; l <= l2; l++ {
+		line := v.d.lines[l]
+		a, b := 0, len(line)
+		if l == l1 {
+			a = min(c1, b)
+		}
+		if l == l2 {
+			b = min(c2+1, b)
+		}
+		sb.WriteString(string(line[a:b]))
+		if l < l2 {
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
+// pipe runs cmd with sh, the text on its standard input, in the terminal
+// zhread gives up for it, and waits for Enter before taking it back, as
+// vi's :! does, so its output can be read.
+func (v *view) pipe(cmd, text string) {
+	if err := v.s.Suspend(); err != nil {
+		v.msg = err.Error()
+		return
+	}
+	c := exec.Command("sh", "-c", cmd)
+	c.Stdin = strings.NewReader(text)
+	c.Stdout, c.Stderr = os.Stdout, os.Stderr
+	if err := c.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "zhread: %s: %v\n", cmd, err)
+	}
+	fmt.Print("\nPress Enter to return to zhread")
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	if err := v.s.Resume(); err != nil {
+		v.msg = err.Error()
+	}
+	v.rows = nil
 }
 
 // search moves to the next match of the pattern, wrapping around the file.
@@ -840,7 +1054,8 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			return
 		}
 		f := dr.forms(v.conv)
-		if err := v.rec.save(dr.note(f), v.deck); err != nil {
+		err := v.rec.save(dr.note(f, v.showTW), v.deck)
+		if err != nil {
 			v.msg = err.Error()
 		} else {
 			v.msg = "saved a card for " + f.wordS
@@ -899,7 +1114,12 @@ func (v *view) drawCard() {
 		if dr.sel[i] {
 			box = "[x] "
 		}
-		text := []rune(box + r[2] + "  " + r[3])
+		def := r[3]
+		if i < dr.Zh() {
+			def = moeText(def, " ",
+				func(s string) string { return s })
+		}
+		text := []rune(box + v.reading(r[2]) + "  " + def)
 		st := stDef
 		if i == dr.cur {
 			st = stSel

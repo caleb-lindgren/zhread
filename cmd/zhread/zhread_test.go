@@ -249,8 +249,13 @@ func TestNavigation(t *testing.T) {
 func TestPane(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/企业⏎")
+	if !onScreen(s, "企业  qǐ yè") || onScreen(s, "TW qì yè") {
+		t.Errorf("not the Mainland reading alone for 企业:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "t")
 	if !onScreen(s, "qǐ yè (TW qì yè)") {
-		t.Errorf("no Mainland reading for 企业:\n%s",
+		t.Errorf("no Taiwan reading after t:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
 	if onScreen(s, "enterprise") {
@@ -259,6 +264,31 @@ func TestPane(t *testing.T) {
 	keys(v, "e")
 	if !onScreen(s, "enterprise") {
 		t.Errorf("English not shown after e")
+	}
+	keys(v, "?")
+	if !onScreen(s, "pipe the selection") || onScreen(s, "enterprise") {
+		t.Errorf("? does not show the keys:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "⎋")
+	if !onScreen(s, "enterprise") {
+		t.Errorf("Esc does not close the keys")
+	}
+}
+
+func TestSelText(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "/讨论⏎vl:")
+	if v.mode != prompt || !v.selecting() {
+		t.Fatalf(": in visual mode: mode %d, selecting %v", v.mode,
+			v.selecting())
+	}
+	if got := v.selText(); got != "讨论" {
+		t.Errorf("selText %q, want 讨论", got)
+	}
+	keys(v, "⎋")
+	if v.mode != normal {
+		t.Errorf("mode %d after Esc at the : prompt", v.mode)
 	}
 }
 
@@ -367,10 +397,9 @@ func TestPaneFits(t *testing.T) {
 	// want is the pane's height for what it shows: the rule and the
 	// rows its lines wrap to, at most half the screen.
 	want := func() int {
-		_, lines := v.pane()
 		n := 1
-		for _, l := range lines {
-			n += v.height(0, l.text)
+		for _, l := range v.pane() {
+			n += v.height(l.x, l.text)
 		}
 		return min(n, v.h/2)
 	}
@@ -388,11 +417,11 @@ func TestPaneFits(t *testing.T) {
 		t.Errorf("text %d rows with a %d-row pane", v.textH(), wide)
 	}
 	// After the terminal narrows, the pane is measured again.
-	s.SetSize(40, 20)
+	s.SetSize(30, 20)
 	v.rows = nil
 	v.draw()
 	if v.ph <= wide || v.ph != want() {
-		t.Errorf("at 40 columns: pane %d rows, want %d (%d at 60)",
+		t.Errorf("at 30 columns: pane %d rows, want %d (%d at 60)",
 			v.ph, want(), wide)
 	}
 }

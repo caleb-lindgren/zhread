@@ -115,6 +115,17 @@ func (p *Probe) readings(f *[NFields]string, src int32) {
 	}
 }
 
+// otherReading matches the note of the other side's reading that readings
+// adds after the preferred one.
+var otherReading = regexp.MustCompile(` \((?:TW|CN) [^()]*\)$`)
+
+// Preferred removes the note of the other side's reading from a reading
+// that readings rewrote, leaving the preferred one: "qǐ yè (TW qì yè)" is
+// "qǐ yè". MoEDict's own variants, as in "yī diǎnr (變)yì diǎr", stay.
+func Preferred(py string) string {
+	return otherReading.ReplaceAllString(py, "")
+}
+
 // moeReading splits a MoEDict pinyin field into its label and its primary
 // reading. MoEDict appends variants after the primary reading, as in
 // "yī diǎnr (變)yì diǎr", and only the primary is matched.

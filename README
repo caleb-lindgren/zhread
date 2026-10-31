@@ -165,12 +165,20 @@ or with `ZHREAD_WINDOW=0`, it runs gozhread in the current terminal.
 
 The words of the text come from the same segmenter as multizhdict, run in
 the background a screenful at a time, and the definitions of the word under
-the cursor (or of the selection) are shown below the text, Chinese only
-until `e` adds the English. The definitions pane is as tall as what it
-shows, up to half the screen, so short entries leave the text more room;
-it is measured again on every redraw, a resize included. Readings are
-Mainland first, as in multizhdict; `-pron tw` reverses that. Words already
-carded are coloured.
+the cursor (or of the selection) are shown below the text, each starting
+on a line with the word and its reading. They are Chinese only until `e`
+adds the English, except for a word with no Chinese definition, whose
+English is shown at once. A MoEDict definition gets a line for each part
+of speech and numbered sense, with its examples (如：), quotations and
+synonym lists indented under the sense in colours of their own. The
+definitions pane is as tall as what it shows, up to half the screen, so
+short entries leave the text more room; it is measured again on every
+redraw, a resize included. `?` shows the keys there instead.
+
+Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
+where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
+carries both. `-pron tw` reverses the two. Words already carded are
+coloured.
 
 The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true
@@ -184,14 +192,21 @@ colour.
 | `gj gk`, arrows | screen row down, up                            |
 | `gg G`          | first line, last line (or line N with a count) |
 | `^D ^U ^F ^B`   | half page down, up; page down, up              |
-| `/ ?`, `n N`    | search forward, back (a Go regexp); repeat     |
+| `/`, `n N`      | search (a Go regexp); next, previous match     |
 | `* #`           | search for the word under the cursor           |
 | `v V`, Enter    | select by character, by line; make a card      |
+| `:>cmd`         | in `v` or `V`: pipe the selection to `cmd`     |
 | `m`, `'`        | bookmark this line, go to the bookmark         |
 | `e`             | show or hide English definitions               |
+| `t`             | show or hide the other side's reading          |
+| `?`, Esc        | show, hide the keys                            |
 | `q`             | quit                                           |
 
-Counts work as in vi (`5j`, `3w`). The bookmark is one per file: setting it
+Counts work as in vi (`5j`, `3w`). `:>cmd` runs `cmd` with sh, the
+selected text on its standard input and the terminal handed over to it,
+and waits for Enter afterwards, as vi's `:!` does, so its output can be
+read: `:>multizhdict` looks the selection up, `:>xclip -sel c` copies it.
+A search in visual mode moves the end of the selection, as in vi. The bookmark is one per file: setting it
 replaces the old one, and opening the file goes to it. Bookmarks are kept
 in `$XDG_STATE_HOME/zhread/bookmarks` (`~/.local/state` by default), with
 the start of the marked line, so the mark finds its line again after the

@@ -2,6 +2,7 @@ package zhdict
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -472,5 +473,26 @@ func TestReadings(t *testing.T) {
 		if strings.Contains(r[3], "Taiwan pr.") {
 			t.Errorf("note left in definition: %q", r[3])
 		}
+	}
+}
+
+func TestMoELines(t *testing.T) {
+	def := "◆ <動>  ｜ ① 擊、敲擊。 ｜ 如：「打鐵趁熱」。 ｜ " +
+		"唐．杜甫．詩：「打鼓發船何郡郎。」 ｜ 似：擊 ｜ ◆ <名> 量詞。"
+	want := []MoELine{
+		{MoEPos, "<動>"}, {MoESense, "① 擊、敲擊。"},
+		{MoEExample, "如：「打鐵趁熱」。"},
+		{MoECite, "唐．杜甫．詩：「打鼓發船何郡郎。」"},
+		{MoERel, "似：擊"}, {MoEPos, "<名>"}, {MoEText, "量詞。"},
+	}
+	if got := MoELines(def); !slices.Equal(got, want) {
+		t.Errorf("MoELines:\n got %v\nwant %v", got, want)
+	}
+	if got := Preferred("qǐ yè (TW qì yè)"); got != "qǐ yè" {
+		t.Errorf("Preferred %q", got)
+	}
+	const v = "yī diǎnr (變)yì diǎr"
+	if got := Preferred(v); got != v {
+		t.Errorf("Preferred kept no variant: %q", got)
 	}
 }
