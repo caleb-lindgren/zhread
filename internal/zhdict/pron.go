@@ -65,13 +65,27 @@ var moeLabel = regexp.MustCompile(`^\s*(\([^)]*\)\s*)?`)
 // readings rewrites the pinyin field of f, from source src, to put the
 // preferred reading first and note the other one. Readings the table has
 // nothing for are left as the source wrote them.
-func (p *Probe) readings(f *[NFields]string, src int32) {
+func (p *Probe) readings(f *[NFields]string, e entry) {
+	src := e.src
 	py := f[2]
-	if py == "" {
-		return
-	}
 	var tw, cn string
-	if sources[src].lang == LangEn {
+	switch {
+	case sources[src].kind == kindReadings:
+		// Both readings are in the entry; neither table is needed.
+		tw, cn = py, bs(splitN(e.line, '\t', 5)[3])
+		if tw == "" {
+			tw = cn
+		}
+		if cn == "" {
+			cn = tw
+		}
+		f[2] = cn
+		if p.PronPref == PronTW {
+			f[2] = tw
+		}
+	case py == "":
+		return
+	case sources[src].lang == LangEn:
 		cn = py
 		if m := cedictTaiwan.FindStringSubmatchIndex(f[3]); m != nil {
 			tw = f[3][m[2]:m[3]]
@@ -80,7 +94,7 @@ func (p *Probe) readings(f *[NFields]string, src int32) {
 			!p.hasReading(f[0], r.tw, LangEn) {
 			tw = r.tw
 		}
-	} else {
+	default:
 		label, reading := moeReading(py)
 		// The table's rows are per sense but do not say which. A
 		// Taiwan reading that CC-CEDICT also gives the word is a
@@ -142,7 +156,8 @@ func moeReading(py string) (label, reading string) {
 // language has the given primary reading.
 func (p *Probe) hasReading(word, reading string, lang int) bool {
 	for _, e := range p.hits[word] {
-		if sources[e.src].lang != lang {
+		if sources[e.src].lang != lang ||
+			sources[e.src].kind == kindReadings {
 			continue
 		}
 		f := e.Fields()

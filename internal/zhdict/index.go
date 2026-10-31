@@ -45,12 +45,25 @@ const (
 	// kindTSV is a pandas-written TSV with a trad/simp/py/def header row.
 	// pandas CSV-quotes any field containing a quote character.
 	kindTSV
+	// kindReadings is an unquoted TSV with a trad/simp/tw/cn/def header
+	// row, carrying both readings: csld.tsv and wikt.tsv, from
+	// dict/parse_csld_defs.py and dict/parse_wikt.py. Either reading is
+	// empty where it is the same as the other.
+	kindReadings
 )
 
 type source struct {
 	path string // relative to the dict directory
+	name string // shown beside a definition shown on request
 	lang int
 	kind int
+	// tier 1 sources are fallbacks: their definitions of a word that a
+	// tier 0 source of the same language defines are extras, which
+	// zhread shows only on request.
+	tier int
+	// extra sources are read only by probes that ask for them
+	// (LoadExtra): multizhdict prints what it always has.
+	extra bool
 }
 
 // sources lists every dictionary. Every entry for a word is printed, and
@@ -58,11 +71,13 @@ type source struct {
 // order only breaks ties between definitions of equal width within one
 // language: each file before its additions. Add a new *_additions.tsv here.
 var sources = []source{
-	{filepath.Join("MoEDICT",
-		"MoEDict-05-Simp03-cards.txt"), LangZh, kindPleco},
-	{"ccdict_additions.tsv", LangZh, kindTSV},
-	{"cedict_parsed.tsv", LangEn, kindTSV},
-	{"cedict_additions.tsv", LangEn, kindTSV},
+	{filepath.Join("MoEDICT", "MoEDict-05-Simp03-cards.txt"),
+		"MoE", LangZh, kindPleco, 1, false},
+	{"ccdict_additions.tsv", "MoE", LangZh, kindTSV, 1, false},
+	{"cedict_parsed.tsv", "CC-CEDICT", LangEn, kindTSV, 0, false},
+	{"cedict_additions.tsv", "CC-CEDICT", LangEn, kindTSV, 0, false},
+	{"csld.tsv", "兩岸詞典", LangZh, kindReadings, 0, true},
+	{"wikt.tsv", "Wiktionary", LangEn, kindReadings, 1, true},
 }
 
 // sectionMark is the private-use character the Pleco MoEDict export uses to
@@ -174,11 +189,27 @@ func bs(b []byte) string {
 	return unsafe.String(&b[0], len(b))
 }
 
-// Load finds the candidates' entries in d.
+// Load finds the candidates' entries in d, in all but the extra sources.
 func (p *Probe) Load(d *Dict) {
 	for si, buf := range d.bufs {
-		p.scan(int32(si), &sources[si], buf)
+		if buf != nil {
+			p.scan(int32(si), &sources[si], buf)
+		}
 	}
+}
+
+// LoadExtra finds the candidates' entries in the extra sources too.
+func (p *Probe) LoadExtra(d *Dict) error {
+	bufs, err := d.extraBufs()
+	if err != nil {
+		return err
+	}
+	for si, buf := range bufs {
+		if buf != nil {
+			p.scan(int32(si), &sources[si], buf)
+		}
+	}
+	return nil
 }
 
 func (p *Probe) scan(si int32, s *source, buf []byte) {
@@ -257,6 +288,9 @@ func (e entry) Fields() [NFields]string {
 		f[1] = bs(head[:o])
 		f[2] = bs(pt[1])
 		f[3] = cleanPleco(pt[2])
+	case kindReadings:
+		pt := splitN(e.line, '\t', 5)
+		f[0], f[1], f[2], f[3] = bs(pt[0]), bs(pt[1]), bs(pt[2]), bs(pt[4])
 	default:
 		pt := splitN(e.line, '\t', 4)
 		for i := range pt {
@@ -361,6 +395,9 @@ func FindDir(explicit string) (string, error) {
 
 func checkDictDir(dir string) error {
 	for i := range sources {
+		if sources[i].extra {
+			continue
+		}
 		p := filepath.Join(dir, sources[i].path)
 		if _, err := os.Stat(p); err != nil {
 			return fmt.Errorf("%s: %w", dir, err)

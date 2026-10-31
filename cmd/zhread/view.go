@@ -55,6 +55,8 @@ type view struct {
 	expand  bool   // show MoEDict's quotations, in the pane and on cards
 	pword   string // the word the pane was last scrolled for
 	pscroll int    // rows of the pane scrolled past, J and K
+	moreZh  bool   // show MoEDict where 兩岸詞典 defines the word too, C
+	moreEn  bool   // show Wiktionary where CC-CEDICT defines it too, E
 	msg     string
 
 	pat   *regexp.Regexp
@@ -413,25 +415,26 @@ func (v *view) pane() []styled {
 		if i >= g.Zh && !v.showEn && g.Zh > 0 {
 			break
 		}
+		if !v.shows(g, i) {
+			continue
+		}
 		head := []piece{{word, stHead},
 			{"  " + v.reading(r[2]), stPinyin}}
-		if i == 0 && v.rec.words[word] {
+		if g.Extra[i] {
+			head = append(head, piece{"  " + g.Source(i), stHint})
+		}
+		if len(out) == 0 && v.rec.words[word] {
 			head = append(head, piece{"  (carded)", stHint})
 		}
 		head = append(head, piece{"  ", stDef})
 		col := min(width(head), v.w/2)
 		var defs [][]piece
 		var cites [][]string
-		if i >= g.Zh {
-			defs = [][]piece{{{r[3], stDef}}}
-			cites = [][]string{nil}
-		} else {
-			pos := ""
-			for _, sn := range zhdict.MoESenses(r[3]) {
-				defs = append(defs, sensePieces(sn, pos))
-				cites = append(cites, sn.Cites)
-				pos = sn.Pos
-			}
+		pos := ""
+		for _, sn := range g.Senses(i) {
+			defs = append(defs, sensePieces(sn, pos))
+			cites = append(cites, sn.Cites)
+			pos = sn.Pos
 		}
 		if len(defs) == 0 {
 			defs = [][]piece{nil}
@@ -455,10 +458,27 @@ func (v *view) pane() []styled {
 	return out
 }
 
+// shows reports whether row i of g is shown: a fallback dictionary's
+// definition of a word the main one defines is shown only on C (MoEDict,
+// for Chinese) or E (Wiktionary, for English).
+func (v *view) shows(g zhdict.Group, i int) bool {
+	if !g.Extra[i] {
+		return true
+	}
+	if i < g.Zh {
+		return v.moreZh
+	}
+	return v.moreEn
+}
+
+// label matches the usage labels of 兩岸詞典 (〈書〉, 〈口〉, 〈大陸〉), which
+// are shown in the part-of-speech colour.
+var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉`)
+
 // sensePieces is a sense on one line: its part of speech when it differs
 // from the sense before's, its text, examples and synonym lists. The
 // quotations are left to the caller, which shows them only on x.
-func sensePieces(sn zhdict.MoESense, prevPos string) []piece {
+func sensePieces(sn zhdict.Sense, prevPos string) []piece {
 	var ps []piece
 	add := func(t string, st tcell.Style) {
 		if len(ps) > 0 {
@@ -470,7 +490,17 @@ func sensePieces(sn zhdict.MoESense, prevPos string) []piece {
 		add(sn.Pos, stPos)
 	}
 	if sn.Text != "" {
-		add(sn.Text, stDef)
+		t := sn.Text
+		if len(ps) > 0 {
+			t = " " + t
+		}
+		at := 0
+		for _, m := range label.FindAllStringIndex(t, -1) {
+			ps = append(ps, piece{t[at:m[0]], stDef},
+				piece{t[m[0]:m[1]], stPos})
+			at = m[1]
+		}
+		ps = append(ps, piece{t[at:], stDef})
 	}
 	for _, e := range sn.Ex {
 		add(e, stEx)
@@ -490,7 +520,7 @@ func (v *view) reading(py string) string {
 	return zhdict.Preferred(py)
 }
 
-// keyHelp is what g? shows in the pane.
+// keyHelp is what gh shows in the pane.
 var keyHelp = [][2]string{
 	{"h j k l", "character left, line down, line up, right"},
 	{"w b", "next word, previous word"},
@@ -505,9 +535,11 @@ var keyHelp = [][2]string{
 	{"m '", "bookmark this line, go to the bookmark"},
 	{"e", "show or hide English definitions"},
 	{"x", "show or hide quotations (on cards too)"},
+	{"C", "show or hide MoEDict beside 兩岸詞典"},
+	{"E", "show or hide Wiktionary beside CC-CEDICT"},
 	{"t", "show or hide the other reading (Taiwan)"},
 	{"J K", "scroll the definitions down, up"},
-	{"g? F1  Esc", "show, hide this help"},
+	{"gh F1  Esc", "show, hide this help"},
 	{"q", "quit"},
 }
 
@@ -715,6 +747,10 @@ func (v *view) runeKey(r rune) {
 		v.pscroll = max(v.pscroll-n, 0)
 	case 'x':
 		v.expand = !v.expand
+	case 'C':
+		v.moreZh = !v.moreZh
+	case 'E':
+		v.moreEn = !v.moreEn
 	case 'n', 'N':
 		for ; n > 0; n-- {
 			v.search(v.back != (r == 'N'))
@@ -770,7 +806,7 @@ func (v *view) gKey(r rune) {
 	v.count = 0
 	row := v.rows[v.rowOf(v.cl, v.cc)]
 	switch r {
-	case '?':
+	case 'h':
 		v.toggleHelp()
 	case 'g':
 		v.cl, v.cc = 0, 0
@@ -1045,6 +1081,7 @@ func (v *view) openCard() {
 	word := string(p.text[ws:we])
 	pr := zhdict.NewProbe(zhdict.HanRuns(word))
 	pr.Load(v.dict)
+	pr.LoadExtra(v.dict) // checked at startup
 	pr.LoadPron(v.dict)
 	pr.PronPref = v.pron
 
@@ -1087,7 +1124,7 @@ func (v *view) openCard() {
 			span: newSpan(p.text, ws, we),
 			src:  src, trad: trad, n: i + 1, of: len(spans)}
 		g := pr.Rows(string(p.text[ws:we]))
-		dr.opts, dr.zh = newOpts(g)
+		dr.opts, dr.zh = newOpts(g, v.shows)
 		dr.notice = g.Notice
 		dr.sel = make([]bool, len(dr.opts))
 		if dr.zh > 0 {
@@ -1291,11 +1328,10 @@ func (v *view) optLines(i int) []styled {
 		box = "[x] "
 	}
 	ps := []piece{{box, stDef}, {v.reading(o.py) + "  ", stPinyin}}
-	if o.en != "" {
-		ps = append(ps, piece{o.en, stDef})
-	} else {
-		ps = append(ps, sensePieces(o.s, "")...)
+	if o.src != "" {
+		ps = append(ps, piece{o.src + "  ", stHint})
 	}
+	ps = append(ps, sensePieces(o.s, "")...)
 	l := line(0, ps...)
 	l.wx = 4
 	if i == dr.cur {

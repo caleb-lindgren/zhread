@@ -20,6 +20,10 @@ type Dict struct {
 	freqOnce, pronOnce sync.Once
 	freq, pron         []byte
 	freqErr, pronErr   error
+
+	extraOnce sync.Once
+	extra     [][]byte // the extra sources, at their indices in sources
+	extraErr  error
 }
 
 // Open maps the definition sources. The frequency and reading tables are
@@ -27,14 +31,43 @@ type Dict struct {
 // for want of them.
 func Open(dir string) (*Dict, error) {
 	d := &Dict{dir: dir}
-	for _, s := range sources {
+	d.bufs = make([][]byte, len(sources))
+	for i, s := range sources {
+		if s.extra {
+			continue
+		}
 		buf, err := mapFile(filepath.Join(dir, s.path))
 		if err != nil {
 			return nil, err
 		}
-		d.bufs = append(d.bufs, buf)
+		d.bufs[i] = buf
 	}
 	return d, nil
+}
+
+// CheckExtra maps the extra sources, reporting one that cannot be.
+func (d *Dict) CheckExtra() error {
+	_, err := d.extraBufs()
+	return err
+}
+
+// extraBufs maps the extra sources, on first use.
+func (d *Dict) extraBufs() ([][]byte, error) {
+	d.extraOnce.Do(func() {
+		d.extra = make([][]byte, len(sources))
+		for i, s := range sources {
+			if !s.extra {
+				continue
+			}
+			buf, err := mapFile(filepath.Join(d.dir, s.path))
+			if err != nil {
+				d.extraErr = err
+				return
+			}
+			d.extra[i] = buf
+		}
+	})
+	return d.extra, d.extraErr
 }
 
 func (d *Dict) freqBuf() ([]byte, error) {

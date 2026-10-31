@@ -1,6 +1,10 @@
 package zhdict
 
-import "slices"
+import (
+	"regexp"
+	"slices"
+	"strings"
+)
 
 // NFields is the common field count: trad, simp, pinyin, definition.
 const NFields = 4
@@ -11,10 +15,47 @@ type Group struct {
 	Rows   [][NFields]string
 	Zh     int // how many of Rows, from the start, are Chinese
 	Notice string
+	// Extra marks the rows from a fallback source (tier 1) of a
+	// language that a main source (tier 0) also defines the word in.
+	Extra []bool
+	src   []int32 // each row's source
+}
+
+// Source names the dictionary row i comes from.
+func (g Group) Source(i int) string { return sources[g.src[i]].name }
+
+// Senses splits row i's definition into senses, by its source's layout.
+func (g Group) Senses(i int) []Sense {
+	def := g.Rows[i][NFields-1]
+	switch {
+	case sources[g.src[i]].kind == kindPleco:
+		return MoESenses(def)
+	case sources[g.src[i]].name == "兩岸詞典":
+		return CSLDSenses(def)
+	case sources[g.src[i]].name == "Wiktionary":
+		return WiktSenses(def)
+	}
+	return []Sense{{Text: def}}
+}
+
+// pointer matches a CC-CEDICT definition that only points elsewhere: a
+// variant, a cross-reference, a classifier. A word defined only by these
+// counts as undefined there, so the fallback source's entry is shown.
+var pointer = regexp.MustCompile(`^(?:(?:old |archaic )?variant of .*|` +
+	`see(?: also)? .*\[[^\]]*\]|CL:.*|also written .*)$`)
+
+func pointerOnly(def string) bool {
+	for _, d := range strings.Split(def, "; ") {
+		if !pointer.MatchString(d) {
+			return false
+		}
+	}
+	return true
 }
 
 // Rows builds the output lines for one word: every matching entry, Chinese
-// before English and longest definition first within each language. Sorting
+// before English, main sources before fallbacks, and longest definition
+// first within each. Sorting
 // the two languages separately rather than the group as a whole is what
 // keeps them from interleaving, since a short Chinese definition is often
 // shorter than a long English one. Entries whose definitions are the same
@@ -25,27 +66,44 @@ func (p *Probe) Rows(word string) Group {
 	if len(hits) == 0 {
 		return Group{Notice: noticeFor(word)}
 	}
-	rows := make([][NFields]string, 0, len(hits))
-	zh := 0
+	type row struct {
+		f   [NFields]string
+		src int32
+	}
+	var g Group
 	for _, lang := range []int{LangZh, LangEn} {
-		start := len(rows)
+		var rs []row
+		main := false
 		for _, e := range hits {
-			if sources[e.src].lang == lang {
-				f := e.Fields()
-				p.readings(&f, e.src)
-				rows = append(rows, f)
+			s := sources[e.src]
+			if s.lang != lang {
+				continue
+			}
+			f := e.Fields()
+			p.readings(&f, e)
+			rs = append(rs, row{f, e.src})
+			if s.tier == 0 && !(lang == LangEn &&
+				pointerOnly(f[NFields-1])) {
+				main = true
 			}
 		}
-		slices.SortStableFunc(rows[start:],
-			func(a, b [NFields]string) int {
-				return Width(b[NFields-1]) -
-					Width(a[NFields-1])
-			})
+		slices.SortStableFunc(rs, func(a, b row) int {
+			if d := sources[a.src].tier -
+				sources[b.src].tier; d != 0 {
+				return d
+			}
+			return Width(b.f[NFields-1]) - Width(a.f[NFields-1])
+		})
+		for _, r := range rs {
+			g.Rows = append(g.Rows, r.f)
+			g.src = append(g.src, r.src)
+			g.Extra = append(g.Extra, main && sources[r.src].tier > 0)
+		}
 		if lang == LangZh {
-			zh = len(rows)
+			g.Zh = len(g.Rows)
 		}
 	}
-	return Group{Rows: rows, Zh: zh}
+	return g
 }
 
 // noticeFor names a word that no dictionary has. It is the only line that

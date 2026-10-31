@@ -74,9 +74,8 @@ func circled(s string) bool {
 	return false
 }
 
-// MoESense is one sense of a MoEDict definition, with the parts that
-// belong to it.
-type MoESense struct {
+// Sense is one sense of a definition, with the parts that belong to it.
+type Sense struct {
 	Pos   string // its part of speech, as <動>, or ""
 	Text  string
 	Ex    []string // examples, 如：「…」
@@ -87,8 +86,8 @@ type MoESense struct {
 // MoESenses groups a definition's parts into senses: each numbered sense,
 // or unnumbered definition or note, takes the examples, quotations and
 // synonym lists after it, and the part of speech before it.
-func MoESenses(def string) []MoESense {
-	var out []MoESense
+func MoESenses(def string) []Sense {
+	var out []Sense
 	pos := ""
 	for _, l := range MoELines(def) {
 		switch l.Kind {
@@ -96,11 +95,11 @@ func MoESenses(def string) []MoESense {
 			pos = l.Text
 			continue
 		case MoEText, MoENum:
-			out = append(out, MoESense{Pos: pos, Text: l.Text})
+			out = append(out, Sense{Pos: pos, Text: l.Text})
 			continue
 		}
 		if len(out) == 0 {
-			out = append(out, MoESense{Pos: pos})
+			out = append(out, Sense{Pos: pos})
 		}
 		s := &out[len(out)-1]
 		switch l.Kind {

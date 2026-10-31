@@ -169,15 +169,27 @@ the cursor (or of the selection) are shown below the text, each starting
 on a line with the word and its reading, and every line of it indented to
 where its first line starts. They are Chinese only until `e` adds the
 English, except for a word with no Chinese definition, whose English is
-shown at once. A MoEDict definition gets a line for each numbered sense,
-with its part of speech in front where that changes, and its examples
-(如：) and synonym lists after it on the same line, in colours of their
-own. Its quotations from books are hidden until `x`, and then shown under
-the sense. The definitions pane is as tall as what it shows, up to half
-the screen, so short entries leave the text more room; it is measured
-again on every redraw, a resize included. A longer entry scrolls with `J`
-and `K`, and the rule above it notes how many rows are out of view
-(↑2 ↓5). `g?` or F1 shows the keys there instead.
+shown at once.
+
+Each language has a main dictionary and a fallback. Chinese comes from
+兩岸詞典 (the cross-strait dictionary), whose labels 〈書〉 (literary) and
+〈口〉 (colloquial) are kept, and whose marks for a word or sense used only
+on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉 and
+〈臺灣〉; MoEDict defines the words 兩岸詞典 lacks, and `C` adds its
+definitions of the rest. English comes from CC-CEDICT; Wiktionary defines
+the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
+"see …"), and `E` adds its definitions of the rest. A fallback's
+definition shown beside the main one is labelled with its name. See
+dict/README for the files.
+
+Each sense gets a line, with its part of speech or heading in front where that
+changes, and its examples and synonym lists after it on the same line, in
+colours of their own. Quotations from books are hidden until `x`, and then
+shown under the sense. The definitions pane is as tall as what it shows, up to
+half the screen, so short entries leave the text more room; it is measured
+again on every redraw, a resize included. A longer entry scrolls with `J` and
+`K`, and the rule above it notes how many rows are out of view (↑2 ↓5). `gh` or
+F1 shows the keys there instead.
 
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
 where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
@@ -202,10 +214,11 @@ colour.
 | `:>cmd`         | in `v` or `V`: pipe the selection to `cmd`     |
 | `m`, `'`        | bookmark this line, go to the bookmark         |
 | `e`             | show or hide English definitions               |
-| `x`             | show or hide MoEDict's quotations              |
+| `x`             | show or hide quotations                        |
+| `C`, `E`        | show or hide MoEDict, Wiktionary as well       |
 | `J K`           | scroll the definitions down, up                |
 | `t`             | show or hide the other side's reading          |
-| `g?`, F1; Esc   | show the keys; hide them                       |
+| `gh`, F1; Esc   | show the keys; hide them                       |
 | `q`             | quit                                           |
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
@@ -238,14 +251,15 @@ The preview shows:
   move the left edge a clause left or right, `{` and `}` the right edge.
   Lines not separated by a blank line are one paragraph, so a sentence
   hard-wrapped across lines is found whole.
-- **The definitions**, all of them, Chinese first, each MoEDict sense an
-  option of its own, with its examples, so a card carries the sense the
-  context uses rather than all of 打's. The list scrolls to keep the
-  cursor in view. `j`/`k` move and Space ticks the ones that fit the
-  context; the first Chinese and first English are ticked to start with.
-  A ticked sense's quotations go on the card if `x` is showing them when
-  it is saved, and are shown under it in the preview. The reading comes
-  from the first ticked one.
+- **The definitions** shown in the pane when the card was begun (so MoEDict's
+  and Wiktionary's beside the main ones only after `C` or `E`), Chinese first,
+  each sense an option of its own, with its examples, so a card carries the
+  sense the context uses rather than all of 打's. The list scrolls to keep the
+  cursor in view. `j`/`k` move and Space ticks the ones that fit the context;
+  the first Chinese and first English are ticked to start with. A ticked
+  sense's quotations go on the card if `x` is showing them when it is saved,
+  and are shown under it in the preview. The reading comes from the first
+  ticked one.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.

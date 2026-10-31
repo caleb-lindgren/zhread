@@ -265,9 +265,9 @@ func TestPane(t *testing.T) {
 	if !onScreen(s, "enterprise") {
 		t.Errorf("English not shown after e")
 	}
-	keys(v, "g?")
+	keys(v, "gh")
 	if !onScreen(s, "pipe the selection") || onScreen(s, "enterprise") {
-		t.Errorf("g? does not show the keys:\n%s",
+		t.Errorf("gh does not show the keys:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⎋")
@@ -434,26 +434,37 @@ func TestBackSearch(t *testing.T) {
 	}
 }
 
-// TestQuotations checks that x shows MoEDict's quotations, which are
+// paneText is the text of every line the pane would show, scrolled or
+// not.
+func paneText(v *view) string {
+	var sb strings.Builder
+	for _, l := range v.pane() {
+		sb.WriteString(string(l.text) + "\n")
+	}
+	return sb.String()
+}
+
+// TestQuotations checks the dictionaries the pane shows: 兩岸詞典 for
+// Chinese, MoEDict as well on C; and that x shows quotations, which are
 // hidden at first, while examples are always on the definition's line.
 func TestQuotations(t *testing.T) {
-	v, s := newTestView(t, "他好高兴。\n")
-	s.SetSize(60, 40)
+	v, s := newTestView(t, "他好高兴。须臾\n")
+	s.SetSize(70, 40)
 	v.rows = nil
 	keys(v, "l")
-	if !onScreen(s, "① 美、善，理想的。 如：「好東西」") {
-		t.Errorf("example not on the sense's line:\n%s",
+	if !onScreen(s, "1.美善的；理想的（與「壞」相對）。 [例]美～") {
+		t.Errorf("no 兩岸詞典 sense with its examples:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
-	if onScreen(s, "唐．韋莊") {
-		t.Errorf("quotation shown before x")
+	if strings.Contains(paneText(v), "MoE") {
+		t.Errorf("MoEDict shown before C")
 	}
-	keys(v, "x")
-	if !onScreen(s, "唐．韋莊") {
-		t.Errorf("no quotation after x:\n%s",
-			strings.Join(screen(s), "\n"))
+	keys(v, "C")
+	if p := paneText(v); !strings.Contains(p, "MoE") ||
+		!strings.Contains(p, "① 美、善，理想的。 如：「好東西」") {
+		t.Errorf("no MoEDict after C:\n%s", p)
 	}
-	// The entry is longer than the pane: J scrolls it.
+	// The entry is now longer than the pane: J scrolls it.
 	if !onScreen(s, "↓") {
 		t.Fatalf("no note of rows below:\n%s",
 			strings.Join(screen(s), "\n"))
@@ -462,28 +473,40 @@ func TestQuotations(t *testing.T) {
 	if v.pscroll != 1 || !onScreen(s, "↑1") {
 		t.Errorf("J: scrolled %d", v.pscroll)
 	}
-	keys(v, "l")
+	keys(v, "$h")
 	if v.pscroll != 0 {
 		t.Errorf("scroll kept for the next word: %d", v.pscroll)
 	}
+	if !onScreen(s, "〈書〉遷延") || onScreen(s, "淮陰") {
+		t.Errorf("须臾 before x:\n%s", strings.Join(screen(s), "\n"))
+	}
+	keys(v, "x")
+	if !onScreen(s, "淮陰") {
+		t.Errorf("no quotation after x:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
 }
 
-// TestCardSenses checks that a MoEDict definition is offered a sense at a
-// time, and that a card carries quotations only when x showed them.
+// TestCardSenses checks that a definition is offered a sense at a time,
+// MoEDict's only after C, and that a card carries quotations only when x
+// showed them.
 func TestCardSenses(t *testing.T) {
-	v, s := newTestView(t, "他好高兴。\n")
+	v, s := newTestView(t, "他好高兴。须臾\n")
 	keys(v, "lvl⏎")
 	if v.mode != card {
 		t.Fatalf("mode %d", v.mode)
 	}
-	n := 0
-	for _, o := range v.dr.opts[:v.dr.zh] {
-		if strings.HasPrefix(o.s.Text, "① 美、善") {
-			n++
+	count := func(prefix string) int {
+		n := 0
+		for _, o := range v.dr.opts[:v.dr.zh] {
+			if strings.HasPrefix(o.s.Text, prefix) {
+				n++
+			}
 		}
+		return n
 	}
-	if n != 1 || v.dr.zh < 10 {
-		t.Fatalf("%d options for 好, %d with sense ①", v.dr.zh, n)
+	if count("1.美善的") != 1 || count("① 美、善") != 0 || v.dr.zh < 10 {
+		t.Fatalf("%d options for 好", v.dr.zh)
 	}
 	// The list scrolls to keep the cursor's option in view.
 	s.SetSize(60, 20)
@@ -493,21 +516,51 @@ func TestCardSenses(t *testing.T) {
 		t.Errorf("option %d (%s) not in view:\n%s", v.dr.cur, txt,
 			strings.Join(screen(s), "\n"))
 	}
+	keys(v, "⎋C/好⏎vl⏎")
+	if count("1.美善的") != 1 || count("① 美、善") != 1 {
+		t.Errorf("MoEDict's senses not offered after C")
+	}
+
+	keys(v, "⎋$hv$⏎")
 	f := v.dr.forms(v.conv)
-	cur := 0
+	cur := -1
 	for i, o := range v.dr.opts {
 		if len(o.s.Cites) > 0 {
 			cur = i
 			break
 		}
 	}
+	if cur < 0 {
+		t.Fatalf("no quotation among 须臾's options")
+	}
 	v.dr.sel[cur] = true
+	cite := v.dr.opts[cur].s.Cites[0]
 	if note := v.dr.note(f, false, false); strings.Contains(note[4],
-		v.dr.opts[cur].s.Cites[0]) {
+		cite) {
 		t.Errorf("quotation on a card made without x")
 	}
 	if note := v.dr.note(f, false, true); !strings.Contains(note[4],
-		v.dr.opts[cur].s.Cites[0]) {
+		cite) {
 		t.Errorf("no quotation on a card made with x")
+	}
+}
+
+// TestWiktionary checks that Wiktionary defines a word CC-CEDICT lacks,
+// and is shown beside CC-CEDICT, labelled, only after E.
+func TestWiktionary(t *testing.T) {
+	v, _ := newTestView(t, "最大\n土豆\n")
+	keys(v, "vle")
+	if p := paneText(v); !strings.Contains(p, "largest") ||
+		strings.Contains(p, "Wiktionary") {
+		t.Errorf("最大, which CC-CEDICT lacks:\n%s", p)
+	}
+	keys(v, "⎋j")
+	if p := paneText(v); !strings.Contains(p, "potato; (Tw) peanut") ||
+		strings.Contains(p, "Wiktionary") {
+		t.Errorf("土豆 before E:\n%s", p)
+	}
+	keys(v, "E")
+	if p := paneText(v); !strings.Contains(p, "Wiktionary  <noun>") {
+		t.Errorf("土豆 after E:\n%s", p)
 	}
 }

@@ -161,6 +161,7 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	mode := zhdict.SegViterbi
 	if len(runs) > 0 {
 		p.Load(d)
+		p.LoadExtra(d) // checked at startup
 		if p.LoadFreq(d) != nil {
 			mode = zhdict.SegBidi
 		}

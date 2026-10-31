@@ -501,7 +501,7 @@ func TestMoESenses(t *testing.T) {
 	def := "◆ <動>  ｜ ① 擊。 ｜ 如：「打鐵」。 ｜ 唐．杜甫．詩：「打鼓。」" +
 		" ｜ ② 攻擊。 ｜ ◆ <名> 量詞。 ｜ 似：擊"
 	got := MoESenses(def)
-	want := []MoESense{
+	want := []Sense{
 		{Pos: "<動>", Text: "① 擊。", Ex: []string{"如：「打鐵」。"},
 			Cites: []string{"唐．杜甫．詩：「打鼓。」"}},
 		{Pos: "<動>", Text: "② 攻擊。"},
@@ -509,5 +509,40 @@ func TestMoESenses(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("MoESenses:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestCSLDSenses(t *testing.T) {
+	def := "★¶1.擊打：¶(1)擊打。[例]～鐘｜捶～¶(2)被擊打。¶2.〈書〉遷延。" +
+		"[例]～萬變｜足下得～（《史記‧卷九十二》）。¶助詞：¶1.表完成。"
+	got := CSLDSenses(def)
+	want := []Sense{
+		{Pos: "〈大陸〉 1.擊打：", Text: "(1)擊打。",
+			Ex: []string{"[例]～鐘｜捶～"}},
+		{Pos: "1.擊打：", Text: "(2)被擊打。"},
+		{Text: "2.〈書〉遷延。", Ex: []string{"[例]～萬變"},
+			Cites: []string{"足下得～（《史記‧卷九十二》）。"}},
+		{Pos: "助詞：", Text: "1.表完成。"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CSLDSenses:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestWiktSenses(t *testing.T) {
+	def := "<verb>¶to hit¶例：打人 to hit people¶引：打鼓 (Du Fu)¶to fight"
+	got := WiktSenses(def)
+	want := []Sense{
+		{Pos: "<verb>", Text: "to hit",
+			Ex:    []string{"例：打人 to hit people"},
+			Cites: []string{"引：打鼓 (Du Fu)"}},
+		{Pos: "<verb>", Text: "to fight"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("WiktSenses:\n got %q\nwant %q", got, want)
+	}
+	if !pointerOnly("variant of 個|个[gè]; CL:個|个[gè]") ||
+		pointerOnly("to hit; variant of 個|个[gè]") {
+		t.Errorf("pointerOnly")
 	}
 }

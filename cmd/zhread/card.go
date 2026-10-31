@@ -238,41 +238,44 @@ type draft struct {
 	n, of  int  // this is card n of the selection's of
 }
 
-// opt is one definition to choose for the card: a sense of a MoEDict
-// definition, so a card can carry the sense the context uses rather than
-// all twenty of 打's, or a whole English one.
+// opt is one definition to choose for the card: one sense of it, so a
+// card can carry the sense the context uses rather than all twenty of
+// 打's.
 type opt struct {
-	py string          // the reading, with the other side's noted
-	s  zhdict.MoESense // a Chinese definition's sense
-	en string          // an English definition
+	py  string // the reading, with the other side's noted
+	s   zhdict.Sense
+	src string // the dictionary, named for a fallback's definitions
 }
 
-// newOpts splits a word's definitions into options, Chinese first.
-func newOpts(g zhdict.Group) (opts []opt, zh int) {
+// newOpts splits a word's definitions, those shows lets through, into
+// options, Chinese first.
+func newOpts(g zhdict.Group,
+	shows func(zhdict.Group, int) bool) (opts []opt, zh int) {
 	for i, r := range g.Rows {
-		if i >= g.Zh {
-			opts = append(opts, opt{py: r[2], en: r[3]})
+		if i == g.Zh {
+			zh = len(opts)
+		}
+		if !shows(g, i) {
 			continue
 		}
-		ss := zhdict.MoESenses(r[3])
-		if len(ss) == 0 {
-			ss = []zhdict.MoESense{{Text: r[3]}}
+		src := ""
+		if g.Extra[i] {
+			src = g.Source(i)
 		}
-		for _, s := range ss {
-			opts = append(opts, opt{py: r[2], s: s})
+		for _, s := range g.Senses(i) {
+			opts = append(opts, opt{py: r[2], s: s, src: src})
 		}
+	}
+	if g.Zh == len(g.Rows) {
 		zh = len(opts)
 	}
 	return opts, zh
 }
 
-// html is the option as it goes on the card: a sense's part of speech,
-// text, examples and synonym lists on one line, and its quotations on
-// lines after it when cites is set.
+// html is the option as it goes on the card: its part of speech, text,
+// examples and synonym lists on one line, and its quotations on lines
+// after it when cites is set.
 func (o opt) html(cites bool) string {
-	if o.en != "" {
-		return html.EscapeString(o.en)
-	}
 	var ps []string
 	for _, t := range append([]string{o.s.Pos, o.s.Text},
 		append(o.s.Ex, o.s.Rels...)...) {
