@@ -1,0 +1,192 @@
+"""Extract the Mandarin entries of English Wiktionary, as wiktextract
+dumps them at kaikki.org, into wikt.tsv, zhread's second source of
+English definitions after CC-CEDICT.
+
+    curl -L \
+        https://kaikki.org/dictionary/Chinese/kaikki.org-dictionary-Chinese.jsonl |
+        python3 parse_wikt.py > wikt.tsv
+
+The dump is read as a stream, one JSON record per line: it is over a
+gigabyte, and only a few percent of it is kept.
+
+Output columns: trad, simp, tw, cn, def, as in csld.tsv. One row per
+record, which is a word with one part of speech and etymology. cn is the
+Standard Mandarin reading, and tw a Taiwan reading where Wiktionary
+tags one that differs. def is cells joined by ¶: the part of speech in
+angle brackets, then each sense, each followed by its examples
+("例：" text, translation) and at most one quotation ("引：" text,
+translation, source).
+
+Dropped: soft redirects (the simplified spellings, whose traditional
+page holds the entry, and which supply the simplified column instead),
+senses tagged only for other varieties of Chinese (Cantonese, Hokkien
+and the rest), senses with no gloss, and records left with no senses.
+"""
+
+import json
+import os
+import re
+import sys
+
+from parse_csld import inventory, split
+
+# Varieties whose senses are dropped unless also tagged Mandarin.
+TOPOLECTS = {
+    "Cantonese", "Hokkien", "Teochew", "Hakka", "Wu", "Shanghainese",
+    "Min", "Min-Nan", "Min-Bei", "Min-Dong", "Eastern-Min",
+    "Northern-Min", "Southern-Min", "Puxian-Min", "Gan", "Xiang", "Jin",
+    "Taishanese", "Hainanese", "Leizhou-Min", "Pinghua", "Dungan",
+    "Hong-Kong-Cantonese", "Zhangzhou-Hokkien", "Xiamen", "Quanzhou",
+    "Taiwanese-Hokkien", "Philippine-Hokkien", "Singaporean-Hokkien",
+    "Penang-Hokkien", "Malaysian-Hokkien", "Suzhounese", "Wenzhounese",
+}
+MAX_EX = 3
+
+HAN = re.compile(r"[㐀-鿿\U00020000-\U0003ffff]")
+
+
+def squash(s):
+    return re.sub(r"[\s'’-]", "", s.lower())
+
+
+def clean(s):
+    return re.sub(r"\s+", " ", s.replace("¶", " ")).strip()
+
+
+def bold_roman(rec):
+    """The headword's reading as an example of this record gives it, in
+    bold within the example's romanisation."""
+    for s in rec.get("senses", []):
+        for ex in s.get("examples", []):
+            r, offs = ex.get("roman", ""), ex.get("bold_roman_offsets")
+            if r and offs:
+                return " ".join(r[a:b] for a, b in offs).lower()
+    return ""
+
+
+def readings(rec, syl):
+    """The Standard Mandarin reading and a differing Taiwan one, split
+    into syllables.
+
+    A record's sounds are not its own: wiktextract lists those of the
+    page's other etymologies with them, so 打 "dozen" carries 打 "hit"'s
+    dǎ before its own dá. The record's reading is taken instead from
+    the bold syllables of its first example, and only failing that from
+    the first standard reading listed. A Taiwan reading is noted only
+    where the sounds tag a Mainland reading that is the one chosen and a
+    different Taiwan one: dá "standard in Mainland China", dǎ "standard
+    in Taiwan"."""
+    first = mainland = taiwan = ""
+    for s in rec.get("sounds", []):
+        tags = set(s.get("tags", []))
+        if not {"Mandarin", "Pinyin"} <= tags or "zh_pron" not in s:
+            continue
+        if not tags & {"Standard", "Standard-Chinese"}:
+            continue
+        py = re.sub(r"\s*\(.*?\)\s*$", "", s["zh_pron"]).strip()
+        first = first or py
+        if "Mainland-China" in tags:
+            mainland = py
+        elif "Taiwan" in tags and "variant" not in tags:
+            taiwan = py
+    cn = bold_roman(rec) or first
+    tw = ""
+    if mainland and taiwan and squash(mainland) == squash(cn):
+        tw = taiwan
+    n = len(HAN.findall(rec["word"]))
+
+    def sp(py):
+        if not py or " " in py:
+            return py
+        return split(py.lower(), n, syl) or py
+
+    cn, tw = sp(cn), sp(tw)
+    if squash(tw) == squash(cn):
+        tw = ""
+    return tw, cn
+
+
+def example(ex):
+    text = clean(ex.get("text", ""))
+    if not text:
+        return ""
+    tr = clean(ex.get("english") or ex.get("translation") or "")
+    out = text + (" " + tr if tr else "")
+    if ex.get("type") == "quotation":
+        ref = clean(ex.get("ref", ""))
+        return "引：" + out + (" (" + ref + ")" if ref else "")
+    return "例：" + out
+
+
+def senses(rec):
+    cells = []
+    for s in rec.get("senses", []):
+        tags = set(s.get("tags", []))
+        if "no-gloss" in tags:
+            continue
+        if tags & TOPOLECTS and "Mandarin" not in tags:
+            continue
+        gl = s.get("raw_glosses") or s.get("glosses")
+        if not gl:
+            continue
+        # A sub-sense's glosses start with its parent's, which is a
+        # sense of its own too.
+        cells.append(clean(gl[-1]))
+        n, quoted = 0, False
+        for ex in s.get("examples", []):
+            # Each example is given in both scripts; one will do.
+            if "Simplified-Chinese" in ex.get("tags", []):
+                continue
+            e = example(ex)
+            if not e:
+                continue
+            if e.startswith("引："):
+                if quoted:
+                    continue
+                quoted = True
+            elif n >= MAX_EX:
+                continue
+            else:
+                n += 1
+            cells.append(e)
+    return cells
+
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    syl = inventory(f"{here}/cedict_parsed.tsv")
+    simp_of = {}
+    rows = []
+    for line in sys.stdin:
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("lang_code") != "zh":
+            continue
+        word = rec.get("word", "")
+        if rec.get("pos") == "soft-redirect":
+            for t in rec.get("redirects", []):
+                simp_of.setdefault(t, word)
+            continue
+        if not HAN.search(word):
+            continue
+        cells = senses(rec)
+        if not cells:
+            continue
+        simp = ""
+        for f in rec.get("forms", []):
+            if "Simplified-Chinese" in f.get("tags", []):
+                simp = f["form"]
+                break
+        tw, cn = readings(rec, syl)
+        rows.append([word, simp, tw, cn,
+                     "¶".join(["<" + rec.get("pos", "") + ">"] + cells)])
+    print("trad\tsimp\ttw\tcn\tdef")
+    for r in rows:
+        r[1] = r[1] or simp_of.get(r[0], r[0])
+        print("\t".join(c.replace("\t", " ") for c in r))
+
+
+if __name__ == "__main__":
+    main()
