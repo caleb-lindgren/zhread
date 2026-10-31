@@ -40,22 +40,28 @@ traditional, simplified, pinyin, definition — padded into columns by
 display width, with blanks where a dictionary has nothing for a field.
 `-tsv` emits single tabs instead, for feeding something else.
 
-Every entry any of the four sources has for the word is printed, which is
+Each language has a main dictionary and a fallback, the same as zhread's
+defaults: the fallback's entries are printed only for a word the main
+dictionary does not define, where for CC-CEDICT an entry that only points
+elsewhere ("variant of …", "see …[…]", a bare classifier) does not count.
+Every entry the dictionaries used have for the word is printed, which is
 how the other readings of a character like 行 show up. The Chinese lines
 come first, then the English ones, and each language is ordered by
 decreasing definition width on its own: sorting the whole group at once
 would interleave the two, because a long English gloss outruns a short
-Chinese one. A source with no entry for the word contributes nothing at
-all, so a word only the Chinese dictionaries carry comes out as Chinese
-lines alone.
+Chinese one. A word only the Chinese dictionaries carry comes out as
+Chinese lines alone.
 
-| language | dictionary                               | additions                 |
-| -------- | ---------------------------------------- | ------------------------- |
-| Chinese  | dict/MoEDICT/MoEDict-05-Simp03-cards.txt | dict/ccdict_additions.tsv |
-| English  | dict/cedict_parsed.tsv                   | dict/cedict_additions.tsv |
+- Chinese: dict/csld.tsv (兩岸詞典), falling back to
+  dict/MoEDICT/MoEDict-05-Simp03-cards.txt and dict/ccdict_additions.tsv.
+- English: dict/cedict_parsed.tsv and dict/cedict_additions.tsv, falling
+  back to dict/wikt.tsv (Wiktionary).
 
-Nothing in the output says which of a language's two sources a line came
-from. Definitions of equal width keep load order: the dictionary before its
+A 兩岸詞典 or Wiktionary definition's parts are joined by ｜ on its one
+line, as MoEDict's sections are, and 兩岸詞典's marks for a word or sense
+used only on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉
+and 〈臺灣〉. Nothing in the output says which source a line came from.
+Definitions of equal width keep load order: the dictionary before its
 additions, and within one file the order the entries appear in it.
 
 A word that no source has gets one line instead, `字典查無「X」`, flush left
@@ -65,9 +71,10 @@ no column.
 
 ### Taiwan and Mainland readings
 
-MoEDict gives Taiwan readings and CC-CEDICT Mainland ones. Where the two
-differ, the Mainland reading is printed first and the Taiwan one noted
-after it, on every line for the word whichever dictionary it came from:
+MoEDict gives Taiwan readings and CC-CEDICT Mainland ones; 兩岸詞典 and
+Wiktionary give both. Where the two differ, the Mainland reading is
+printed first and the Taiwan one noted after it, on every line for the
+word whichever dictionary it came from:
 
     企業  企业  qǐ yè (TW qì yè)  從事生產、運輸、貿易等經濟活動…
     企業  企业  qǐ yè (TW qì yè)  company; firm; enterprise; …

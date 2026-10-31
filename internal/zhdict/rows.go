@@ -21,6 +21,10 @@ type Group struct {
 	src   []int32 // each row's source
 }
 
+// IsExtra reports Extra[i]; a Group built by hand, without Extra, has no
+// extras.
+func (g Group) IsExtra(i int) bool { return i < len(g.Extra) && g.Extra[i] }
+
 // Source names the dictionary row i comes from.
 func (g Group) Source(i int) string { return sources[g.src[i]].name }
 
@@ -36,6 +40,19 @@ func (g Group) Senses(i int) []Sense {
 		return WiktSenses(def)
 	}
 	return []Sense{{Text: def}}
+}
+
+// Line is row i for printing on one line: a 兩岸詞典 or Wiktionary
+// definition's cells joined by ｜, as MoEDict's sections are, and
+// 兩岸詞典's ★ and ▲ spelled out.
+func (g Group) Line(i int) [NFields]string {
+	r := g.Rows[i]
+	if i < len(g.src) && sources[g.src[i]].kind == kindReadings {
+		d := strings.ReplaceAll(csldMarks.Replace(r[NFields-1]), cell,
+			" ｜ ")
+		r[NFields-1] = strings.TrimPrefix(d, " ｜ ")
+	}
+	return r
 }
 
 // pointer matches a CC-CEDICT definition that only points elsewhere: a
