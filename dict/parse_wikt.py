@@ -20,7 +20,8 @@ translation, source).
 Dropped: soft redirects (the simplified spellings, whose traditional
 page holds the entry, and which supply the simplified column instead),
 senses tagged only for other varieties of Chinese (Cantonese, Hokkien
-and the rest), senses with no gloss, and records left with no senses.
+and the rest) and examples in them, senses with no gloss, and records
+left with no senses.
 """
 
 import json
@@ -40,6 +41,13 @@ TOPOLECTS = {
     "Taiwanese-Hokkien", "Philippine-Hokkien", "Singaporean-Hokkien",
     "Penang-Hokkien", "Malaysian-Hokkien", "Suzhounese", "Wenzhounese",
 }
+# Romanisations of other varieties, tagged on their examples.
+ROMANISATIONS = {
+    "Jyutping", "Wugniu", "Pe̍h-ōe-jī", "Tâi-lô", "Phak-fa-su",
+    "Hakka-Romanization-System", "Bàng-uâ-cê", "Cantonese-Pinyin",
+    "Yale", "Kienning-Colloquial-Romanized",
+}
+TONE_DIGITS = re.compile(r"[0-9¹²³⁴⁵⁶⁷⁸⁹⁰₀₁₂₃₄₅₆₇₈₉]")
 MAX_EX = 3
 
 HAN = re.compile(r"[㐀-鿿\U00020000-\U0003ffff]")
@@ -53,11 +61,23 @@ def clean(s):
     return re.sub(r"\s+", " ", s.replace("¶", " ")).strip()
 
 
+def mandarin(ex):
+    """Whether an example is Mandarin: not tagged with another variety
+    or its romanisation, and romanised, if at all, without the tone
+    digits Jyutping and Wugniu use (hoeng¹, ⁶la)."""
+    tags = set(ex.get("tags", [])) | set(ex.get("raw_tags", []))
+    if tags & (TOPOLECTS | ROMANISATIONS):
+        return False
+    return not TONE_DIGITS.search(ex.get("roman", ""))
+
+
 def bold_roman(rec):
     """The headword's reading as an example of this record gives it, in
     bold within the example's romanisation."""
     for s in rec.get("senses", []):
         for ex in s.get("examples", []):
+            if not mandarin(ex):
+                continue
             r, offs = ex.get("roman", ""), ex.get("bold_roman_offsets")
             if r and offs:
                 return " ".join(r[a:b] for a, b in offs).lower()
@@ -135,7 +155,8 @@ def senses(rec):
         n, quoted = 0, False
         for ex in s.get("examples", []):
             # Each example is given in both scripts; one will do.
-            if "Simplified-Chinese" in ex.get("tags", []):
+            if ("Simplified-Chinese" in ex.get("tags", []) or
+                    not mandarin(ex)):
                 continue
             e = example(ex)
             if not e:
