@@ -23,10 +23,11 @@ import (
 
 const usage = `usage: zhread [options] FILE
 
-Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / n N * #;
+Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #;
 v V select, Enter to make a card of the selection, :>cmd to pipe it
 to cmd; m bookmark the line, ' return to it; e show English
-definitions; t show Taiwan readings; ? list the keys; q quit.
+definitions, x quotations, t Taiwan readings; J K scroll them;
+g? or F1 list the keys; q quit.
 
 options:
 `

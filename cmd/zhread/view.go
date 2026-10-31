@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -43,18 +41,21 @@ type view struct {
 	firstRow []int // index into rows of each line's first row
 	top      int   // first row on screen
 
-	cl, cc int // cursor line and column
-	want   int // column j and k aim for
-	al, ac int // visual anchor
-	mode   int
-	pfrom  int  // the mode the prompt was opened from
-	pchar  rune // the prompt's kind: / to search, : for a command
-	pend   rune // first key of a two-key command (g)
-	count  int
-	showEn bool
-	showTW bool // also show the other reading: TW, or CN with -pron tw
-	help   bool // the pane shows the keys instead of definitions
-	msg    string
+	cl, cc  int // cursor line and column
+	want    int // column j and k aim for
+	al, ac  int // visual anchor
+	mode    int
+	pfrom   int  // the mode the prompt was opened from
+	pchar   rune // the prompt's kind: / to search, : for a command
+	pend    rune // first key of a two-key command (g)
+	count   int
+	showEn  bool
+	showTW  bool   // also show the other reading: TW, or CN with -pron tw
+	help    bool   // the pane shows the keys instead of definitions
+	expand  bool   // show MoEDict's quotations, in the pane and on cards
+	pword   string // the word the pane was last scrolled for
+	pscroll int    // rows of the pane scrolled past, J and K
+	msg     string
 
 	pat   *regexp.Regexp
 	back  bool // last search went backward
@@ -75,7 +76,11 @@ var (
 		Background(hex(0x3a3a3a)) // DEFAULT
 	stCarded = stDef.Foreground(hex(0xf0dfaf)) // REGEX
 	stSel    = stDef.Background(hex(0x5f875f)) // SELECTION
+	// The cursor is white, which no vis style is; the rest of the word
+	// under it takes the cursor's colours.
 	stCursor = stDef.Foreground(hex(0x1c1c1c)).
+			Background(hex(0xffffff)).Bold(true)
+	stCurWord = stDef.Foreground(hex(0x1c1c1c)).
 			Background(hex(0x87afaf)).Bold(true) // CURSOR_PRIMARY
 	stHead   = stDef.Foreground(hex(0xffd7af)).Bold(true) // DEFINITION
 	stPinyin = stDef.Foreground(hex(0xd7d7af))            // FUNCTION
@@ -99,7 +104,12 @@ func (v *view) run() error {
 			v.s.Sync()
 			v.rows = nil
 		case *tcell.EventInterrupt:
-			v.d.apply(ev.Data().(segRes))
+			switch d := ev.Data().(type) {
+			case segRes:
+				v.d.apply(d)
+			case pipeDone:
+				v.msg = string(d)
+			}
 		case *tcell.EventKey:
 			v.key(ev)
 		}
@@ -205,12 +215,15 @@ func (v *view) draw() {
 		v.s.Show()
 		return
 	}
+	if w, _ := v.lookup(); w != v.pword {
+		v.pword, v.pscroll = w, 0
+	}
 	pane := v.pane()
 	v.ph = 0
 	if v.h >= 6 {
 		need := 1
 		for _, t := range pane {
-			need += v.height(t.x, t.text)
+			need += v.height(t.x, t.wx, t.text)
 		}
 		// The keys may take all but a few rows of text; definitions,
 		// half the screen.
@@ -250,6 +263,7 @@ func (v *view) drawRow(y int, r drow) {
 	if cursor && len(line) == 0 {
 		v.s.SetContent(0, y, ' ', nil, stCursor)
 	}
+	_, word := v.lookupTok()
 	x := 0
 	for c := r.start; c < r.end; c++ {
 		st := stDef
@@ -258,6 +272,8 @@ func (v *view) drawRow(y int, r drow) {
 		}
 		if v.selected(r.line, c) {
 			st = stSel
+		} else if cursor && word.start <= c && c < word.end {
+			st = stCurWord
 		}
 		if cursor && c == v.cc {
 			st = stCursor
@@ -272,28 +288,37 @@ func (v *view) drawRow(y int, r drow) {
 // drawn. style gives each rune's style.
 func (v *view) put(x, y, maxY int, text []rune,
 	style func(i int) tcell.Style) int {
+	return v.putw(x, x, y, 0, maxY, text, style)
+}
+
+// putw is put wrapping back to column wx, and drawing only the rows from
+// minY, so text can be scrolled partly out of view at the top.
+func (v *view) putw(x, wx, y, minY, maxY int, text []rune,
+	style func(i int) tcell.Style) int {
 	cx := x
 	for i, r := range text {
 		rw := zhdict.Width(string(r))
-		if cx+rw > v.w && cx > x {
-			cx, y = x, y+1
+		if cx+rw > v.w && cx > wx {
+			cx, y = wx, y+1
 		}
 		if y >= maxY {
 			return y
 		}
-		v.s.SetContent(cx, y, r, nil, style(i))
+		if y >= minY {
+			v.s.SetContent(cx, y, r, nil, style(i))
+		}
 		cx += rw
 	}
 	return y + 1
 }
 
-// height is how many rows put would take for text from column x.
-func (v *view) height(x int, text []rune) int {
+// height is how many rows putw would take for text.
+func (v *view) height(x, wx int, text []rune) int {
 	cx, n := x, 1
 	for _, r := range text {
 		rw := zhdict.Width(string(r))
-		if cx+rw > v.w && cx > x {
-			cx, n = x, n+1
+		if cx+rw > v.w && cx > wx {
+			cx, n = wx, n+1
 		}
 		cx += rw
 	}
@@ -323,9 +348,10 @@ func (v *view) lookup() (string, *zhdict.Probe) {
 	return "", nil
 }
 
-// styled is a line of text from column x, with a style for each rune.
+// styled is a line of text from column x, wrapping back to column wx,
+// with a style for each rune.
 type styled struct {
-	x     int
+	x, wx int
 	text  []rune
 	style func(int) tcell.Style
 }
@@ -345,7 +371,7 @@ func line(x int, ps ...piece) styled {
 		text = append(text, []rune(p.text)...)
 		ends, sts = append(ends, len(text)), append(sts, p.st)
 	}
-	return styled{x, text, func(i int) tcell.Style {
+	return styled{x, x, text, func(i int) tcell.Style {
 		for k, e := range ends {
 			if i < e {
 				return sts[k]
@@ -355,18 +381,17 @@ func line(x int, ps ...piece) styled {
 	}}
 }
 
-// moeStyle is the style of each kind of MoELine.
-var moeStyle = [...]tcell.Style{
-	zhdict.MoEText:    stDef,
-	zhdict.MoEPos:     stPos,
-	zhdict.MoESense:   stDef,
-	zhdict.MoEExample: stEx,
-	zhdict.MoECite:    stHint,
-	zhdict.MoERel:     stRel,
+func width(ps []piece) int {
+	n := 0
+	for _, p := range ps {
+		n += zhdict.Width(p.text)
+	}
+	return n
 }
 
 // pane is what the definitions pane shows below its rule: each definition
-// with the word and its reading on its first line, or the keys.
+// starting on a line with the word and its reading, every line of it
+// indented to where it starts; or the keys.
 func (v *view) pane() []styled {
 	if v.help {
 		return helpLines()
@@ -393,14 +418,67 @@ func (v *view) pane() []styled {
 		if i == 0 && v.rec.words[word] {
 			head = append(head, piece{"  (carded)", stHint})
 		}
+		head = append(head, piece{"  ", stDef})
+		col := min(width(head), v.w/2)
+		var defs [][]piece
+		var cites [][]string
 		if i >= g.Zh {
-			out = append(out, line(0,
-				append(head, piece{"  " + r[3], stDef})...))
-			continue
+			defs = [][]piece{{{r[3], stDef}}}
+			cites = [][]string{nil}
+		} else {
+			pos := ""
+			for _, sn := range zhdict.MoESenses(r[3]) {
+				defs = append(defs, sensePieces(sn, pos))
+				cites = append(cites, sn.Cites)
+				pos = sn.Pos
+			}
 		}
-		out = append(out, moeLines(head, zhdict.MoELines(r[3]))...)
+		if len(defs) == 0 {
+			defs = [][]piece{nil}
+			cites = [][]string{nil}
+		}
+		for k, d := range defs {
+			l := line(col, d...)
+			if k == 0 {
+				l = line(0, append(head, d...)...)
+				l.wx = col
+			}
+			out = append(out, l)
+			if v.expand {
+				for _, c := range cites[k] {
+					out = append(out,
+						line(col+2, piece{c, stHint}))
+				}
+			}
+		}
 	}
 	return out
+}
+
+// sensePieces is a sense on one line: its part of speech when it differs
+// from the sense before's, its text, examples and synonym lists. The
+// quotations are left to the caller, which shows them only on x.
+func sensePieces(sn zhdict.MoESense, prevPos string) []piece {
+	var ps []piece
+	add := func(t string, st tcell.Style) {
+		if len(ps) > 0 {
+			t = " " + t
+		}
+		ps = append(ps, piece{t, st})
+	}
+	if sn.Pos != "" && sn.Pos != prevPos {
+		add(sn.Pos, stPos)
+	}
+	if sn.Text != "" {
+		add(sn.Text, stDef)
+	}
+	for _, e := range sn.Ex {
+		add(e, stEx)
+	}
+	for _, r := range sn.Rels {
+		add(r, stRel)
+	}
+	return ps
 }
 
 // reading is a definition's reading, without the other side's unless t
@@ -412,39 +490,7 @@ func (v *view) reading(py string) string {
 	return zhdict.Preferred(py)
 }
 
-// moeLines lays out a MoEDict definition: its first part on the line with
-// the word, then a line for each part of speech, sense under it, and
-// example, quotation and synonym list under the sense.
-func moeLines(head []piece, ls []zhdict.MoELine) []styled {
-	var out []styled
-	base, sense := 2, false
-	for i, l := range ls {
-		p := piece{l.Text, moeStyle[l.Kind]}
-		x := base
-		switch l.Kind {
-		case zhdict.MoEPos:
-			base, sense, x = 4, false, 2
-		case zhdict.MoEText, zhdict.MoESense:
-			sense = true
-		default:
-			if sense {
-				x = base + 2
-			}
-		}
-		if i == 0 {
-			out = append(out, line(0, append(head,
-				piece{"  ", stDef}, p)...))
-			continue
-		}
-		out = append(out, line(x, p))
-	}
-	if len(ls) == 0 {
-		out = append(out, line(0, head...))
-	}
-	return out
-}
-
-// keyHelp is what ? shows in the pane.
+// keyHelp is what g? shows in the pane.
 var keyHelp = [][2]string{
 	{"h j k l", "character left, line down, line up, right"},
 	{"w b", "next word, previous word"},
@@ -452,14 +498,16 @@ var keyHelp = [][2]string{
 	{"gj gk", "screen row down, up"},
 	{"gg G", "first line, last line (or line N with a count)"},
 	{"^D ^U ^F ^B", "half page down, up; page down, up"},
-	{"/ n N", "search (a Go regexp); next, previous match"},
+	{"/ ?  n N", "search forward, back (a Go regexp); repeat"},
 	{"* #", "search for the word under the cursor"},
 	{"v V  Enter", "select by character, by line; make a card"},
 	{":>cmd", "in v or V: pipe the selection to a shell command"},
 	{"m '", "bookmark this line, go to the bookmark"},
 	{"e", "show or hide English definitions"},
+	{"x", "show or hide quotations (on cards too)"},
 	{"t", "show or hide the other reading (Taiwan)"},
-	{"? Esc", "show, hide this help"},
+	{"J K", "scroll the definitions down, up"},
+	{"g? F1  Esc", "show, hide this help"},
 	{"q", "quit"},
 }
 
@@ -472,14 +520,34 @@ func helpLines() []styled {
 	return out
 }
 
+// drawPane draws the rule and the pane's lines below it, scrolled by
+// pscroll rows, with how many rows are out of view above and below noted
+// at the right of the rule.
 func (v *view) drawPane(y0 int, lines []styled) {
-	maxY := y0 + v.ph
+	total := 0
+	for _, l := range lines {
+		total += v.height(l.x, l.wx, l.text)
+	}
+	shown := v.ph - 1
+	v.pscroll = max(min(v.pscroll, total-shown), 0)
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y0, '─', nil, stRule)
 	}
-	y := y0 + 1
+	var more []string
+	if v.pscroll > 0 {
+		more = append(more, fmt.Sprintf("↑%d", v.pscroll))
+	}
+	if below := total - shown - v.pscroll; below > 0 {
+		more = append(more, fmt.Sprintf("↓%d", below))
+	}
+	if len(more) > 0 {
+		m := " " + strings.Join(more, " ") + " J K "
+		v.put(max(v.w-zhdict.Width(m)-1, 0), y0, y0+1, []rune(m),
+			plain(stRule))
+	}
+	y := y0 + 1 - v.pscroll
 	for _, l := range lines {
-		y = v.put(l.x, y, maxY, l.text, l.style)
+		y = v.putw(l.x, l.wx, y, y0+1, y0+v.ph, l.text, l.style)
 	}
 }
 
@@ -559,6 +627,8 @@ func (v *view) key(ev *tcell.EventKey) {
 	case tcell.KeyEscape:
 		v.mode, v.pend, v.count, v.help = normal, 0, 0, false
 		return
+	case tcell.KeyF1:
+		v.toggleHelp()
 	case tcell.KeyEnter:
 		if v.mode == visual || v.mode == vline {
 			v.openCard()
@@ -633,14 +703,18 @@ func (v *view) runeKey(r rune) {
 		if !counted {
 			v.count = 0
 		}
-	case '/':
-		v.openPrompt('/')
+	case '/', '?':
+		v.openPrompt(r)
 	case ':':
 		if v.selecting() {
 			v.openPrompt(':')
 		}
-	case '?':
-		v.help = !v.help
+	case 'J':
+		v.pscroll += n
+	case 'K':
+		v.pscroll = max(v.pscroll-n, 0)
+	case 'x':
+		v.expand = !v.expand
 	case 'n', 'N':
 		for ; n > 0; n-- {
 			v.search(v.back != (r == 'N'))
@@ -687,11 +761,17 @@ func (v *view) runeKey(r rune) {
 	}
 }
 
+func (v *view) toggleHelp() {
+	v.help, v.pscroll = !v.help, 0
+}
+
 func (v *view) gKey(r rune) {
 	n, counted := max(v.count, 1), v.count > 0
 	v.count = 0
 	row := v.rows[v.rowOf(v.cl, v.cc)]
 	switch r {
+	case '?':
+		v.toggleHelp()
 	case 'g':
 		v.cl, v.cc = 0, 0
 		if counted {
@@ -801,7 +881,7 @@ func (v *view) promptKey(ev *tcell.EventKey) {
 		}
 		v.closePrompt()
 		if len(v.input) == 0 && v.pat != nil {
-			v.back = false
+			v.back = v.pchar == '?'
 			v.search(v.back)
 			return
 		}
@@ -810,7 +890,7 @@ func (v *view) promptKey(ev *tcell.EventKey) {
 			v.msg = err.Error()
 			return
 		}
-		v.pat, v.back = re, false
+		v.pat, v.back = re, v.pchar == '?'
 		v.search(v.back)
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		if len(v.input) > 0 {
@@ -861,26 +941,46 @@ func (v *view) selText() string {
 	return sb.String()
 }
 
-// pipe runs cmd with sh, the text on its standard input, in the terminal
-// zhread gives up for it, and waits for Enter before taking it back, as
-// vi's :! does, so its output can be read.
+// pipeDone reports a piped command's failure to the event loop.
+type pipeDone string
+
+// pipe starts cmd with sh, the text on its standard input, and returns
+// without waiting for it: the commands piped to open windows of their
+// own. It runs in a session of its own, so quitting zhread, and closing
+// its window, does not take the command with it. Its output is
+// discarded but for the end of what it writes to stderr, shown if it
+// fails.
 func (v *view) pipe(cmd, text string) {
-	if err := v.s.Suspend(); err != nil {
+	c := exec.Command("sh", "-c", cmd)
+	c.Stdin = strings.NewReader(text)
+	var errb tailBuf
+	c.Stderr = &errb
+	detach(c)
+	if err := c.Start(); err != nil {
 		v.msg = err.Error()
 		return
 	}
-	c := exec.Command("sh", "-c", cmd)
-	c.Stdin = strings.NewReader(text)
-	c.Stdout, c.Stderr = os.Stdout, os.Stderr
-	if err := c.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "zhread: %s: %v\n", cmd, err)
+	go func() {
+		if err := c.Wait(); err != nil {
+			msg := cmd + ": " + err.Error()
+			if e := strings.TrimSpace(string(errb)); e != "" {
+				msg += ": " + e
+			}
+			v.s.PostEvent(tcell.NewEventInterrupt(pipeDone(msg)))
+		}
+	}()
+	v.msg = "piped the selection to " + cmd
+}
+
+// tailBuf keeps the last 200 bytes written to it.
+type tailBuf []byte
+
+func (b *tailBuf) Write(p []byte) (int, error) {
+	*b = append(*b, p...)
+	if len(*b) > 200 {
+		*b = (*b)[len(*b)-200:]
 	}
-	fmt.Print("\nPress Enter to return to zhread")
-	bufio.NewReader(os.Stdin).ReadString('\n')
-	if err := v.s.Resume(); err != nil {
-		v.msg = err.Error()
-	}
-	v.rows = nil
+	return len(p), nil
 }
 
 // search moves to the next match of the pattern, wrapping around the file.
@@ -985,14 +1085,16 @@ func (v *view) openCard() {
 		ws, we := sp[0], sp[1]
 		dr := &draft{p: p, ws: ws, we: we,
 			span: newSpan(p.text, ws, we),
-			defs: pr.Rows(string(p.text[ws:we])),
 			src:  src, trad: trad, n: i + 1, of: len(spans)}
-		dr.sel = make([]bool, len(dr.defs.Rows))
-		if dr.defs.Zh > 0 {
+		g := pr.Rows(string(p.text[ws:we]))
+		dr.opts, dr.zh = newOpts(g)
+		dr.notice = g.Notice
+		dr.sel = make([]bool, len(dr.opts))
+		if dr.zh > 0 {
 			dr.sel[0] = true
 		}
-		if len(dr.defs.Rows) > dr.defs.Zh {
-			dr.sel[dr.defs.Zh] = true
+		if len(dr.opts) > dr.zh {
+			dr.sel[dr.zh] = true
 		}
 		v.queue = append(v.queue, dr)
 	}
@@ -1054,7 +1156,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			return
 		}
 		f := dr.forms(v.conv)
-		err := v.rec.save(dr.note(f, v.showTW), v.deck)
+		err := v.rec.save(dr.note(f, v.showTW, v.expand), v.deck)
 		if err != nil {
 			v.msg = err.Error()
 		} else {
@@ -1068,11 +1170,13 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		dr.span.move(r)
 		dr.saving = false
 	case r == 'j' || ev.Key() == tcell.KeyDown:
-		dr.cur = min(dr.cur+1, len(dr.defs.Rows)-1)
+		dr.cur = max(min(dr.cur+1, len(dr.opts)-1), 0)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
 		dr.cur = max(dr.cur-1, 0)
 	case r == ' ' && len(dr.sel) > 0:
 		dr.sel[dr.cur] = !dr.sel[dr.cur]
+	case r == 'x':
+		v.expand = !v.expand
 	}
 }
 
@@ -1106,32 +1210,37 @@ func (v *view) drawCard() {
 		ctx("繁", f.ctxT, f.wsT, f.weT)
 	}
 	y++
-	if len(dr.defs.Rows) == 0 {
-		y = v.put(0, y, maxY, []rune(dr.defs.Notice), plain(stWarn))
+	if len(dr.opts) == 0 {
+		y = v.put(0, y, maxY, []rune(dr.notice), plain(stWarn))
 	}
-	for i, r := range dr.defs.Rows {
-		box := "[ ] "
-		if dr.sel[i] {
-			box = "[x] "
+	// The options scroll to keep the one under the cursor in view,
+	// above the cards already made and the help line.
+	end := maxY
+	if len(dr.dups) > 0 {
+		end = max(maxY-len(dr.dups)-2, y+1)
+	}
+	rows := func(a, b int) int {
+		n := 0
+		for i := a; i <= b; i++ {
+			for _, l := range v.optLines(i) {
+				n += v.height(l.x, l.wx, l.text)
+			}
 		}
-		def := r[3]
-		if i < dr.Zh() {
-			def = moeText(def, " ",
-				func(s string) string { return s })
+		return n
+	}
+	dr.top = min(dr.top, dr.cur)
+	// a row for the note of options scrolled past, once there are any
+	for dr.top < dr.cur && y+1+rows(dr.top, dr.cur) > end {
+		dr.top++
+	}
+	if dr.top > 0 {
+		y = v.put(0, y, end, []rune(fmt.Sprintf("  ↑ %d more",
+			dr.top)), plain(stHint))
+	}
+	for i := dr.top; i < len(dr.opts) && y < end; i++ {
+		for _, l := range v.optLines(i) {
+			y = v.putw(l.x, l.wx, y, 0, end, l.text, l.style)
 		}
-		text := []rune(box + v.reading(r[2]) + "  " + def)
-		st := stDef
-		if i == dr.cur {
-			st = stSel
-		} else if !dr.sel[i] {
-			st = stHint
-			// one row each for the rest, so the list stays short
-			text = clip(text, v.w)
-		}
-		if i == dr.Zh() && i > 0 {
-			y++
-		}
-		y = v.put(0, y, maxY, text, plain(st))
 	}
 	if len(dr.dups) > 0 {
 		y++
@@ -1154,10 +1263,11 @@ func (v *view) drawCard() {
 		}
 	}
 	help := "[ ] left edge  { } right edge  j k space: definitions" +
-		"  Enter: save  Esc: cancel"
+		"  x: quotations  Enter: save  Esc: cancel"
 	if dr.of > 1 {
 		help = "[ ] { } context  j k space: definitions" +
-			"  Enter: save  n: skip  Esc: cancel the rest"
+			"  x: quotations  Enter: save  n: skip" +
+			"  Esc: cancel the rest"
 	}
 	st := stHint
 	if dr.saving {
@@ -1167,7 +1277,42 @@ func (v *view) drawCard() {
 	v.put(0, v.h-1, v.h, clip([]rune(help), v.w), plain(st))
 }
 
-func (dr *draft) Zh() int { return dr.defs.Zh }
+// optLines are the lines option i takes in the card preview: a blank one
+// before the first English option, the option itself, and the quotations
+// that go on the card with it after x.
+func (v *view) optLines(i int) []styled {
+	dr, o := v.dr, v.dr.opts[i]
+	var out []styled
+	if i == dr.zh && i > 0 {
+		out = append(out, line(0))
+	}
+	box := "[ ] "
+	if dr.sel[i] {
+		box = "[x] "
+	}
+	ps := []piece{{box, stDef}, {v.reading(o.py) + "  ", stPinyin}}
+	if o.en != "" {
+		ps = append(ps, piece{o.en, stDef})
+	} else {
+		ps = append(ps, sensePieces(o.s, "")...)
+	}
+	l := line(0, ps...)
+	l.wx = 4
+	if i == dr.cur {
+		l.style = plain(stSel)
+	} else if !dr.sel[i] {
+		l.style = plain(stHint)
+		// one row each for the rest, so the list stays short
+		l.text = clip(l.text, v.w)
+	}
+	out = append(out, l)
+	if dr.sel[i] && v.expand {
+		for _, c := range o.s.Cites {
+			out = append(out, line(6, piece{c, stHint}))
+		}
+	}
+	return out
+}
 
 // clip cuts text to fit w columns, marking the cut with an ellipsis.
 func clip(text []rune, w int) []rune {

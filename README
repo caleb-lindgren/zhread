@@ -166,19 +166,23 @@ or with `ZHREAD_WINDOW=0`, it runs gozhread in the current terminal.
 The words of the text come from the same segmenter as multizhdict, run in
 the background a screenful at a time, and the definitions of the word under
 the cursor (or of the selection) are shown below the text, each starting
-on a line with the word and its reading. They are Chinese only until `e`
-adds the English, except for a word with no Chinese definition, whose
-English is shown at once. A MoEDict definition gets a line for each part
-of speech and numbered sense, with its examples (如：), quotations and
-synonym lists indented under the sense in colours of their own. The
-definitions pane is as tall as what it shows, up to half the screen, so
-short entries leave the text more room; it is measured again on every
-redraw, a resize included. `?` shows the keys there instead.
+on a line with the word and its reading, and every line of it indented to
+where its first line starts. They are Chinese only until `e` adds the
+English, except for a word with no Chinese definition, whose English is
+shown at once. A MoEDict definition gets a line for each numbered sense,
+with its part of speech in front where that changes, and its examples
+(如：) and synonym lists after it on the same line, in colours of their
+own. Its quotations from books are hidden until `x`, and then shown under
+the sense. The definitions pane is as tall as what it shows, up to half
+the screen, so short entries leave the text more room; it is measured
+again on every redraw, a resize included. A longer entry scrolls with `J`
+and `K`, and the rule above it notes how many rows are out of view
+(↑2 ↓5). `g?` or F1 shows the keys there instead.
 
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
 where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
 carries both. `-pron tw` reverses the two. Words already carded are
-coloured.
+coloured. The cursor is white, and the rest of the word under it blue.
 
 The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true
@@ -192,22 +196,28 @@ colour.
 | `gj gk`, arrows | screen row down, up                            |
 | `gg G`          | first line, last line (or line N with a count) |
 | `^D ^U ^F ^B`   | half page down, up; page down, up              |
-| `/`, `n N`      | search (a Go regexp); next, previous match     |
+| `/ ?`, `n N`    | search forward, back (a Go regexp); repeat     |
 | `* #`           | search for the word under the cursor           |
 | `v V`, Enter    | select by character, by line; make a card      |
 | `:>cmd`         | in `v` or `V`: pipe the selection to `cmd`     |
 | `m`, `'`        | bookmark this line, go to the bookmark         |
 | `e`             | show or hide English definitions               |
+| `x`             | show or hide MoEDict's quotations              |
+| `J K`           | scroll the definitions down, up                |
 | `t`             | show or hide the other side's reading          |
-| `?`, Esc        | show, hide the keys                            |
+| `g?`, F1; Esc   | show the keys; hide them                       |
 | `q`             | quit                                           |
 
-Counts work as in vi (`5j`, `3w`). `:>cmd` runs `cmd` with sh, the
-selected text on its standard input and the terminal handed over to it,
-and waits for Enter afterwards, as vi's `:!` does, so its output can be
-read: `:>multizhdict` looks the selection up, `:>xclip -sel c` copies it.
-A search in visual mode moves the end of the selection, as in vi. The bookmark is one per file: setting it
-replaces the old one, and opening the file goes to it. Bookmarks are kept
+Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
+selected text on its standard input, and goes straight back to reading:
+it is meant for commands that open a window of their own, such as
+`:>st -e multizhdict` or `:>xclip -sel c`. The command runs in a session
+of its own, so it outlives zhread, and its output is discarded; if it
+fails, the end of what it wrote to stderr is shown in the status line. A
+search in visual mode moves the end of the selection, as in vi.
+
+The bookmark is one per file: setting it replaces the old one, and
+opening the file goes to it. Bookmarks are kept
 in `$XDG_STATE_HOME/zhread/bookmarks` (`~/.local/state` by default), with
 the start of the marked line, so the mark finds its line again after the
 file is edited above it.
@@ -228,9 +238,14 @@ The preview shows:
   move the left edge a clause left or right, `{` and `}` the right edge.
   Lines not separated by a blank line are one paragraph, so a sentence
   hard-wrapped across lines is found whole.
-- **The definitions**, all of them, Chinese first. `j`/`k` move and Space
-  ticks the ones that fit the context; the first Chinese and first English
-  are ticked to start with. The reading comes from the first ticked one.
+- **The definitions**, all of them, Chinese first, each MoEDict sense an
+  option of its own, with its examples, so a card carries the sense the
+  context uses rather than all of 打's. The list scrolls to keep the
+  cursor in view. `j`/`k` move and Space ticks the ones that fit the
+  context; the first Chinese and first English are ticked to start with.
+  A ticked sense's quotations go on the card if `x` is showing them when
+  it is saved, and are shown under it in the preview. The reading comes
+  from the first ticked one.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.

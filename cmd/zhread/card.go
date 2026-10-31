@@ -225,14 +225,68 @@ type draft struct {
 	p      para
 	ws, we int // the word, as offsets into p.text
 	span   span
-	defs   zhdict.Group
-	sel    []bool // which of defs.Rows go on the card
-	cur    int    // the definition under the cursor
+	opts   []opt
+	zh     int    // how many of opts, from the start, are Chinese
+	notice string // stands in for opts when there are none
+	sel    []bool // which of opts go on the card
+	cur    int    // the option under the cursor
+	top    int    // the first option in view
 	dups   []carded
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once
 	n, of  int  // this is card n of the selection's of
+}
+
+// opt is one definition to choose for the card: a sense of a MoEDict
+// definition, so a card can carry the sense the context uses rather than
+// all twenty of 打's, or a whole English one.
+type opt struct {
+	py string          // the reading, with the other side's noted
+	s  zhdict.MoESense // a Chinese definition's sense
+	en string          // an English definition
+}
+
+// newOpts splits a word's definitions into options, Chinese first.
+func newOpts(g zhdict.Group) (opts []opt, zh int) {
+	for i, r := range g.Rows {
+		if i >= g.Zh {
+			opts = append(opts, opt{py: r[2], en: r[3]})
+			continue
+		}
+		ss := zhdict.MoESenses(r[3])
+		if len(ss) == 0 {
+			ss = []zhdict.MoESense{{Text: r[3]}}
+		}
+		for _, s := range ss {
+			opts = append(opts, opt{py: r[2], s: s})
+		}
+		zh = len(opts)
+	}
+	return opts, zh
+}
+
+// html is the option as it goes on the card: a sense's part of speech,
+// text, examples and synonym lists on one line, and its quotations on
+// lines after it when cites is set.
+func (o opt) html(cites bool) string {
+	if o.en != "" {
+		return html.EscapeString(o.en)
+	}
+	var ps []string
+	for _, t := range append([]string{o.s.Pos, o.s.Text},
+		append(o.s.Ex, o.s.Rels...)...) {
+		if t != "" {
+			ps = append(ps, html.EscapeString(t))
+		}
+	}
+	out := strings.Join(ps, " ")
+	if cites {
+		for _, c := range o.s.Cites {
+			out += "<br>" + html.EscapeString(c)
+		}
+	}
+	return out
 }
 
 // context returns the context's text and the word's offsets in it, with
@@ -289,25 +343,25 @@ func (dr *draft) forms(conv convs) forms {
 // note builds the card's fields. The traditional ones are left empty when
 // the word is the same in both scripts, which is what keeps Anki from
 // generating the traditional cards. The reading carries the other side's
-// only when both is set, as the pane shows it only after t.
-func (dr *draft) note(f forms, both bool) []string {
+// only when both is set, as the pane shows it only after t, and the
+// quotations go on only when cites is, as the pane shows them after x.
+func (dr *draft) note(f forms, both, cites bool) []string {
 	var py string
 	var zh, en []string
-	for i, r := range dr.defs.Rows {
+	for i, o := range dr.opts {
 		if !dr.sel[i] {
 			continue
 		}
 		if py == "" {
-			py = r[2]
+			py = o.py
 			if !both {
 				py = zhdict.Preferred(py)
 			}
 		}
-		if i < dr.defs.Zh {
-			zh = append(zh,
-				moeText(r[3], "<br>", html.EscapeString))
+		if i < dr.zh {
+			zh = append(zh, o.html(cites))
 		} else {
-			en = append(en, html.EscapeString(r[3]))
+			en = append(en, o.html(cites))
 		}
 	}
 	var trad, ctxT, clozeT string
@@ -325,16 +379,6 @@ func (dr *draft) note(f forms, both bool) []string {
 		ctxS, mark(f.ctxS, f.wsS, f.weS, true), ctxT, clozeT,
 		html.EscapeString(dr.src), time.Now().Format("2006-01-02"),
 	}
-}
-
-// moeText joins the parts of a MoEDict definition with sep, each passed
-// through esc.
-func moeText(def, sep string, esc func(string) string) string {
-	var ps []string
-	for _, l := range zhdict.MoELines(def) {
-		ps = append(ps, esc(l.Text))
-	}
-	return strings.Join(ps, sep)
 }
 
 // mark renders a context as HTML with the word in bold, or for the cloze

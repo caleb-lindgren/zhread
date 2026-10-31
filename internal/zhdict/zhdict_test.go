@@ -275,7 +275,7 @@ func TestRowOrder(t *testing.T) {
 // TestLongHeadword covers the path in Probe.offer for headwords longer than
 // maxCandRunes, which are never enumerated as candidates.
 func TestLongHeadword(t *testing.T) {
-	const long = "無一事而不學，無一時而不學，無一處而不得"
+	const long = "老吾老，以及人之老，幼吾幼，以及人之幼"
 	runs := HanRuns(long)
 	p := NewProbe(runs)
 	p.Load(testDict(t))
@@ -480,7 +480,7 @@ func TestMoELines(t *testing.T) {
 	def := "◆ <動>  ｜ ① 擊、敲擊。 ｜ 如：「打鐵趁熱」。 ｜ " +
 		"唐．杜甫．詩：「打鼓發船何郡郎。」 ｜ 似：擊 ｜ ◆ <名> 量詞。"
 	want := []MoELine{
-		{MoEPos, "<動>"}, {MoESense, "① 擊、敲擊。"},
+		{MoEPos, "<動>"}, {MoENum, "① 擊、敲擊。"},
 		{MoEExample, "如：「打鐵趁熱」。"},
 		{MoECite, "唐．杜甫．詩：「打鼓發船何郡郎。」"},
 		{MoERel, "似：擊"}, {MoEPos, "<名>"}, {MoEText, "量詞。"},
@@ -494,5 +494,20 @@ func TestMoELines(t *testing.T) {
 	const v = "yī diǎnr (變)yì diǎr"
 	if got := Preferred(v); got != v {
 		t.Errorf("Preferred kept no variant: %q", got)
+	}
+}
+
+func TestMoESenses(t *testing.T) {
+	def := "◆ <動>  ｜ ① 擊。 ｜ 如：「打鐵」。 ｜ 唐．杜甫．詩：「打鼓。」" +
+		" ｜ ② 攻擊。 ｜ ◆ <名> 量詞。 ｜ 似：擊"
+	got := MoESenses(def)
+	want := []MoESense{
+		{Pos: "<動>", Text: "① 擊。", Ex: []string{"如：「打鐵」。"},
+			Cites: []string{"唐．杜甫．詩：「打鼓。」"}},
+		{Pos: "<動>", Text: "② 攻擊。"},
+		{Pos: "<名>", Text: "量詞。", Rels: []string{"似：擊"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("MoESenses:\n got %q\nwant %q", got, want)
 	}
 }

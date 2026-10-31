@@ -265,9 +265,9 @@ func TestPane(t *testing.T) {
 	if !onScreen(s, "enterprise") {
 		t.Errorf("English not shown after e")
 	}
-	keys(v, "?")
+	keys(v, "g?")
 	if !onScreen(s, "pipe the selection") || onScreen(s, "enterprise") {
-		t.Errorf("? does not show the keys:\n%s",
+		t.Errorf("g? does not show the keys:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⎋")
@@ -399,7 +399,7 @@ func TestPaneFits(t *testing.T) {
 	want := func() int {
 		n := 1
 		for _, l := range v.pane() {
-			n += v.height(l.x, l.text)
+			n += v.height(l.x, l.wx, l.text)
 		}
 		return min(n, v.h/2)
 	}
@@ -423,5 +423,91 @@ func TestPaneFits(t *testing.T) {
 	if v.ph <= wide || v.ph != want() {
 		t.Errorf("at 30 columns: pane %d rows, want %d (%d at 60)",
 			v.ph, want(), wide)
+	}
+}
+
+func TestBackSearch(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "G$?企业⏎")
+	if v.cl != 2 || string(v.d.lines[2][v.cc:v.cc+2]) != "企业" {
+		t.Errorf("?企业: at %d:%d", v.cl, v.cc)
+	}
+}
+
+// TestQuotations checks that x shows MoEDict's quotations, which are
+// hidden at first, while examples are always on the definition's line.
+func TestQuotations(t *testing.T) {
+	v, s := newTestView(t, "他好高兴。\n")
+	s.SetSize(60, 40)
+	v.rows = nil
+	keys(v, "l")
+	if !onScreen(s, "① 美、善，理想的。 如：「好東西」") {
+		t.Errorf("example not on the sense's line:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	if onScreen(s, "唐．韋莊") {
+		t.Errorf("quotation shown before x")
+	}
+	keys(v, "x")
+	if !onScreen(s, "唐．韋莊") {
+		t.Errorf("no quotation after x:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	// The entry is longer than the pane: J scrolls it.
+	if !onScreen(s, "↓") {
+		t.Fatalf("no note of rows below:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "J")
+	if v.pscroll != 1 || !onScreen(s, "↑1") {
+		t.Errorf("J: scrolled %d", v.pscroll)
+	}
+	keys(v, "l")
+	if v.pscroll != 0 {
+		t.Errorf("scroll kept for the next word: %d", v.pscroll)
+	}
+}
+
+// TestCardSenses checks that a MoEDict definition is offered a sense at a
+// time, and that a card carries quotations only when x showed them.
+func TestCardSenses(t *testing.T) {
+	v, s := newTestView(t, "他好高兴。\n")
+	keys(v, "lvl⏎")
+	if v.mode != card {
+		t.Fatalf("mode %d", v.mode)
+	}
+	n := 0
+	for _, o := range v.dr.opts[:v.dr.zh] {
+		if strings.HasPrefix(o.s.Text, "① 美、善") {
+			n++
+		}
+	}
+	if n != 1 || v.dr.zh < 10 {
+		t.Fatalf("%d options for 好, %d with sense ①", v.dr.zh, n)
+	}
+	// The list scrolls to keep the cursor's option in view.
+	s.SetSize(60, 20)
+	v.rows = nil
+	keys(v, strings.Repeat("j", v.dr.zh-1))
+	if txt := v.dr.opts[v.dr.cur].s.Text; !onScreen(s, txt) {
+		t.Errorf("option %d (%s) not in view:\n%s", v.dr.cur, txt,
+			strings.Join(screen(s), "\n"))
+	}
+	f := v.dr.forms(v.conv)
+	cur := 0
+	for i, o := range v.dr.opts {
+		if len(o.s.Cites) > 0 {
+			cur = i
+			break
+		}
+	}
+	v.dr.sel[cur] = true
+	if note := v.dr.note(f, false, false); strings.Contains(note[4],
+		v.dr.opts[cur].s.Cites[0]) {
+		t.Errorf("quotation on a card made without x")
+	}
+	if note := v.dr.note(f, false, true); !strings.Contains(note[4],
+		v.dr.opts[cur].s.Cites[0]) {
+		t.Errorf("no quotation on a card made with x")
 	}
 }
