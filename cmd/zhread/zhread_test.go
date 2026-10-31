@@ -452,7 +452,7 @@ func TestQuotations(t *testing.T) {
 	s.SetSize(70, 40)
 	v.rows = nil
 	keys(v, "l")
-	if !onScreen(s, "1.美善的；理想的（與「壞」相對）。 [例]美～") {
+	if !onScreen(s, "1.美善的；理想的（與「壞」相對）。 [例]美好") {
 		t.Errorf("no 兩岸詞典 sense with its examples:\n%s",
 			strings.Join(screen(s), "\n"))
 	}

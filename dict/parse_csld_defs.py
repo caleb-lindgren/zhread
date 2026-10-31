@@ -11,7 +11,8 @@ reading only. Fields are written unquoted. def is the definition cells
 of the row joined by ¶, which the source never uses: a cell ending in ：
 heads the cells after it (1.擊打： over (1), (2) ...), and examples follow
 [例], separated by ｜, to which the source's three kinds of bar (∣ │ ｜)
-are normalised. A word the source marks as used only on the Mainland (★)
+are normalised. The source's ～ for the headword is replaced by the
+headword. A word the source marks as used only on the Mainland (★)
 or in Taiwan (▲) has the mark as a cell of its own before the others.
 """
 
@@ -49,7 +50,8 @@ def main():
                     str.maketrans("0123456789", "０１２３４５６７８９")))
                 c = re.sub(r"\s+", " ", (c or "").translate(BARS)).strip()
                 if c:
-                    cells.append(c.replace("¶", " "))
+                    # The source writes the headword as ～.
+                    cells.append(c.replace("¶", " ").replace("～", trad))
             if not cells:
                 continue
             mark = r["臺／陸特有詞"].strip()
