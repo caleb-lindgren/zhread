@@ -488,6 +488,20 @@ func TestMoELines(t *testing.T) {
 	if got := MoELines(def); !slices.Equal(got, want) {
 		t.Errorf("MoELines:\n got %v\nwant %v", got, want)
 	}
+	// A definition that quotes its source in passing is not a
+	// quotation; one that ends with quotations has them split off; and
+	// a sense number left inside a part starts a sense.
+	def = "山丘和谿壑。語本漢書．敘傳上：「漁釣」。後比喻歸隱。 ｜ " +
+		"乾食。詩經．伐木：「民之失德」。莊子：「乾餱」 ｜ ① 承載著人。 ② 所載的人。"
+	want = []MoELine{
+		{MoEText, "山丘和谿壑。語本漢書．敘傳上：「漁釣」。後比喻歸隱。"},
+		{MoEText, "乾食。"}, {MoECite, "詩經．伐木：「民之失德」。"},
+		{MoECite, "莊子：「乾餱」"},
+		{MoENum, "① 承載著人。"}, {MoENum, "② 所載的人。"},
+	}
+	if got := MoELines(def); !slices.Equal(got, want) {
+		t.Errorf("MoELines:\n got %v\nwant %v", got, want)
+	}
 	if got := Preferred("qǐ yè (TW qì yè)"); got != "qǐ yè" {
 		t.Errorf("Preferred %q", got)
 	}
@@ -515,9 +529,9 @@ func TestMoESenses(t *testing.T) {
 		"⑵置於名詞後。 ｜ ② 句尾助詞：置於句尾。 ｜ 如：「是的！」"
 	got = MoESenses(def)
 	want = []Sense{
-		{Pos: "<助>", Head: "① 結構助詞：", Text: "(1) 置於形容詞後。",
+		{Pos: "<助>", Heads: []string{"① 結構助詞："}, Text: "(1) 置於形容詞後。",
 			Ex: []string{"如：「美麗的風景」。"}},
-		{Pos: "<助>", Head: "① 結構助詞：", Text: "(2) 置於名詞後。"},
+		{Pos: "<助>", Heads: []string{"① 結構助詞："}, Text: "(2) 置於名詞後。"},
 		{Pos: "<助>", Text: "② 句尾助詞：置於句尾。",
 			Ex: []string{"如：「是的！」"}},
 	}
@@ -532,9 +546,9 @@ func TestCSLDSenses(t *testing.T) {
 		"¶助詞：¶1.表完成。¶2.用在：¶如：「走了」。"
 	got := CSLDSenses(def)
 	want := []Sense{
-		{Pos: "〈大陸〉", Head: "1.擊打：", Text: "(1)擊打。",
+		{Pos: "〈大陸〉", Heads: []string{"1.擊打："}, Text: "(1)擊打。",
 			Ex: []string{"如：「打鐘」、「捶打」。"}},
-		{Head: "1.擊打：", Text: "(2)被擊打。"},
+		{Heads: []string{"1.擊打："}, Text: "(2)被擊打。"},
 		{Text: "2.〈書〉遷延。", Ex: []string{"如：「須臾萬變」。"},
 			Cites: []string{"足下得須臾（《史記》）。"}},
 		{Pos: "助詞：", Text: "1.表完成。"},
@@ -543,6 +557,23 @@ func TestCSLDSenses(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("CSLDSenses:\n got %q\nwant %q", got, want)
+	}
+
+	// Headings nest by numbering; a long one is a heading, not a Pos;
+	// and an example left in the text is split off.
+	def = "標點符號之一。形式為「；」：¶(1)用於分開句子。例如：¶a)鯨魚是獸類。" +
+		"¶b)語言。¶(2)用於複句。例如：年滿十八周歲。¶古代人臣中最高的三個官職：¶1.太師。"
+	got = CSLDSenses(def)
+	h := "標點符號之一。形式為「；」："
+	want = []Sense{
+		{Heads: []string{h, "(1)用於分開句子。例如："}, Text: "a)鯨魚是獸類。"},
+		{Heads: []string{h, "(1)用於分開句子。例如："}, Text: "b)語言。"},
+		{Heads: []string{h}, Text: "(2)用於複句。",
+			Ex: []string{"例如：年滿十八周歲。"}},
+		{Heads: []string{"古代人臣中最高的三個官職："}, Text: "1.太師。"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CSLDSenses, nested:\n got %q\nwant %q", got, want)
 	}
 }
 

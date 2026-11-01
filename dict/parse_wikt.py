@@ -19,8 +19,8 @@ translation, source).
 
 Dropped: soft redirects (the simplified spellings, whose traditional
 page holds the entry, and which supply the simplified column instead),
-senses tagged only for other varieties of Chinese (Cantonese, Hokkien
-and the rest) and examples in them, senses with no gloss, and records
+senses tagged or labelled only for other varieties of Chinese (Cantonese,
+Hokkien and the rest) and examples in them, senses with no gloss, and records
 left with no senses.
 """
 
@@ -47,6 +47,10 @@ ROMANISATIONS = {
     "Hakka-Romanization-System", "Bàng-uâ-cê", "Cantonese-Pinyin",
     "Yale", "Kienning-Colloquial-Romanized",
 }
+# Topolect names as a gloss's leading label writes them: "(Shanghainese)",
+# which some senses carry with no tag.
+TOPOLECT_NAMES = {t.replace("-", " ") for t in TOPOLECTS}
+LABEL = re.compile(r"^\(([^()]*)\)")
 TONE_DIGITS = re.compile(r"[0-9¹²³⁴⁵⁶⁷⁸⁹⁰₀₁₂₃₄₅₆₇₈₉]")
 MAX_EX = 3
 
@@ -59,6 +63,16 @@ def squash(s):
 
 def clean(s):
     return re.sub(r"\s+", " ", s.replace("¶", " ")).strip()
+
+
+def other_variety(gloss):
+    """Whether a gloss's leading label names another variety of Chinese
+    and not Mandarin: "(Shanghainese) currently"."""
+    m = LABEL.match(gloss)
+    if not m:
+        return False
+    names = set(re.split(r",\s*|\s+and\s+", m.group(1)))
+    return bool(names & TOPOLECT_NAMES) and "Mandarin" not in m.group(1)
 
 
 def mandarin(ex):
@@ -151,7 +165,11 @@ def senses(rec):
             continue
         # A sub-sense's glosses start with its parent's, which is a
         # sense of its own too.
-        cells.append(clean(gl[-1]))
+        g = clean(gl[-1])
+        if other_variety(g):
+            continue
+        # As in "(～市) Kyoto", the headword in a compound.
+        cells.append(g.replace("～", rec["word"]))
         n, quoted = 0, False
         for ex in s.get("examples", []):
             # Each example is given in both scripts; one will do.

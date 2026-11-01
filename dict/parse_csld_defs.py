@@ -26,7 +26,11 @@ from parse_csld import inventory, split, syllables
 
 BARS = str.maketrans({"∣": "｜", "│": "｜", "︱": "｜"})
 GLOSS = re.compile(r"(（[^（）]*）)$")
-CITE = re.compile(r"（《[^》]*》[^）]*）。?$")
+# A quotation ends with its source: （唐‧李白〈猛虎行〉）, the book in 《》
+# or the piece in 〈〉, and a few with an ASCII bracket.
+CITE = re.compile(r"[（(][^（）()]*[《〈][^（）()]*[）)]。?$")
+# A heading run together with its first sub-sense: 1.地名： (1)晉代指….
+HEAD = re.compile(r"^(.*?：)\s*(?=\(1\))")
 
 
 def quote(e):
@@ -92,6 +96,9 @@ def main():
                 # A few cells have [例] more than once.
                 text, *ex = c.split("[例]")
                 ex = "｜".join(ex)
+                if m := HEAD.match(text):
+                    cells.append(m.group(1))
+                    text = text[m.end():]
                 if text.strip():
                     cells.append(text.strip())
                 cells += examples(ex)
