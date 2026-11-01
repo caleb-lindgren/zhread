@@ -510,19 +510,36 @@ func TestMoESenses(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("MoESenses:\n got %q\nwant %q", got, want)
 	}
+
+	def = "<助>  ｜ ① 結構助詞： ｜ ⑴ 置於形容詞後。如：「美麗的風景」。 ｜ " +
+		"⑵置於名詞後。 ｜ ② 句尾助詞：置於句尾。 ｜ 如：「是的！」"
+	got = MoESenses(def)
+	want = []Sense{
+		{Pos: "<助>", Head: "① 結構助詞：", Text: "(1) 置於形容詞後。",
+			Ex: []string{"如：「美麗的風景」。"}},
+		{Pos: "<助>", Head: "① 結構助詞：", Text: "(2) 置於名詞後。"},
+		{Pos: "<助>", Text: "② 句尾助詞：置於句尾。",
+			Ex: []string{"如：「是的！」"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("MoESenses, sub-senses:\n got %q\nwant %q", got, want)
+	}
 }
 
 func TestCSLDSenses(t *testing.T) {
-	def := "★¶1.擊打：¶(1)擊打。[例]～鐘｜捶～¶(2)被擊打。¶2.〈書〉遷延。" +
-		"[例]～萬變｜足下得～（《史記‧卷九十二》）。¶助詞：¶1.表完成。"
+	def := "★¶1.擊打：¶(1)擊打。¶如：「打鐘」、「捶打」。¶(2)被擊打。" +
+		"¶2.〈書〉遷延。¶如：「須臾萬變」。¶引：足下得須臾（《史記》）。" +
+		"¶助詞：¶1.表完成。¶2.用在：¶如：「走了」。"
 	got := CSLDSenses(def)
 	want := []Sense{
-		{Pos: "〈大陸〉 1.擊打：", Text: "(1)擊打。",
-			Ex: []string{"[例]～鐘｜捶～"}},
-		{Pos: "1.擊打：", Text: "(2)被擊打。"},
-		{Text: "2.〈書〉遷延。", Ex: []string{"[例]～萬變"},
-			Cites: []string{"足下得～（《史記‧卷九十二》）。"}},
+		{Pos: "〈大陸〉", Head: "1.擊打：", Text: "(1)擊打。",
+			Ex: []string{"如：「打鐘」、「捶打」。"}},
+		{Head: "1.擊打：", Text: "(2)被擊打。"},
+		{Text: "2.〈書〉遷延。", Ex: []string{"如：「須臾萬變」。"},
+			Cites: []string{"足下得須臾（《史記》）。"}},
 		{Pos: "助詞：", Text: "1.表完成。"},
+		// Not a heading: examples follow it.
+		{Pos: "助詞：", Text: "2.用在：", Ex: []string{"如：「走了」。"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("CSLDSenses:\n got %q\nwant %q", got, want)

@@ -9,10 +9,11 @@ empty where the source gives no separate Mainland reading, which is where
 the two are the same, and tw is empty for the few words with a Mainland
 reading only. Fields are written unquoted. def is the definition cells
 of the row joined by ¶, which the source never uses: a cell ending in ：
-heads the cells after it (1.擊打： over (1), (2) ...), and examples follow
-[例], separated by ｜, to which the source's three kinds of bar (∣ │ ｜)
-are normalised. The source's ～ for the headword is replaced by the
-headword. A word the source marks as used only on the Mainland (★)
+heads the cells after it (1.擊打： over (1), (2) ...). Each sense's
+examples, which the source puts after [例] and separates with any of
+four kinds of bar (∣ │ ︱ ｜), are a cell after it in MoEDict's form,
+如：「…」、「…」。; quotations among them are cells of their own after
+引：. The source's ～ for the headword is replaced by the headword. A word the source marks as used only on the Mainland (★)
 or in Taiwan (▲) has the mark as a cell of its own before the others.
 """
 
@@ -23,7 +24,41 @@ import sys
 
 from parse_csld import inventory, split, syllables
 
-BARS = str.maketrans({"∣": "｜", "│": "｜"})
+BARS = str.maketrans({"∣": "｜", "│": "｜", "︱": "｜"})
+GLOSS = re.compile(r"(（[^（）]*）)$")
+CITE = re.compile(r"（《[^》]*》[^）]*）。?$")
+
+
+def quote(e):
+    """An example in corner brackets, as MoEDict writes them, with any
+    brackets inside it made double and a gloss after it kept outside:
+    的證（確鑿的證據） is 「的證」（確鑿的證據）."""
+    e = e.replace("「", "『").replace("」", "』")
+    m = GLOSS.search(e)
+    if m and m.start() > 0:
+        return "「" + e[:m.start()].removesuffix("。") + "」" + m.group(1)
+    return "「" + e + "」"
+
+
+def examples(ex):
+    """The cells for what follows [例]: the examples as one cell in
+    MoEDict's form, 如：「…」、「…」。, then each quotation, one that ends
+    with its source in 《》, as a cell of its own after 引：. The source
+    ends each list with 。, which is dropped from the last example and put
+    after the list instead, unless the example ends with ？ or ！."""
+    exs, cites = [], []
+    for e in ex.split("｜"):
+        e = e.strip()
+        if CITE.search(e):
+            cites.append("引：" + e)
+        elif e:
+            exs.append(e)
+    cells = []
+    if exs:
+        exs[-1] = exs[-1].removesuffix("。")
+        end = "" if exs[-1][-1] in "？！?!" else "。"
+        cells.append("如：" + "、".join(map(quote, exs)) + end)
+    return cells + cites
 
 
 def reading(py, zhuyin, syl):
@@ -49,9 +84,17 @@ def main():
                 c = r.get("釋義" + str(i).translate(
                     str.maketrans("0123456789", "０１２３４５６７８９")))
                 c = re.sub(r"\s+", " ", (c or "").translate(BARS)).strip()
-                if c:
-                    # The source writes the headword as ～.
-                    cells.append(c.replace("¶", " ").replace("～", trad))
+                if not c:
+                    continue
+                # The source writes the headword as ～.
+                c = c.replace("¶", " ").replace("～", trad).replace(
+                    "〜", trad)
+                # A few cells have [例] more than once.
+                text, *ex = c.split("[例]")
+                ex = "｜".join(ex)
+                if text.strip():
+                    cells.append(text.strip())
+                cells += examples(ex)
             if not cells:
                 continue
             mark = r["臺／陸特有詞"].strip()

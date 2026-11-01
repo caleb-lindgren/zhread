@@ -11,58 +11,61 @@ const cell = "¶"
 // csldHead matches the start of a 兩岸詞典 sense or sub-sense: 1. or (1).
 var csldHead = regexp.MustCompile(`^(?:\d+\.|\(\d+\))`)
 
-// csldCite matches an example that is a quotation: it ends with its
-// source in 《》, as 足下所以得～至今者（《史記‧卷九十二‧淮陰侯列傳》）。
-var csldCite = regexp.MustCompile(`（《[^》]*》[^）]*）。?$`)
-
 // csldMarks spells out the marks 兩岸詞典 uses for a word or sense used
 // only on the Mainland (★) or in Taiwan (▲), in the style of its own
 // labels 〈書〉 and 〈口〉.
 var csldMarks = strings.NewReplacer("★", "〈大陸〉", "▲", "〈臺灣〉")
 
 // CSLDSenses splits a 兩岸詞典 definition into senses. A cell ending in ：
-// heads the senses after it, as Pos: a numbered one (1.擊打：) the
-// sub-senses up to the next numbered cell, an unnumbered one (助詞：) all
-// that follow. A cell holding only a mark labels the whole word, and goes
-// in front of the first sense's Pos. Examples follow [例], split at ｜;
-// those that are quotations go to Cites.
+// that no examples follow heads the senses after it: a numbered one
+// (1.擊打：), as Head, the sub-senses up to the next numbered cell; an
+// unnumbered one (助詞：), as Pos, all that follow. A cell holding only a
+// mark labels the whole word, and goes in front of the first sense's Pos.
+// Each sense is followed by a cell of its examples (如：) and by cells of
+// its quotations (引：), which go to Cites without the 引：.
 func CSLDSenses(def string) []Sense {
 	var out []Sense
-	head, label := "", ""
-	numbered := false
-	for _, c := range strings.Split(csldMarks.Replace(def), cell) {
+	pos, head, label := "", "", ""
+	cells := strings.Split(csldMarks.Replace(def), cell)
+	for i, c := range cells {
 		c = strings.TrimSpace(c)
+		ex := strings.HasPrefix(c, "如：") || strings.HasPrefix(c, "引：")
+		next := ""
+		if i+1 < len(cells) {
+			next = cells[i+1]
+		}
 		switch {
 		case c == "":
 			continue
 		case c == "〈大陸〉" || c == "〈臺灣〉":
 			label = c
 			continue
-		case strings.HasSuffix(c, "：") && !strings.Contains(c, "[例]"):
-			head = c
-			numbered = csldHead.MatchString(c) &&
-				!strings.HasPrefix(c, "(")
-			continue
-		case numbered && !strings.HasPrefix(c, "("):
-			head, numbered = "", false
-		}
-		s := Sense{Pos: head}
-		text, ex, _ := strings.Cut(c, "[例]")
-		s.Text = strings.TrimSpace(text)
-		var exs []string
-		if ex != "" {
-			for _, e := range strings.Split(ex, "｜") {
-				if csldCite.MatchString(e) {
-					s.Cites = append(s.Cites, e)
-				} else {
-					exs = append(exs, e)
-				}
+		case ex:
+			if len(out) == 0 {
+				out = append(out, Sense{Pos: pos, Head: head})
 			}
+			s := &out[len(out)-1]
+			if cite, ok := strings.CutPrefix(c, "引："); ok {
+				s.Cites = append(s.Cites, cite)
+			} else {
+				s.Ex = append(s.Ex, c)
+			}
+			continue
+		case strings.HasSuffix(c, "：") &&
+			!strings.HasPrefix(next, "如：") &&
+			!strings.HasPrefix(next, "引："):
+			numbered := csldHead.MatchString(c) &&
+				!strings.HasPrefix(c, "(")
+			if numbered {
+				head = c
+			} else {
+				pos, head = c, ""
+			}
+			continue
+		case head != "" && !strings.HasPrefix(c, "("):
+			head = ""
 		}
-		if len(exs) > 0 {
-			s.Ex = []string{"[例]" + strings.Join(exs, "｜")}
-		}
-		out = append(out, s)
+		out = append(out, Sense{Pos: pos, Head: head, Text: c})
 	}
 	if label != "" {
 		if len(out) == 0 {
