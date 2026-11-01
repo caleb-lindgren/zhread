@@ -189,9 +189,11 @@ the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 definition shown beside the main one is labelled with its name. See
 dict/README for the files.
 
-Each sense gets a line, with its part of speech or heading in front where that
-changes, and its examples and synonym lists after it on the same line, in
-colours of their own. Quotations from books are hidden until `x`, and then
+Each sense gets a line, with its examples and synonym lists after it on the
+same line, in colours of their own. A part of speech starts the first sense
+under it, and the rest line up after it; a sense with sub-senses, like
+MoEDict's ① 結構助詞： over ⑴ to ⑷, has a line of its own, with the sub-senses
+indented under it. Quotations from books are hidden until `x`, and then
 shown under the sense. The definitions pane is as tall as what it shows, up to
 half the screen, so short entries leave the text more room; it is measured
 again on every redraw, a resize included. A longer entry scrolls with `J` and
@@ -201,7 +203,9 @@ F1 shows the keys there instead.
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
 where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
 carries both. `-pron tw` reverses the two. Words already carded are
-coloured. The cursor is white, and the rest of the word under it blue.
+coloured. The cursor is white, and the rest of the word under it blue. Its
+line stays in the middle of the text, except near the start and end of the
+file, where the text fills the screen instead.
 
 The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true

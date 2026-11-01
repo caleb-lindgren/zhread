@@ -272,12 +272,12 @@ func newOpts(g zhdict.Group,
 	return opts, zh
 }
 
-// html is the option as it goes on the card: its part of speech, text,
-// examples and synonym lists on one line, and its quotations on lines
+// html is the option as it goes on the card: its part of speech, heading,
+// text, examples and synonym lists on one line, and its quotations on lines
 // after it when cites is set.
 func (o opt) html(cites bool) string {
 	var ps []string
-	for _, t := range append([]string{o.s.Pos, o.s.Text},
+	for _, t := range append([]string{o.s.Pos, o.s.Head, o.s.Text},
 		append(o.s.Ex, o.s.Rels...)...) {
 		if t != "" {
 			ps = append(ps, html.EscapeString(t))

@@ -246,6 +246,28 @@ func TestNavigation(t *testing.T) {
 	}
 }
 
+// TestCentred checks that the cursor's row stays in the middle of the
+// text, except at the start and end, where the text fills the screen.
+func TestCentred(t *testing.T) {
+	v, _ := newTestView(t, strings.Repeat("一。\n", 200))
+	mid := func() int { return v.rowOf(v.cl, v.cc) - v.top }
+	if keys(v, "jjj"); v.top != 0 || mid() != 3 {
+		t.Errorf("near the start: top %d, row %d", v.top, mid())
+	}
+	for _, k := range []string{"100j", "j", "k", "40k"} {
+		keys(v, k)
+		if mid() != v.textH()/2 {
+			t.Errorf("after %s: row %d of %d", k, mid(), v.textH())
+		}
+	}
+	if v.cl != 63 {
+		t.Errorf("at line %d, want 63", v.cl)
+	}
+	if keys(v, "G"); v.top+v.textH() != len(v.rows) {
+		t.Errorf("G: top %d of %d rows", v.top, len(v.rows))
+	}
+}
+
 func TestPane(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/企业⏎")
@@ -452,7 +474,7 @@ func TestQuotations(t *testing.T) {
 	s.SetSize(70, 40)
 	v.rows = nil
 	keys(v, "l")
-	if !onScreen(s, "1.美善的；理想的（與「壞」相對）。 [例]美好") {
+	if !onScreen(s, "1.美善的；理想的（與「壞」相對）。 如：「美好」") {
 		t.Errorf("no 兩岸詞典 sense with its examples:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -484,6 +506,33 @@ func TestQuotations(t *testing.T) {
 	if !onScreen(s, "淮陰") {
 		t.Errorf("no quotation after x:\n%s",
 			strings.Join(screen(s), "\n"))
+	}
+}
+
+// TestSenseLayout checks that the senses under a part of speech line up
+// after it, and sub-senses under their heading.
+func TestSenseLayout(t *testing.T) {
+	v, s := newTestView(t, "我的书\n")
+	s.SetSize(120, 60)
+	v.rows = nil
+	keys(v, "lC")
+	col := func(text string) int {
+		for _, l := range v.pane() {
+			lt := string(l.text)
+			if i := strings.Index(lt, text); i >= 0 {
+				return l.x + zhdict.Width(lt[:i])
+			}
+		}
+		t.Fatalf("no %q:\n%s", text, paneText(v))
+		return 0
+	}
+	if a, b := col("1.用在作定語"), col("2.用在名詞"); a != b {
+		t.Errorf("兩岸詞典 senses at %d and %d", a, b)
+	}
+	head, sub := col("① 結構助詞："), col("(1) 置於形容詞後。")
+	if col("(3) 置於修飾") != sub || col("(4) 置於副詞後") != sub ||
+		sub != head+2 || col("② 句尾助詞") != head {
+		t.Errorf("MoEDict senses misaligned:\n%s", paneText(v))
 	}
 }
 

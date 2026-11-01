@@ -167,18 +167,12 @@ func (v *view) clamp() {
 	v.cc = max(v.cc, 0)
 }
 
-// scroll keeps the cursor's row on screen with two rows of margin.
+// scroll puts the cursor's row in the middle of the text, except near the
+// start and end, where the text fills the screen instead.
 func (v *view) scroll() {
 	th := v.textH()
-	r := v.rowOf(v.cl, v.cc)
-	off := min(2, (th-1)/2)
-	if r-off < v.top {
-		v.top = max(r-off, 0)
-	}
-	if r+off >= v.top+th {
-		v.top = r + off - th + 1
-	}
-	v.top = min(v.top, max(len(v.rows)-th, 0))
+	v.top = v.rowOf(v.cl, v.cc) - th/2
+	v.top = max(min(v.top, len(v.rows)-th), 0)
 }
 
 // requestSeg asks the worker to segment the lines around the screen that
@@ -428,31 +422,17 @@ func (v *view) pane() []styled {
 		}
 		head = append(head, piece{"  ", stDef})
 		col := min(width(head), v.w/2)
-		var defs [][]piece
-		var cites [][]string
-		pos := ""
-		for _, sn := range g.Senses(i) {
-			defs = append(defs, sensePieces(sn, pos))
-			cites = append(cites, sn.Cites)
-			pos = sn.Pos
+		ls := v.senseLines(g.Senses(i), col)
+		if len(ls) == 0 {
+			ls = []sline{{col, col, nil}}
 		}
-		if len(defs) == 0 {
-			defs = [][]piece{nil}
-			cites = [][]string{nil}
-		}
-		for k, d := range defs {
-			l := line(col, d...)
+		for k, l := range ls {
+			sl := line(l.x, l.ps...)
 			if k == 0 {
-				l = line(0, append(head, d...)...)
-				l.wx = col
+				sl = line(0, append(head, l.ps...)...)
 			}
-			out = append(out, l)
-			if v.expand {
-				for _, c := range cites[k] {
-					out = append(out,
-						line(col+2, piece{c, stHint}))
-				}
-			}
+			sl.wx = l.wx
+			out = append(out, sl)
 		}
 	}
 	return out
@@ -475,32 +455,91 @@ func (v *view) shows(g zhdict.Group, i int) bool {
 // are shown in the part-of-speech colour.
 var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉`)
 
-// sensePieces is a sense on one line: its part of speech when it differs
-// from the sense before's, its text, examples and synonym lists. The
-// quotations are left to the caller, which shows them only on x.
-func sensePieces(sn zhdict.Sense, prevPos string) []piece {
+// sline is a line of a definition: its pieces from column x, wrapping to
+// column wx.
+type sline struct {
+	x, wx int
+	ps    []piece
+}
+
+// maxHang is the widest part of speech that senses hang after; a wider one,
+// like Wiktionary's <character>, has a line of its own.
+const maxHang = 10
+
+// senseLines lays out a definition's senses from column col, the first
+// line's to follow the word and its reading. A part of speech starts the
+// first sense after it, and that sense and the rest under it line up after
+// the part of speech:
+//
+//	的  de  <助> ① 結構助詞：
+//	               (1) 置於形容詞後。如：「美麗的風景」。
+//	             ② 句尾助詞：置於句尾，…
+//
+// A heading over sub-senses has a line of its own, with the sub-senses
+// indented under it, and quotations, shown on x, are indented under their
+// sense.
+func (v *view) senseLines(senses []zhdict.Sense, col int) []sline {
+	var out []sline
+	add := func(x int, pre []piece, ps ...piece) {
+		out = append(out, sline{x - width(pre), x, append(pre, ps...)})
+	}
+	pos, head, x := "", "", col
+	for k, sn := range senses {
+		var pre []piece
+		if k == 0 || sn.Pos != pos {
+			pos, head, x = sn.Pos, "", col
+			if w := zhdict.Width(pos) + 1; pos == "" {
+			} else if w <= maxHang && col+w <= v.w/2 {
+				pre, x = []piece{{pos + " ", stPos}}, col+w
+			} else {
+				add(col, nil, piece{pos, stPos})
+				x = col + 2
+			}
+		}
+		if sn.Head != head {
+			if head = sn.Head; head != "" {
+				add(x, pre, labelled(head)...)
+				pre = nil
+			}
+		}
+		sx := x
+		if head != "" {
+			sx += 2
+		}
+		add(sx, pre, sensePieces(sn)...)
+		if v.expand {
+			for _, c := range sn.Cites {
+				add(sx+2, nil, piece{c, stHint})
+			}
+		}
+	}
+	return out
+}
+
+// labelled is text with its usage labels in the part-of-speech colour.
+func labelled(t string) []piece {
 	var ps []piece
+	at := 0
+	for _, m := range label.FindAllStringIndex(t, -1) {
+		ps = append(ps, piece{t[at:m[0]], stDef},
+			piece{t[m[0]:m[1]], stPos})
+		at = m[1]
+	}
+	return append(ps, piece{t[at:], stDef})
+}
+
+// sensePieces is a sense on one line: its text, examples and synonym
+// lists. The quotations are left to the caller, which shows them only on x.
+func sensePieces(sn zhdict.Sense) []piece {
+	var ps []piece
+	if sn.Text != "" {
+		ps = labelled(sn.Text)
+	}
 	add := func(t string, st tcell.Style) {
 		if len(ps) > 0 {
 			t = " " + t
 		}
 		ps = append(ps, piece{t, st})
-	}
-	if sn.Pos != "" && sn.Pos != prevPos {
-		add(sn.Pos, stPos)
-	}
-	if sn.Text != "" {
-		t := sn.Text
-		if len(ps) > 0 {
-			t = " " + t
-		}
-		at := 0
-		for _, m := range label.FindAllStringIndex(t, -1) {
-			ps = append(ps, piece{t[at:m[0]], stDef},
-				piece{t[m[0]:m[1]], stPos})
-			at = m[1]
-		}
-		ps = append(ps, piece{t[at:], stDef})
 	}
 	for _, e := range sn.Ex {
 		add(e, stEx)
@@ -826,8 +865,7 @@ func (v *view) gKey(r rune) {
 	}
 }
 
-// byRows moves the cursor n display rows, keeping its screen column, and
-// scrolls the screen with it.
+// byRows moves the cursor n display rows, keeping its screen column.
 func (v *view) byRows(n int) {
 	ri := v.rowOf(v.cl, v.cc)
 	row := v.rows[ri]
@@ -841,9 +879,6 @@ func (v *view) byRows(n int) {
 		if cx > x {
 			break
 		}
-	}
-	if n > 1 || n < -1 {
-		v.top = min(max(v.top+n, 0), max(len(v.rows)-v.textH(), 0))
 	}
 }
 
@@ -1331,7 +1366,14 @@ func (v *view) optLines(i int) []styled {
 	if o.src != "" {
 		ps = append(ps, piece{o.src + "  ", stHint})
 	}
-	ps = append(ps, sensePieces(o.s, "")...)
+	if o.s.Pos != "" {
+		ps = append(ps, piece{o.s.Pos + " ", stPos})
+	}
+	if o.s.Head != "" {
+		ps = append(ps, labelled(o.s.Head)...)
+		ps = append(ps, piece{" ", stDef})
+	}
+	ps = append(ps, sensePieces(o.s)...)
 	l := line(0, ps...)
 	l.wx = 4
 	if i == dr.cur {
