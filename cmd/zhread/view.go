@@ -451,9 +451,10 @@ func (v *view) shows(g zhdict.Group, i int) bool {
 	return v.moreEn
 }
 
-// label matches the usage labels of 兩岸詞典 (〈書〉, 〈口〉, 〈大陸〉), which
-// are shown in the part-of-speech colour.
-var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉`)
+// label matches the usage labels of 兩岸詞典 (〈書〉, 〈口〉, 〈大陸〉), and those
+// MoEDict (諺語) and Wiktionary (literary) start a sense with, which are
+// shown in the part-of-speech colour. A sub-sense number, (1), is not one.
+var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉|^\([^()0-9][^()]{0,40}\)`)
 
 // sline is a line of a definition: its pieces from column x, wrapping to
 // column wx.
@@ -475,19 +476,20 @@ const maxHang = 10
 //	               (1) 置於形容詞後。如：「美麗的風景」。
 //	             ② 句尾助詞：置於句尾，…
 //
-// A heading over sub-senses has a line of its own, with the sub-senses
-// indented under it, and quotations, shown on x, are indented under their
-// sense.
+// A heading over sub-senses has a line of its own, with the sub-senses, and
+// any heading among them, indented under it. Quotations, shown on x, are
+// indented under their sense.
 func (v *view) senseLines(senses []zhdict.Sense, col int) []sline {
 	var out []sline
 	add := func(x int, pre []piece, ps ...piece) {
 		out = append(out, sline{x - width(pre), x, append(pre, ps...)})
 	}
-	pos, head, x := "", "", col
+	pos, x := "", col
+	var heads []string
 	for k, sn := range senses {
 		var pre []piece
 		if k == 0 || sn.Pos != pos {
-			pos, head, x = sn.Pos, "", col
+			pos, heads, x = sn.Pos, nil, col
 			if w := zhdict.Width(pos) + 1; pos == "" {
 			} else if w <= maxHang && col+w <= v.w/2 {
 				pre, x = []piece{{pos + " ", stPos}}, col+w
@@ -496,18 +498,22 @@ func (v *view) senseLines(senses []zhdict.Sense, col int) []sline {
 				x = col + 2
 			}
 		}
-		if sn.Head != head {
-			if head = sn.Head; head != "" {
-				add(x, pre, labelled(head)...)
-				pre = nil
-			}
+		// The headings the sense before was not also under.
+		j := 0
+		for j < min(len(heads), len(sn.Heads)) &&
+			heads[j] == sn.Heads[j] {
+			j++
 		}
-		sx := x
-		if head != "" {
-			sx += 2
+		for ; j < len(sn.Heads); j++ {
+			add(x+2*j, pre, labelled(sn.Heads[j])...)
+			pre = nil
 		}
+		heads = sn.Heads
+		sx := x + 2*len(heads)
 		add(sx, pre, sensePieces(sn)...)
-		if v.expand {
+		// A sense that is only quotations, as some of MoEDict's are,
+		// shows them anyway.
+		if v.expand || sn.Text == "" && len(sn.Ex) == 0 {
 			for _, c := range sn.Cites {
 				add(sx+2, nil, piece{c, stHint})
 			}
@@ -612,7 +618,7 @@ func (v *view) drawPane(y0 int, lines []styled) {
 		more = append(more, fmt.Sprintf("↓%d", below))
 	}
 	if len(more) > 0 {
-		m := " " + strings.Join(more, " ") + " J K "
+		m := " " + strings.Join(more, " ") + " "
 		v.put(max(v.w-zhdict.Width(m)-1, 0), y0, y0+1, []rune(m),
 			plain(stRule))
 	}
@@ -1369,8 +1375,8 @@ func (v *view) optLines(i int) []styled {
 	if o.s.Pos != "" {
 		ps = append(ps, piece{o.s.Pos + " ", stPos})
 	}
-	if o.s.Head != "" {
-		ps = append(ps, labelled(o.s.Head)...)
+	for _, h := range o.s.Heads {
+		ps = append(ps, labelled(h)...)
 		ps = append(ps, piece{" ", stDef})
 	}
 	ps = append(ps, sensePieces(o.s)...)

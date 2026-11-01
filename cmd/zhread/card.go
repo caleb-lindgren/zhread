@@ -277,7 +277,8 @@ func newOpts(g zhdict.Group,
 // after it when cites is set.
 func (o opt) html(cites bool) string {
 	var ps []string
-	for _, t := range append([]string{o.s.Pos, o.s.Head, o.s.Text},
+	parts := append(append([]string{o.s.Pos}, o.s.Heads...), o.s.Text)
+	for _, t := range append(parts,
 		append(o.s.Ex, o.s.Rels...)...) {
 		if t != "" {
 			ps = append(ps, html.EscapeString(t))
