@@ -159,7 +159,7 @@ func TestSegment(t *testing.T) {
 		{"我爱北京天安门", SegBidi, "我/爱/北京/天安门"},
 		// Words carried only by the additions files.
 		{"露鋒方筆館閣體", SegBidi, "露鋒/方筆/館閣體"},
-		{"人臉識別綜合國力", SegBidi, "人臉識別/綜合國力"},
+		{"人臉識別醫患關係", SegBidi, "人臉識別/醫患關係"},
 		// Punctuation delimits runs and is dropped.
 		{"你好，世界！", SegBidi, "你好/世界"},
 	}
