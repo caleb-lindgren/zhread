@@ -204,8 +204,8 @@ Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
 where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
 carries both. `-pron tw` reverses the two. Words already carded are
 coloured. The cursor is white, and the rest of the word under it blue. Its
-line stays in the middle of the text, except near the start and end of the
-file, where the text fills the screen instead.
+line stays a quarter of the way down the screen, except near the start of the
+file, so the text does not shift as the definitions pane changes height.
 
 The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true

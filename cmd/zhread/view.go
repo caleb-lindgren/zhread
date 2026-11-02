@@ -167,13 +167,18 @@ func (v *view) clamp() {
 	v.cc = max(v.cc, 0)
 }
 
-// scroll puts the cursor's row in the middle of the text, except near the
-// start and end, where the text fills the screen instead.
+// scroll keeps the cursor's row a fixed number of rows from the top, so the
+// text stays put as the definitions pane below it grows and shrinks; only
+// near the start of the file is it higher. The row is the middle of the
+// least text the pane leaves, a quarter of the way down; the keys, which
+// may leave less, can cover it.
 func (v *view) scroll() {
-	th := v.textH()
-	v.top = v.rowOf(v.cl, v.cc) - th/2
-	v.top = max(min(v.top, len(v.rows)-th), 0)
+	v.top = max(v.rowOf(v.cl, v.cc)-v.anchor(), 0)
 }
+
+// anchor is how many rows below the top of the screen scroll keeps the
+// cursor's row.
+func (v *view) anchor() int { return (v.h - 1 - v.h/2) / 2 }
 
 // requestSeg asks the worker to segment the lines around the screen that
 // are not done yet, a screenful ahead and half of one behind.

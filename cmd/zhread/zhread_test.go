@@ -246,25 +246,29 @@ func TestNavigation(t *testing.T) {
 	}
 }
 
-// TestCentred checks that the cursor's row stays in the middle of the
-// text, except at the start and end, where the text fills the screen.
-func TestCentred(t *testing.T) {
-	v, _ := newTestView(t, strings.Repeat("一。\n", 200))
-	mid := func() int { return v.rowOf(v.cl, v.cc) - v.top }
-	if keys(v, "jjj"); v.top != 0 || mid() != 3 {
-		t.Errorf("near the start: top %d, row %d", v.top, mid())
+// TestAnchored checks that the cursor's row stays the same number of rows
+// from the top whatever the definitions pane below needs, except near the
+// start, and at the end too.
+func TestAnchored(t *testing.T) {
+	v, _ := newTestView(t, strings.Repeat("好。\n须臾。\n", 100))
+	row := func() int { return v.rowOf(v.cl, v.cc) - v.top }
+	if keys(v, "j"); v.top != 0 || row() != 1 {
+		t.Errorf("near the start: top %d, row %d", v.top, row())
 	}
-	for _, k := range []string{"100j", "j", "k", "40k"} {
+	heights := map[int]bool{}
+	for _, k := range []string{"100j", "j", "k", "40k", "G"} {
 		keys(v, k)
-		if mid() != v.textH()/2 {
-			t.Errorf("after %s: row %d of %d", k, mid(), v.textH())
+		heights[v.textH()] = true
+		if row() != v.anchor() {
+			t.Errorf("after %s: row %d, want %d",
+				k, row(), v.anchor())
 		}
 	}
-	if v.cl != 63 {
-		t.Errorf("at line %d, want 63", v.cl)
+	if len(heights) < 2 {
+		t.Errorf("the pane kept one height: %v", heights)
 	}
-	if keys(v, "G"); v.top+v.textH() != len(v.rows) {
-		t.Errorf("G: top %d of %d rows", v.top, len(v.rows))
+	if v.cl != 199 {
+		t.Errorf("G: at line %d", v.cl)
 	}
 }
 
