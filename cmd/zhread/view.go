@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -22,12 +21,42 @@ const (
 	card
 )
 
-// drow is one display row: a slice of a line that fits the screen width.
-type drow struct{ line, start, end int }
+// drow is one display row: a slice of a line that fits the screen width,
+// drawn from column x.
+type drow struct{ line, start, end, x int }
+
+// level is a text being read with its cursor: the book, or a definitions
+// pane moved into with Tab, which then has a pane of its own below it.
+type level struct {
+	d        *doc
+	rows     []drow
+	firstRow []int // index into rows of each line's first row
+	rw       int   // the width rows were wrapped to
+	top      int   // first row on screen
+
+	cl, cc  int // cursor line and column
+	want    int // column j and k aim for
+	al, ac  int // visual anchor
+	mode    int
+	pword   string // the word the pane was last scrolled for
+	pscroll int    // rows of the pane scrolled past, J and K
+	// bh is the rows the level takes on screen while a level below it
+	// is read: the book's text, or a pane's, rule included, as tall as it
+	// was as a pane.
+	bh int
+}
+
+// block is where a level, or with lv nil the pane, has its text on screen.
+type block struct {
+	lv   *level
+	y, n int // its first row and how many
+}
 
 type view struct {
+	*level
+	stack   []*level // the levels above, the book first
+	blocks  []block  // where draw put each level's text and the pane's
 	s       tcell.Screen
-	d       *doc
 	dict    *zhdict.Dict
 	rec     *record
 	reqs    chan<- segReq
@@ -36,29 +65,19 @@ type view struct {
 	deck    string
 	pron    string
 
-	w, h     int
-	ph       int // rows of the definitions pane, rule included
-	rows     []drow
-	firstRow []int // index into rows of each line's first row
-	top      int   // first row on screen
-
-	cl, cc  int // cursor line and column
-	want    int // column j and k aim for
-	al, ac  int // visual anchor
-	mode    int
-	pfrom   int  // the mode the prompt was opened from
-	pchar   rune // the prompt's kind: / to search, : for a command
-	pend    rune // first key of a two-key command (g)
-	count   int
-	showEn  bool
-	showTW  bool   // also show the other reading: TW, or CN with -pron tw
-	help    bool   // the pane shows the keys instead of definitions
-	expand  bool   // show MoEDict's quotations, in the pane and on cards
-	pword   string // the word the pane was last scrolled for
-	pscroll int    // rows of the pane scrolled past, J and K
-	moreZh  bool   // show MoEDict where 兩岸詞典 defines the word too, C
-	moreEn  bool   // show Wiktionary where CC-CEDICT defines it too, E
-	msg     string
+	w, h   int
+	ph     int  // rows of the definitions pane, rule included
+	pfrom  int  // the mode the prompt was opened from
+	pchar  rune // the prompt's kind: / to search, : for a command
+	pend   rune // first key of a two-key command (g)
+	count  int
+	showEn bool
+	showTW bool // also show the other reading: TW, or CN with -pron tw
+	help   bool // the pane shows the keys instead of definitions
+	expand bool // show MoEDict's quotations, in the pane and on cards
+	moreZh bool // show MoEDict where 兩岸詞典 defines the word too, c
+	moreEn bool // show Wiktionary where CC-CEDICT defines it too, E
+	msg    string
 
 	pat   *regexp.Regexp
 	back  bool // last search went backward
@@ -109,7 +128,7 @@ func (v *view) run() error {
 		case *tcell.EventInterrupt:
 			switch d := ev.Data().(type) {
 			case segRes:
-				v.d.apply(d)
+				d.doc.apply(d)
 			case pipeDone:
 				v.msg = string(d)
 			}
@@ -124,30 +143,42 @@ func (v *view) run() error {
 
 // layout: the text above, the definitions pane below it, a status line.
 // The pane is as tall as the current definitions need, up to half the
-// screen; draw sets ph from them before laying out the text.
-func (v *view) textH() int { return v.h - 1 - v.ph }
+// screen; draw sets ph from them before laying out the text. Below the book,
+// the text is a pane moved into, as tall as it was, with the levels above
+// it stacked over it as far as they fit.
+func (v *view) textH() int {
+	if len(v.stack) == 0 {
+		return v.h - 1 - v.ph
+	}
+	return max(min(v.bh, v.h-1-v.ph)-1, 1)
+}
 
-// wrap splits every line into display rows for the current width.
+// wrap splits every line into display rows for the current width, a
+// pane's lines wrapping back to their indent as the pane's did.
 func (v *view) wrap() {
-	w, h := v.s.Size()
-	if v.rows != nil && w == v.w && h == v.h {
+	w := v.w
+	if v.rows != nil && w == v.rw {
 		return
 	}
-	v.w, v.h = w, h
+	v.rw = w
 	v.rows = v.rows[:0]
 	v.firstRow = make([]int, len(v.d.lines)+1)
 	for l, line := range v.d.lines {
 		v.firstRow[l] = len(v.rows)
-		start, x := 0, 0
+		x, wx := 0, 0
+		if v.d.ind != nil {
+			x, wx = v.d.ind[l][0], v.d.ind[l][1]
+		}
+		start, sx := 0, x
 		for c, r := range line {
 			rw := zhdict.Width(string(r))
-			if x+rw > w && c > start {
-				v.rows = append(v.rows, drow{l, start, c})
-				start, x = c, 0
+			if x+rw > w && c > start && x > wx {
+				v.rows = append(v.rows, drow{l, start, c, sx})
+				start, x, sx = c, wx, wx
 			}
 			x += rw
 		}
-		v.rows = append(v.rows, drow{l, start, len(line)})
+		v.rows = append(v.rows, drow{l, start, len(line), sx})
 	}
 	v.firstRow[len(v.d.lines)] = len(v.rows)
 }
@@ -175,8 +206,17 @@ func (v *view) clamp() {
 // near the start of the file is it higher. The row is the middle of the
 // least text the pane leaves, a quarter of the way down; the keys, which
 // may leave less, can cover it.
+//
+// A pane moved into scrolls only as far as keeps the cursor in view.
 func (v *view) scroll() {
-	v.top = max(v.rowOf(v.cl, v.cc)-v.anchor(), 0)
+	ri := v.rowOf(v.cl, v.cc)
+	if len(v.stack) == 0 {
+		v.top = max(ri-v.anchor(), 0)
+		return
+	}
+	th := v.textH()
+	v.top = max(min(v.top, len(v.rows)-th), 0)
+	v.top = min(max(v.top, ri-th+1), ri)
 }
 
 // anchor is how many rows below the top of the screen scroll keeps the
@@ -189,7 +229,7 @@ func (v *view) requestSeg() {
 	th := v.textH()
 	a := v.rows[max(v.top-th/2, 0)].line
 	b := v.rows[min(v.top+2*th, len(v.rows)-1)].line
-	var rq segReq
+	rq := segReq{doc: v.d}
 	n := 0
 	for l := a; l <= b && n < 20000; l++ {
 		if v.d.toks[l] == nil && !v.d.pending[l] {
@@ -211,6 +251,7 @@ func (v *view) requestSeg() {
 }
 
 func (v *view) draw() {
+	v.w, v.h = v.s.Size()
 	v.wrap()
 	v.clamp()
 	v.s.Clear()
@@ -238,22 +279,58 @@ func (v *view) draw() {
 		v.ph = min(need, top)
 	}
 	v.scroll()
-	th := v.textH()
-	for y := 0; y < th && v.top+y < len(v.rows); y++ {
-		v.drawRow(y, v.rows[v.top+y])
+	v.blocks = v.blocks[:0]
+	y := v.h - 1 - v.ph
+	if len(v.stack) == 0 {
+		v.drawBlock(v.level, 0, y, false, true)
+	} else {
+		n := v.textH() + 1
+		y -= n
+		v.drawBlock(v.level, y, n, true, true)
+	}
+	// The levels above, cut off at the top once they run out of room.
+	for i := len(v.stack) - 1; i >= 0 && y > 0; i-- {
+		lv := v.stack[i]
+		y -= lv.bh
+		v.drawBlock(lv, y, lv.bh, i > 0, false)
 	}
 	if v.ph > 0 {
-		v.drawPane(th, pane)
+		y := v.h - 1 - v.ph
+		v.drawPane(y, pane)
+		v.blocks = append(v.blocks, block{nil, y + 1, v.ph - 1})
 	}
 	v.s.HideCursor()
 	v.drawStatus()
 	v.s.Show()
 }
 
-func (v *view) drawRow(y int, r drow) {
+// drawBlock draws a level's text in n rows from y, under a rule when it is
+// a pane moved into. Rows above the screen are not drawn. Only the level
+// being read, active, has a cursor; the rest mark the word they looked up.
+func (v *view) drawBlock(lv *level, y, n int, rule, active bool) {
+	cur := v.level
+	v.level = lv
+	defer func() { v.level = cur }()
+	v.wrap()
+	v.top = max(min(v.top, len(v.rows)-1), 0)
+	if rule {
+		if y >= 0 {
+			v.rule(y, v.top, len(v.rows)-v.top-(n-1))
+		}
+		y, n = y+1, n-1
+	}
+	v.blocks = append(v.blocks, block{lv, y, n})
+	for k := 0; k < n && v.top+k < len(v.rows); k++ {
+		if y+k >= 0 {
+			v.drawRow(y+k, v.rows[v.top+k], active)
+		}
+	}
+}
+
+func (v *view) drawRow(y int, r drow, active bool) {
 	line := v.d.lines[r.line]
 	hl := map[int]bool{}
-	if v.d.toks[r.line] != nil {
+	if v.d.toks[r.line] != nil && v.d.sty == nil {
 		for _, t := range v.d.toks[r.line] {
 			if t.han && t.end > r.start && t.start < r.end &&
 				v.rec.words[string(line[t.start:t.end])] {
@@ -263,20 +340,24 @@ func (v *view) drawRow(y int, r drow) {
 			}
 		}
 	}
-	cursor := r.line == v.cl && (v.mode != prompt || v.pchar == ':')
+	here := r.line == v.cl
+	cursor := here && active && (v.mode != prompt || v.pchar == ':')
 	if cursor && len(line) == 0 {
-		v.s.SetContent(0, y, ' ', nil, stCursor)
+		v.s.SetContent(r.x, y, ' ', nil, stCursor)
 	}
 	_, word := v.lookupTok()
-	x := 0
+	x := r.x
 	for c := r.start; c < r.end; c++ {
 		st := stDef
+		if v.d.sty != nil {
+			st = v.d.sty[r.line][c]
+		}
 		if hl[c] {
 			st = stCarded
 		}
 		if v.selected(r.line, c) {
 			st = stSel
-		} else if cursor && !v.selecting() &&
+		} else if here && (cursor || !active) && !v.selecting() &&
 			word.start <= c && c < word.end {
 			st = stCurWord
 		}
@@ -478,7 +559,7 @@ func (v *view) pane() []styled {
 }
 
 // shows reports whether row i of g is shown: a fallback dictionary's
-// definition of a word the main one defines is shown only on C (MoEDict,
+// definition of a word the main one defines is shown only on c (MoEDict,
 // for Chinese) or E (Wiktionary, for English).
 func (v *view) shows(g zhdict.Group, i int) bool {
 	if !g.Extra[i] {
@@ -625,10 +706,11 @@ var keyHelp = [][2]string{
 	{"m '", "bookmark this line, go to the bookmark"},
 	{"e", "show or hide English definitions"},
 	{"x", "show or hide quotations (on cards too)"},
-	{"C", "show or hide MoEDict beside 兩岸詞典"},
+	{"c", "show or hide MoEDict beside 兩岸詞典"},
 	{"E", "show or hide Wiktionary beside CC-CEDICT"},
 	{"t", "show or hide the other reading (Taiwan)"},
 	{"J K", "scroll the definitions down, up"},
+	{"Tab S-Tab", "move into the definitions; back up"},
 	{"gh F1  Esc", "show, hide this help"},
 	{"q", "quit"},
 	{"click wheel", "move the cursor there; scroll the text"},
@@ -653,24 +735,30 @@ func (v *view) drawPane(y0 int, lines []styled) {
 	}
 	shown := v.ph - 1
 	v.pscroll = max(min(v.pscroll, total-shown), 0)
+	v.rule(y0, v.pscroll, total-shown-v.pscroll)
+	y := y0 + 1 - v.pscroll
+	for _, l := range lines {
+		y = v.putw(l.x, l.wx, y, y0+1, y0+v.ph, l.text, l.style)
+	}
+}
+
+// rule draws the rule over a pane at row y, noting at its right how many
+// rows are out of view above and below.
+func (v *view) rule(y, above, below int) {
 	for x := 0; x < v.w; x++ {
-		v.s.SetContent(x, y0, '─', nil, stRule)
+		v.s.SetContent(x, y, '─', nil, stRule)
 	}
 	var more []string
-	if v.pscroll > 0 {
-		more = append(more, fmt.Sprintf("↑%d", v.pscroll))
+	if above > 0 {
+		more = append(more, fmt.Sprintf("↑%d", above))
 	}
-	if below := total - shown - v.pscroll; below > 0 {
+	if below > 0 {
 		more = append(more, fmt.Sprintf("↓%d", below))
 	}
 	if len(more) > 0 {
 		m := " " + strings.Join(more, " ") + " "
-		v.put(max(v.w-zhdict.Width(m)-1, 0), y0, y0+1, []rune(m),
+		v.put(max(v.w-zhdict.Width(m)-1, 0), y, y+1, []rune(m),
 			plain(stRule))
-	}
-	y := y0 + 1 - v.pscroll
-	for _, l := range lines {
-		y = v.putw(l.x, l.wx, y, y0+1, y0+v.ph, l.text, l.style)
 	}
 }
 
@@ -685,8 +773,7 @@ func (v *view) drawStatus() {
 	case vline:
 		left = "-- VISUAL LINE --  Enter: make a card"
 	}
-	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines),
-		filepath.Base(v.d.path))
+	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines), v.d.name)
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y, ' ', nil, stStatus)
 	}
@@ -752,6 +839,12 @@ func (v *view) key(ev *tcell.EventKey) {
 		return
 	case tcell.KeyF1:
 		v.toggleHelp()
+	case tcell.KeyTab:
+		v.pend = 0
+		v.descend()
+	case tcell.KeyBacktab:
+		v.pend = 0
+		v.ascend()
 	case tcell.KeyEnter:
 		if v.mode == visual || v.mode == vline {
 			v.openCard()
@@ -776,9 +869,11 @@ func (v *view) key(ev *tcell.EventKey) {
 	v.count = 0
 }
 
-// mouse moves the cursor to a character of the text clicked with the left
-// button, and scrolls the text a row a notch with the wheel. A click below
-// the text, or while a prompt or card is open, does nothing.
+// mouse moves the cursor to a character clicked with the left button,
+// and scrolls the text a row a notch with the wheel. A click in the pane
+// moves into it, as Tab does, and one in a level above goes back up to it,
+// as Shift-Tab does. A click on a rule or the status line, or while a
+// prompt or card is open, does nothing.
 func (v *view) mouse(ev *tcell.EventMouse) {
 	if v.mode == prompt || v.mode == card {
 		return
@@ -790,20 +885,77 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 		v.byRows(-1)
 	case b&tcell.Button1 != 0:
 		x, y := ev.Position()
-		if y >= v.textH() || v.top+y >= len(v.rows) {
+		for _, bl := range v.blocks {
+			if y < bl.y || y >= bl.y+bl.n {
+				continue
+			}
+			if bl.lv == nil {
+				if !v.descend() {
+					return
+				}
+			}
+			for bl.lv != nil && v.level != bl.lv {
+				v.ascend()
+			}
+			ri := v.top + y - bl.y
+			if ri >= len(v.rows) {
+				return
+			}
+			v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
+			v.want, v.msg, v.pend, v.count = v.cc, "", 0, 0
 			return
 		}
-		r := v.rows[v.top+y]
-		v.cl, v.cc = r.line, r.start
-		line := v.d.lines[r.line]
-		for cx := 0; v.cc+1 < r.end; v.cc++ {
-			cx += zhdict.Width(string(line[v.cc]))
-			if cx > x {
-				break
-			}
-		}
-		v.want, v.msg, v.pend, v.count = v.cc, "", 0, 0
 	}
+}
+
+// descend moves the cursor into the definitions pane, at the start of its
+// first row in view; the pane becomes the text, with a pane of its own
+// below it. It reports whether there was a pane of definitions to move
+// into.
+func (v *view) descend() bool {
+	w, p := v.lookup()
+	if v.help || v.ph == 0 || p == nil || p.Rows(w).Notice != "" {
+		return false
+	}
+	pane := v.pane()
+	if len(pane) == 0 {
+		return false
+	}
+	name := v.d.name + " › " + w
+	if len(v.stack) == 0 {
+		name = fmt.Sprintf("%s:%d › %s", v.d.name, v.cl+1, w)
+		v.bh = v.textH()
+	}
+	lv := &level{d: paneDoc(name, pane), top: v.pscroll, bh: v.ph}
+	v.stack = append(v.stack, v.level)
+	v.level = lv
+	v.wrap()
+	v.top = min(v.top, len(v.rows)-1)
+	v.cl, v.cc = v.rows[v.top].line, v.rows[v.top].start
+	v.want = v.cc
+	return true
+}
+
+// ascend goes back to the level above, closing the pane moved into.
+func (v *view) ascend() {
+	if n := len(v.stack); n > 0 {
+		v.level, v.stack = v.stack[n-1], v.stack[:n-1]
+	}
+}
+
+// colAt is the character of display row ri at screen column x, or the
+// row's last when x is past its end.
+func (v *view) colAt(ri, x int) int {
+	r := v.rows[ri]
+	line := v.d.lines[r.line]
+	c := r.start
+	for cx := r.x; c+1 < r.end; c++ {
+		cx += zhdict.Width(string(line[c]))
+		if cx > x {
+			break
+		}
+	}
+	return c
 }
 
 func (v *view) runeKey(r rune) {
@@ -868,7 +1020,7 @@ func (v *view) runeKey(r rune) {
 		v.pscroll = max(v.pscroll-n, 0)
 	case 'x':
 		v.expand = !v.expand
-	case 'C':
+	case 'c':
 		v.moreZh = !v.moreZh
 	case 'E':
 		v.moreEn = !v.moreEn
@@ -896,13 +1048,17 @@ func (v *view) runeKey(r rune) {
 			v.mode = m
 		}
 	case 'm':
-		if err := v.d.setMark(v.cl); err != nil {
+		if len(v.stack) > 0 {
+			v.msg = "bookmarks are for the book"
+		} else if err := v.d.setMark(v.cl); err != nil {
 			v.msg = err.Error()
 		} else {
 			v.msg = fmt.Sprintf("bookmarked line %d", v.cl+1)
 		}
 	case '\'', '`':
-		if l := v.d.getMark(); l >= 0 {
+		if len(v.stack) > 0 {
+			v.msg = "bookmarks are for the book"
+		} else if l := v.d.getMark(); l >= 0 {
 			v.cl, v.cc = l, 0
 		} else {
 			v.msg = "no bookmark in this file"
@@ -951,17 +1107,9 @@ func (v *view) gKey(r rune) {
 func (v *view) byRows(n int) {
 	ri := v.rowOf(v.cl, v.cc)
 	row := v.rows[ri]
-	x := zhdict.Width(string(v.d.lines[v.cl][row.start:v.cc]))
+	x := row.x + zhdict.Width(string(v.d.lines[v.cl][row.start:v.cc]))
 	ri = min(max(ri+n, 0), len(v.rows)-1)
-	row = v.rows[ri]
-	v.cl, v.cc = row.line, row.start
-	line := v.d.lines[row.line]
-	for cx := 0; v.cc+1 < row.end; v.cc++ {
-		cx += zhdict.Width(string(line[v.cc]))
-		if cx > x {
-			break
-		}
-	}
+	v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
 }
 
 // wordFwd and wordBack move to the next and previous word, passing over
@@ -1235,7 +1383,10 @@ func (v *view) openCard() {
 	text := string(p.text)
 	trad := changed(text, v.conv.t2s.Convert(text)) >
 		changed(text, v.conv.s2t.Convert(text))
-	src := fmt.Sprintf("%s:%d", filepath.Base(v.d.path), l1+1)
+	src := fmt.Sprintf("%s:%d", v.d.name, l1+1)
+	if len(v.stack) > 0 {
+		src = v.d.name // book:line › word
+	}
 	v.queue = nil
 	for i, sp := range spans {
 		ws, we := sp[0], sp[1]

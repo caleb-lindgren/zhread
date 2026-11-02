@@ -155,7 +155,7 @@ func newTestView(t *testing.T, text string) (*view,
 	}
 	s.SetSize(60, 20)
 	s.SetStyle(stDef)
-	v := &view{s: s, d: d, dict: dict, rec: rec,
+	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec,
 		reqs:    make(chan segReq, 100),
 		convDir: filepath.Join(dir, "opencc"), deck: "test",
 		pron: zhdict.PronCN}
@@ -480,7 +480,7 @@ func paneText(v *view) string {
 }
 
 // TestQuotations checks the dictionaries the pane shows: 兩岸詞典 for
-// Chinese, MoEDict as well on C; and that x shows quotations, which are
+// Chinese, MoEDict as well on c; and that x shows quotations, which are
 // hidden at first, while examples are always on the definition's line.
 func TestQuotations(t *testing.T) {
 	v, s := newTestView(t, "他好高兴。须臾\n")
@@ -492,12 +492,12 @@ func TestQuotations(t *testing.T) {
 			strings.Join(screen(s), "\n"))
 	}
 	if strings.Contains(paneText(v), "MoE") {
-		t.Errorf("MoEDict shown before C")
+		t.Errorf("MoEDict shown before c")
 	}
-	keys(v, "C")
+	keys(v, "c")
 	if p := paneText(v); !strings.Contains(p, "MoE") ||
 		!strings.Contains(p, "① 美、善，理想的。 如：「好東西」") {
-		t.Errorf("no MoEDict after C:\n%s", p)
+		t.Errorf("no MoEDict after c:\n%s", p)
 	}
 	// The entry is now longer than the pane: J scrolls it.
 	if !onScreen(s, "↓") {
@@ -528,7 +528,7 @@ func TestSenseLayout(t *testing.T) {
 	v, s := newTestView(t, "我的书\n")
 	s.SetSize(120, 60)
 	v.rows = nil
-	keys(v, "lC")
+	keys(v, "lc")
 	col := func(text string) int {
 		for _, l := range v.pane() {
 			lt := string(l.text)
@@ -550,7 +550,7 @@ func TestSenseLayout(t *testing.T) {
 }
 
 // TestCardSenses checks that a definition is offered a sense at a time,
-// MoEDict's only after C, and that a card carries quotations only when x
+// MoEDict's only after c, and that a card carries quotations only when x
 // showed them.
 func TestCardSenses(t *testing.T) {
 	v, s := newTestView(t, "他好高兴。须臾\n")
@@ -578,9 +578,9 @@ func TestCardSenses(t *testing.T) {
 		t.Errorf("option %d (%s) not in view:\n%s", v.dr.cur, txt,
 			strings.Join(screen(s), "\n"))
 	}
-	keys(v, "⎋C/好⏎vl⏎")
+	keys(v, "⎋c/好⏎vl⏎")
 	if count("1.美善的") != 1 || count("① 美、善") != 1 {
-		t.Errorf("MoEDict's senses not offered after C")
+		t.Errorf("MoEDict's senses not offered after c")
 	}
 
 	keys(v, "⎋$hv$⏎")
@@ -683,5 +683,87 @@ func TestVisualNoWordHighlight(t *testing.T) {
 	cells, w, _ = s.GetContents()
 	if st := cells[2*w+6].Style; st != stDef {
 		t.Errorf("visual: rest of the word still highlighted")
+	}
+}
+
+// segAll segments the lines of the level being read, as the worker would.
+func segAll(v *view) {
+	rq := segReq{doc: v.d}
+	for l, line := range v.d.lines {
+		rq.lines = append(rq.lines, l)
+		rq.text = append(rq.text, line)
+	}
+	v.d.apply(segment(v.dict, zhdict.PronCN, rq))
+	v.draw()
+}
+
+func tab(v *view, back bool) {
+	k := tcell.KeyTab
+	if back {
+		k = tcell.KeyBacktab
+	}
+	v.key(tcell.NewEventKey(k, 0, tcell.ModNone))
+	v.draw()
+}
+
+func TestNestedPanes(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "jjww") // on 讨论
+	pane := paneText(v)
+	tab(v, false)
+	if len(v.stack) != 1 || paneText(v) != "…\n" {
+		t.Fatalf("Tab: depth %d, pane before segmenting:\n%s",
+			len(v.stack), paneText(v))
+	}
+	// the text is now the pane that was, the cursor on its first row
+	var text strings.Builder
+	for _, l := range v.d.lines {
+		text.WriteString(string(l) + "\n")
+	}
+	if text.String() != pane || v.cl != 0 || v.cc != 0 {
+		t.Fatalf("Tab: at %d:%d of\n%s", v.cl, v.cc, text.String())
+	}
+	segAll(v)
+	if w, _ := v.lookup(); w != "讨论" {
+		t.Errorf("Tab: looking up %q", w)
+	}
+	// past the reading to the first word of the definition
+	w := ""
+	for i := 0; i < 5 && (w == "" || w == "讨论"); i++ {
+		keys(v, "w")
+		w, _ = v.lookup()
+	}
+	if w == "" || w == "讨论" || !strings.HasPrefix(paneText(v), w) {
+		t.Errorf("w in the pane: %q, pane:\n%s", w, paneText(v))
+	}
+	t.Logf("depth 1:\n%s", strings.Join(screen(s), "\n"))
+	tab(v, false)
+	segAll(v)
+	if len(v.stack) != 2 {
+		t.Fatalf("second Tab: depth %d", len(v.stack))
+	}
+	t.Logf("depth 2:\n%s", strings.Join(screen(s), "\n"))
+	if !strings.HasSuffix(v.d.name, "› 讨论 › "+w) {
+		t.Errorf("name %q", v.d.name)
+	}
+	tab(v, true)
+	tab(v, true)
+	if len(v.stack) != 0 || v.cl != 2 || v.cc != 4 {
+		t.Errorf("back up: depth %d at %d:%d", len(v.stack), v.cl,
+			v.cc)
+	}
+	// a click in the pane moves into it, one in the book back up
+	py := v.h - v.ph
+	v.mouse(tcell.NewEventMouse(0, py, tcell.Button1, tcell.ModNone))
+	v.draw()
+	if len(v.stack) != 1 || v.cl != 0 {
+		t.Fatalf("click in the pane: depth %d at %d", len(v.stack),
+			v.cl)
+	}
+	b := v.blocks[1] // the book's
+	v.mouse(tcell.NewEventMouse(0, b.y+b.n-1, tcell.Button1,
+		tcell.ModNone))
+	if len(v.stack) != 0 {
+		t.Errorf("click in the book: depth %d", len(v.stack))
 	}
 }

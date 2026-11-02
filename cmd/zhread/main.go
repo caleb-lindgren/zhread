@@ -26,8 +26,9 @@ const usage = `usage: zhread [options] FILE
 Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #;
 v V select, Enter to make a card of the selection, :>cmd to pipe it
 to cmd; m bookmark the line, ' return to it; e show English
-definitions, x quotations, t Taiwan readings, C MoEDict, E
-Wiktionary; J K scroll them; gh or F1 list the keys; q quit.
+definitions, x quotations, t Taiwan readings, c MoEDict, E
+Wiktionary; J K scroll them; Tab move into them, Shift-Tab back;
+gh or F1 list the keys; q quit.
 
 options:
 `
@@ -96,7 +97,7 @@ func main() {
 	go segWorker(dict, o.pron, reqs, func(r segRes) {
 		s.PostEvent(tcell.NewEventInterrupt(r))
 	})
-	v := &view{s: s, d: d, dict: dict, rec: rec, reqs: reqs,
+	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec, reqs: reqs,
 		convDir: filepath.Join(dir, "opencc"), deck: o.deck,
 		pron: o.pron}
 	if l := d.getMark(); l >= 0 {

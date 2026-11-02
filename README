@@ -182,7 +182,7 @@ Each language has a main dictionary and a fallback. Chinese comes from
 兩岸詞典 (the cross-strait dictionary), whose labels 〈書〉 (literary) and
 〈口〉 (colloquial) are kept, and whose marks for a word or sense used only
 on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉 and
-〈臺灣〉; MoEDict defines the words 兩岸詞典 lacks, and `C` adds its
+〈臺灣〉; MoEDict defines the words 兩岸詞典 lacks, and `c` adds its
 definitions of the rest. English comes from CC-CEDICT; Wiktionary defines
 the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 "see …"), and `E` adds its definitions of the rest. A fallback's
@@ -230,12 +230,24 @@ colour.
 | `m`, `'`        | bookmark this line, go to the bookmark         |
 | `e`             | show or hide English definitions               |
 | `x`             | show or hide quotations                        |
-| `C`, `E`        | show or hide MoEDict, Wiktionary as well       |
+| `c`, `E`        | show or hide MoEDict, Wiktionary as well       |
 | `J K`           | scroll the definitions down, up                |
+| Tab, Shift-Tab  | move into the definitions; back up a level     |
 | `t`             | show or hide the other side's reading          |
 | `gh`, F1; Esc   | show the keys; hide them                       |
 | `q`             | quit                                           |
 | click, wheel    | move the cursor there; scroll the text         |
+
+Tab moves the cursor into the definitions pane, which becomes the text:
+every key above works on it as on the book, making cards and piping
+included, and a pane below it defines the word under the cursor there. Tab
+again goes a level deeper. The levels stack down the screen, each as tall as
+it was as a pane, and once they no longer fit, the oldest are cut off at the
+top. Each level above marks in blue the word it looked up. Shift-Tab goes back
+up a level, closing the pane it leaves. A click in the pane moves into it, and
+one in a level above goes back up to it. A card made in a pane gets the book's
+line and the words looked up as its source, as `book.txt:12 › 讨论 › 交換`.
+Bookmarks are for the book only.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -268,7 +280,7 @@ The preview shows:
   Lines not separated by a blank line are one paragraph, so a sentence
   hard-wrapped across lines is found whole.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
-  and Wiktionary's beside the main ones only after `C` or `E`), Chinese first,
+  and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
   sense the context uses rather than all of 打's. The list scrolls to keep the
   cursor in view. `j`/`k` move and Space ticks the ones that fit the context;

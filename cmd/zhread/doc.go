@@ -2,11 +2,13 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/gdamore/tcell/v2"
 )
 
 // doc is the file being read, one entry per line of the file. Lines are
@@ -14,7 +16,10 @@ import (
 // view, so opening a long book costs nothing up front.
 type doc struct {
 	path    string
+	name    string // what the status line calls it
 	lines   [][]rune
+	ind     [][2]int        // each line's first and wrapped columns
+	sty     [][]tcell.Style // each rune's style; nil for the book
 	toks    [][]tok         // nil until the line is segmented
 	probe   []*zhdict.Probe // the probe that segmented the line
 	pending []bool          // a request for the line is in flight
@@ -34,15 +39,36 @@ func loadDoc(path string) (*doc, error) {
 	}
 	text := strings.ReplaceAll(string(b), "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\t", "    ")
-	d := &doc{path: path}
+	d := &doc{path: path, name: filepath.Base(path)}
 	for _, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
 		d.lines = append(d.lines, []rune(l))
 	}
+	d.alloc()
+	return d, nil
+}
+
+// paneDoc makes a definitions pane a doc, one line for each of its lines,
+// each keeping its indents and colours, so it wraps as the pane did.
+func paneDoc(name string, ls []styled) *doc {
+	d := &doc{name: name}
+	for _, l := range ls {
+		sty := make([]tcell.Style, len(l.text))
+		for i := range sty {
+			sty[i] = l.style(i)
+		}
+		d.lines = append(d.lines, l.text)
+		d.ind = append(d.ind, [2]int{l.x, l.wx})
+		d.sty = append(d.sty, sty)
+	}
+	d.alloc()
+	return d
+}
+
+func (d *doc) alloc() {
 	n := len(d.lines)
 	d.toks = make([][]tok, n)
 	d.probe = make([]*zhdict.Probe, n)
 	d.pending = make([]bool, n)
-	return d, nil
 }
 
 // lineToks returns a line's words, or until the line is segmented, its
@@ -136,11 +162,13 @@ func hanSpans(line []rune) [][]rune {
 }
 
 type segReq struct {
+	doc   *doc
 	lines []int
 	text  [][]rune
 }
 
 type segRes struct {
+	doc   *doc
 	lines []int
 	toks  [][]tok
 	probe *zhdict.Probe
@@ -176,7 +204,7 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	seg := func(run []rune) []string {
 		return p.Segment([][]rune{run}, mode)
 	}
-	res := segRes{lines: rq.lines, probe: p}
+	res := segRes{doc: rq.doc, lines: rq.lines, probe: p}
 	for _, l := range rq.text {
 		res.toks = append(res.toks, tokenize(l, seg))
 	}
