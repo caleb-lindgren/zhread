@@ -138,10 +138,14 @@ type record struct {
 	path  string // cards.tsv
 	cards []carded
 	words map[string]bool // both forms of every word, for highlighting
+	// senses holds each carded sense as word + "\x1f" + its html, under
+	// both forms of the word, so the pane can mark which were carded.
+	senses map[string]bool
 }
 
 type carded struct {
 	simp, trad, py, def, ctx, src string
+	en                            string // the English definitions
 }
 
 // Columns of cards.tsv, after the GUID: the note type's fields in order.
@@ -150,11 +154,12 @@ var fields = []string{"Simplified", "Traditional", "Pinyin", "DefZh",
 	"Added"}
 
 func loadRecord(cardsPath string) (*record, error) {
-	rec := &record{path: cardsPath, words: map[string]bool{}}
+	rec := &record{path: cardsPath, words: map[string]bool{},
+		senses: map[string]bool{}}
 	err := readTSV(cardsPath, func(f []string) {
 		if len(f) >= 12 {
 			rec.add(carded{f[1], f[2], f[3], f[4], strip(f[6]),
-				f[11]})
+				f[11], f[5]})
 		}
 	})
 	if err != nil {
@@ -166,10 +171,25 @@ func loadRecord(cardsPath string) (*record, error) {
 func (rec *record) add(k carded) {
 	rec.cards = append(rec.cards, k)
 	for _, w := range []string{k.simp, k.trad} {
-		if w != "" {
-			rec.words[w] = true
+		if w == "" {
+			continue
+		}
+		rec.words[w] = true
+		// A definition field is its senses' html joined by <br>, each
+		// followed by its quotations, if any, also joined by <br>.
+		for _, d := range []string{k.def, k.en} {
+			for _, h := range strings.Split(d, "<br>") {
+				if h != "" {
+					rec.senses[w+"\x1f"+h] = true
+				}
+			}
 		}
 	}
+}
+
+// cardedSense reports whether sense s of word is on a card.
+func (rec *record) cardedSense(word string, s zhdict.Sense) bool {
+	return rec.senses[word+"\x1f"+opt{s: s}.html(false)]
 }
 
 // readTSV reads a file of tab-separated records, skipping Anki's header
@@ -444,7 +464,7 @@ func (rec *record) save(note []string, deck string) error {
 		return err
 	}
 	rec.add(carded{note[1], note[2], note[3], note[4], strip(note[6]),
-		note[10]})
+		note[10], note[5]})
 	return nil
 }
 

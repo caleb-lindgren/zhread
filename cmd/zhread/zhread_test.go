@@ -622,8 +622,35 @@ func TestWiktionary(t *testing.T) {
 		t.Errorf("土豆 before E:\n%s", p)
 	}
 	keys(v, "E")
-	if p := paneText(v); !strings.Contains(p, "Wiktionary  <noun>") {
+	// the source goes under the word, here in the gap left of the
+	// definition's second line
+	if p := paneText(v); !strings.Contains(p, "\nWiktionary  ") ||
+		strings.Contains(p, "tǔ dòu  Wiktionary") {
 		t.Errorf("土豆 after E:\n%s", p)
+	}
+}
+
+func TestCardedSense(t *testing.T) {
+	v, _ := newTestView(t, "土豆\n")
+	g := v.d.probe[0].Rows("土豆")
+	sn := g.Senses(g.Zh)[0] // CC-CEDICT's
+	v.rec.add(carded{simp: "土豆", en: opt{s: sn}.html(false) +
+		"<br>a quotation"})
+	keys(v, "e")
+	p := paneText(v)
+	if !strings.Contains(p, sn.Text+"  (carded)\n") {
+		t.Errorf("carded sense not marked:\n%s", p)
+	}
+	if strings.Count(p, "(carded)") != 1 {
+		t.Errorf("want one (carded):\n%s", p)
+	}
+	// a card with none of the senses shown is noted under the word
+	v.rec.add(carded{simp: "最大"})
+	v2, _ := newTestView(t, "最大\n")
+	v2.rec = v.rec
+	keys(v2, "vle")
+	if p := paneText(v2); !strings.Contains(p, "\n(carded)") {
+		t.Errorf("最大:\n%s", p)
 	}
 }
 

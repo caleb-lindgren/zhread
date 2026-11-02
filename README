@@ -186,19 +186,22 @@ on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉 and
 definitions of the rest. English comes from CC-CEDICT; Wiktionary defines
 the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 "see …"), and `E` adds its definitions of the rest. A fallback's
-definition shown beside the main one is labelled with its name. See
-dict/README for the files.
+definition shown beside the main one is labelled with its name, under the
+word. See dict/README for the files.
 
 Each sense gets a line, with its examples and synonym lists after it on the
 same line, in colours of their own. A part of speech starts the first sense
 under it, and the rest line up after it; a sense with sub-senses, like
 MoEDict's ① 結構助詞： over ⑴ to ⑷, has a line of its own, with the sub-senses
-indented under it. Quotations from books are hidden until `x`, and then
-shown under the sense. The definitions pane is as tall as what it shows, up to
-half the screen, so short entries leave the text more room; it is measured
-again on every redraw, a resize included. A longer entry scrolls with `J` and
-`K`, and the rule above it notes how many rows are out of view (↑2 ↓5). `gh` or
-F1 shows the keys there instead.
+indented under it. Quotations from books are hidden until `x`, and then shown
+under the sense. A sense already on a card ends with "(carded)", matched
+against the definitions saved in cards.tsv; a carded word none of whose senses
+shown matches, as one carded from the other dictionary, has "(carded)" under
+the word instead. The definitions pane is as tall as what it shows, up to half
+the screen, so short entries leave the text more room; it is measured again on
+every redraw, a resize included. A longer entry scrolls with `J` and `K`, and
+the rule above it notes how many rows are out of view (↑2 ↓5). `gh` or F1 shows
+the keys there instead.
 
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading where it
 differs, as "qǐ yè (TW qì yè)", and a card made while it is shown carries both.

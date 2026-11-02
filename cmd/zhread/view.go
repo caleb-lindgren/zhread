@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -411,28 +412,43 @@ func (v *view) pane() []styled {
 	if g.Notice != "" {
 		return []styled{line(0, piece{g.Notice, stHint})}
 	}
-	var out []styled
-	for i, r := range g.Rows {
-		// English is shown on e, or at once when there is no Chinese.
+	carded := func(sn zhdict.Sense) bool {
+		return v.rec.cardedSense(word, sn)
+	}
+	// rows are the definitions shown: English on e, or at once when
+	// there is no Chinese.
+	var rows []int
+	for i := range g.Rows {
 		if i >= g.Zh && !v.showEn && g.Zh > 0 {
 			break
 		}
-		if !v.shows(g, i) {
-			continue
+		if v.shows(g, i) {
+			rows = append(rows, i)
 		}
+	}
+	// A carded word none of whose senses shown is on a card, as one
+	// carded from another dictionary, is noted so under the word.
+	noted := v.rec.words[word] && !slices.ContainsFunc(rows,
+		func(i int) bool {
+			return slices.ContainsFunc(g.Senses(i), carded)
+		})
+	var out []styled
+	for _, i := range rows {
+		r := g.Rows[i]
 		head := []piece{{word, stHead},
-			{"  " + v.reading(r[2]), stPinyin}}
-		if g.Extra[i] {
-			head = append(head, piece{"  " + g.Source(i), stHint})
-		}
-		if len(out) == 0 && v.rec.words[word] {
-			head = append(head, piece{"  (carded)", stHint})
-		}
-		head = append(head, piece{"  ", stDef})
+			{"  " + v.reading(r[2]), stPinyin}, {"  ", stDef}}
 		col := min(width(head), v.w/2)
-		ls := v.senseLines(g.Senses(i), col)
+		ls := v.senseLines(g.Senses(i), col, carded)
 		if len(ls) == 0 {
 			ls = []sline{{col, col, nil}}
+		}
+		// Notes on the whole definition go under the word.
+		var notes []string
+		if g.Extra[i] {
+			notes = append(notes, g.Source(i))
+		}
+		if len(out) == 0 && noted {
+			notes = append(notes, "(carded)")
 		}
 		for k, l := range ls {
 			sl := line(l.x, l.ps...)
@@ -441,6 +457,21 @@ func (v *view) pane() []styled {
 			}
 			sl.wx = l.wx
 			out = append(out, sl)
+		}
+		if len(notes) > 0 {
+			note := piece{strings.Join(notes, "  "), stHint}
+			first := len(out) - len(ls)
+			if len(ls) > 1 && zhdict.Width(note.text) < ls[1].x {
+				// in the gap left of the second line
+				pad := piece{strings.Repeat(" ",
+					ls[1].x-zhdict.Width(note.text)), stDef}
+				sl := line(0, append([]piece{note, pad},
+					ls[1].ps...)...)
+				sl.wx = ls[1].wx
+				out[first+1] = sl
+			} else {
+				out = slices.Insert(out, first+1, line(0, note))
+			}
 		}
 	}
 	return out
@@ -486,8 +517,10 @@ const maxHang = 10
 //
 // A heading over sub-senses has a line of its own, with the sub-senses, and
 // any heading among them, indented under it. Quotations, shown on x, are
-// indented under their sense.
-func (v *view) senseLines(senses []zhdict.Sense, col int) []sline {
+// indented under their sense. A sense carded reports as on a card is
+// marked so at the end of its last line.
+func (v *view) senseLines(senses []zhdict.Sense, col int,
+	carded func(zhdict.Sense) bool) []sline {
 	var out []sline
 	add := func(x int, pre []piece, ps ...piece) {
 		out = append(out, sline{x - width(pre), x, append(pre, ps...)})
@@ -525,6 +558,10 @@ func (v *view) senseLines(senses []zhdict.Sense, col int) []sline {
 			for _, c := range sn.Cites {
 				add(sx+2, nil, piece{c, stHint})
 			}
+		}
+		if carded != nil && carded(sn) {
+			last := &out[len(out)-1]
+			last.ps = append(last.ps, piece{"  (carded)", stHint})
 		}
 	}
 	return out
