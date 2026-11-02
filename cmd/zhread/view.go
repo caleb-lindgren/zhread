@@ -266,10 +266,7 @@ func (v *view) draw() {
 	pane := v.pane()
 	v.ph = 0
 	if v.h >= 6 {
-		need := 1
-		for _, t := range pane {
-			need += v.height(t.x, t.wx, t.text)
-		}
+		need := v.need(pane)
 		// The keys may take all but a few rows of text; definitions,
 		// half the screen.
 		top := v.h / 2
@@ -277,6 +274,12 @@ func (v *view) draw() {
 			top = v.h - 3
 		}
 		v.ph = min(need, top)
+		// Below the book the pane keeps its full height however much
+		// it shows, so the levels above it, and the cursor, stay put as
+		// the cursor moves from word to word.
+		if len(v.stack) > 0 && !v.help {
+			v.ph = top
+		}
 	}
 	v.scroll()
 	v.blocks = v.blocks[:0]
@@ -325,6 +328,15 @@ func (v *view) drawBlock(lv *level, y, n int, rule, active bool) {
 			v.drawRow(y+k, v.rows[v.top+k], active)
 		}
 	}
+}
+
+// need is the rows a pane takes to show all of lines, its rule included.
+func (v *view) need(lines []styled) int {
+	n := 1
+	for _, l := range lines {
+		n += v.height(l.x, l.wx, l.text)
+	}
+	return n
 }
 
 func (v *view) drawRow(y int, r drow, active bool) {
@@ -440,6 +452,10 @@ type styled struct {
 	x, wx int
 	text  []rune
 	style func(int) tcell.Style
+	// lead and tail are the runes at either end that are not definition
+	// text, as the word, its reading and the notes on it, which the
+	// cursor passes over in a pane moved into.
+	lead, tail int
 }
 
 // piece is a run of text in one style.
@@ -457,7 +473,7 @@ func line(x int, ps ...piece) styled {
 		text = append(text, []rune(p.text)...)
 		ends, sts = append(ends, len(text)), append(sts, p.st)
 	}
-	return styled{x, x, text, func(i int) tcell.Style {
+	return styled{x: x, wx: x, text: text, style: func(i int) tcell.Style {
 		for k, e := range ends {
 			if i < e {
 				return sts[k]
@@ -465,6 +481,15 @@ func line(x int, ps ...piece) styled {
 		}
 		return stDef
 	}}
+}
+
+// runes is how many runes pieces hold.
+func runes(ps []piece) int {
+	n := 0
+	for _, p := range ps {
+		n += utf8.RuneCountInString(p.text)
+	}
+	return n
 }
 
 func width(ps []piece) int {
@@ -521,7 +546,7 @@ func (v *view) pane() []styled {
 		col := min(width(head), v.w/2)
 		ls := v.senseLines(g.Senses(i), col, carded)
 		if len(ls) == 0 {
-			ls = []sline{{col, col, nil}}
+			ls = []sline{{x: col, wx: col}}
 		}
 		// Notes on the whole definition go under the word.
 		var notes []string
@@ -533,10 +558,12 @@ func (v *view) pane() []styled {
 		}
 		for k, l := range ls {
 			sl := line(l.x, l.ps...)
+			sl.lead = l.lead
 			if k == 0 {
 				sl = line(0, append(head, l.ps...)...)
+				sl.lead = runes(head) + l.lead
 			}
-			sl.wx = l.wx
+			sl.wx, sl.tail = l.wx, l.tail
 			out = append(out, sl)
 		}
 		if len(notes) > 0 {
@@ -548,10 +575,13 @@ func (v *view) pane() []styled {
 					ls[1].x-zhdict.Width(note.text)), stDef}
 				sl := line(0, append([]piece{note, pad},
 					ls[1].ps...)...)
-				sl.wx = ls[1].wx
+				sl.wx, sl.tail = ls[1].wx, ls[1].tail
+				sl.lead = runes([]piece{note, pad}) + ls[1].lead
 				out[first+1] = sl
 			} else {
-				out = slices.Insert(out, first+1, line(0, note))
+				sl := line(0, note)
+				sl.lead = len(sl.text)
+				out = slices.Insert(out, first+1, sl)
 			}
 		}
 	}
@@ -579,8 +609,9 @@ var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉|^\([^()0-9][^()]{0,40}\)`)
 // sline is a line of a definition: its pieces from column x, wrapping to
 // column wx.
 type sline struct {
-	x, wx int
-	ps    []piece
+	x, wx      int
+	ps         []piece
+	lead, tail int // as in styled
 }
 
 // maxHang is the widest part of speech that senses hang after; a wider one,
@@ -604,7 +635,8 @@ func (v *view) senseLines(senses []zhdict.Sense, col int,
 	carded func(zhdict.Sense) bool) []sline {
 	var out []sline
 	add := func(x int, pre []piece, ps ...piece) {
-		out = append(out, sline{x - width(pre), x, append(pre, ps...)})
+		out = append(out, sline{x: x - width(pre), wx: x,
+			ps: append(pre, ps...), lead: runes(pre)})
 	}
 	pos, x := "", col
 	var heads []string
@@ -617,6 +649,7 @@ func (v *view) senseLines(senses []zhdict.Sense, col int,
 				pre, x = []piece{{pos + " ", stPos}}, col+w
 			} else {
 				add(col, nil, piece{pos, stPos})
+				out[len(out)-1].lead = runes([]piece{{pos, stPos}})
 				x = col + 2
 			}
 		}
@@ -642,7 +675,8 @@ func (v *view) senseLines(senses []zhdict.Sense, col int,
 		}
 		if carded != nil && carded(sn) {
 			last := &out[len(out)-1]
-			last.ps = append(last.ps, piece{"  (carded)", stHint})
+			last.ps = append(last.ps, piece{"(carded)", stHint})
+			last.tail = runes([]piece{{"(carded)", stHint}})
 		}
 	}
 	return out
@@ -823,6 +857,12 @@ func (v *view) selected(l, c int) bool {
 }
 
 func (v *view) key(ev *tcell.EventKey) {
+	l0, c0 := v.cl, v.cc
+	defer func() {
+		if v.mode != card {
+			v.settle(l0, c0)
+		}
+	}()
 	switch v.mode {
 	case prompt:
 		v.promptKey(ev)
@@ -902,6 +942,7 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 				return
 			}
 			v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
+			v.settle(v.cl, v.cc)
 			v.want, v.msg, v.pend, v.count = v.cc, "", 0, 0
 			return
 		}
@@ -926,14 +967,43 @@ func (v *view) descend() bool {
 		name = fmt.Sprintf("%s:%d › %s", v.d.name, v.cl+1, w)
 		v.bh = v.textH()
 	}
-	lv := &level{d: paneDoc(name, pane), top: v.pscroll, bh: v.ph}
+	lv := &level{d: paneDoc(name, pane), top: v.pscroll,
+		bh: min(v.ph, v.need(pane))}
 	v.stack = append(v.stack, v.level)
 	v.level = lv
 	v.wrap()
 	v.top = min(v.top, len(v.rows)-1)
 	v.cl, v.cc = v.rows[v.top].line, v.rows[v.top].start
+	v.settle(v.cl-1, 0)
 	v.want = v.cc
 	return true
+}
+
+// settle moves the cursor off what is not definition text in a pane moved
+// into: to the nearest text on its line, looking first the way it moved
+// from l0, c0, or when the line has none, to the nearest line that way
+// that has some.
+func (v *view) settle(l0, c0 int) {
+	v.clamp()
+	if !v.d.skipped(v.cl, v.cc) {
+		return
+	}
+	cc := v.cc
+	step := -1
+	if v.cl > l0 || v.cl == l0 && v.cc >= c0 {
+		step = 1
+	}
+	for _, s := range []int{step, -step} {
+		for l := v.cl; l >= 0 && l < len(v.d.lines); l += s {
+			if c, ok := v.d.textNear(l, v.cc, s); ok {
+				v.cl, v.cc = l, c
+				if v.want == cc {
+					v.want = c
+				}
+				return
+			}
+		}
+	}
 }
 
 // ascend goes back to the level above, closing the pane moved into.
@@ -1118,7 +1188,8 @@ func (v *view) wordFwd() {
 	l, c := v.cl, v.cc
 	for {
 		for _, t := range v.d.lineToks(l) {
-			if t.start > c && !v.d.punct(l, t) {
+			if t.start > c && !v.d.punct(l, t) &&
+				!v.d.skipped(l, t.start) {
 				v.cl, v.cc = l, t.start
 				return
 			}
@@ -1135,7 +1206,8 @@ func (v *view) wordBack() {
 	for {
 		ts := v.d.lineToks(l)
 		for i := len(ts) - 1; i >= 0; i-- {
-			if ts[i].start < c && !v.d.punct(l, ts[i]) {
+			if ts[i].start < c && !v.d.punct(l, ts[i]) &&
+				!v.d.skipped(l, ts[i].start) {
 				v.cl, v.cc = l, ts[i].start
 				return
 			}
@@ -1512,9 +1584,16 @@ func (v *view) drawCard() {
 		}
 		y = v.put(0, y, maxY, append(lr, rs...), style)
 	}
-	ctx("简", f.ctxS, f.wsS, f.weS)
-	if string(f.ctxT) != string(f.ctxS) {
+	// Both scripts only when the word differs between them, the one case
+	// the traditional cards are made; else the text's own.
+	switch {
+	case f.wordT != f.wordS:
+		ctx("简", f.ctxS, f.wsS, f.weS)
 		ctx("繁", f.ctxT, f.wsT, f.weT)
+	case dr.trad:
+		ctx("繁", f.ctxT, f.wsT, f.weT)
+	default:
+		ctx("简", f.ctxS, f.wsS, f.weS)
 	}
 	y++
 	if len(dr.opts) == 0 {

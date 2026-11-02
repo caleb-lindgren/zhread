@@ -638,7 +638,7 @@ func TestCardedSense(t *testing.T) {
 		"<br>a quotation"})
 	keys(v, "e")
 	p := paneText(v)
-	if !strings.Contains(p, sn.Text+"  (carded)\n") {
+	if !strings.Contains(p, sn.Text+"(carded)\n") {
 		t.Errorf("carded sense not marked:\n%s", p)
 	}
 	if strings.Count(p, "(carded)") != 1 {
@@ -715,27 +715,36 @@ func TestNestedPanes(t *testing.T) {
 		t.Fatalf("Tab: depth %d, pane before segmenting:\n%s",
 			len(v.stack), paneText(v))
 	}
-	// the text is now the pane that was, the cursor on its first row
+	// the text is now the pane that was, the cursor on its first row,
+	// past the word and its reading to the definition
 	var text strings.Builder
 	for _, l := range v.d.lines {
 		text.WriteString(string(l) + "\n")
 	}
-	if text.String() != pane || v.cl != 0 || v.cc != 0 {
+	if text.String() != pane || v.cl != 0 || v.d.lines[0][v.cc] != '交' {
 		t.Fatalf("Tab: at %d:%d of\n%s", v.cl, v.cc, text.String())
 	}
+	// 0, h and b do not go back onto the word or reading
+	for _, k := range []string{"0", "h", "b", "k"} {
+		keys(v, k)
+		if v.cl != 0 || v.d.lines[0][v.cc] != '交' {
+			t.Errorf("%s: at %d:%d", k, v.cl, v.cc)
+		}
+	}
 	segAll(v)
-	if w, _ := v.lookup(); w != "讨论" {
-		t.Errorf("Tab: looking up %q", w)
+	w, _ := v.lookup()
+	if w != "交換" || !strings.HasPrefix(paneText(v), w) {
+		t.Errorf("in the pane: %q, pane:\n%s", w, paneText(v))
 	}
-	// past the reading to the first word of the definition
-	w := ""
-	for i := 0; i < 5 && (w == "" || w == "讨论"); i++ {
-		keys(v, "w")
-		w, _ = v.lookup()
+	// The pane below keeps its height, so the text does not move as the
+	// cursor goes from word to word.
+	ph, y := v.ph, v.blocks[0].y
+	keys(v, "w")
+	if w2, _ := v.lookup(); w2 == w || v.ph != ph || v.blocks[0].y != y {
+		t.Errorf("w to %q: pane %d rows, text at %d; was %d, %d",
+			w2, v.ph, v.blocks[0].y, ph, y)
 	}
-	if w == "" || w == "讨论" || !strings.HasPrefix(paneText(v), w) {
-		t.Errorf("w in the pane: %q, pane:\n%s", w, paneText(v))
-	}
+	keys(v, "b")
 	t.Logf("depth 1:\n%s", strings.Join(screen(s), "\n"))
 	tab(v, false)
 	segAll(v)
@@ -765,5 +774,20 @@ func TestNestedPanes(t *testing.T) {
 		tcell.ModNone))
 	if len(v.stack) != 0 {
 		t.Errorf("click in the book: depth %d", len(v.stack))
+	}
+}
+
+// TestOneScript checks that the preview shows a word the same in both
+// scripts, which gets only the simplified cards, in the text's script only.
+func TestOneScript(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/精神⏎vl⏎")
+	if !onScreen(s, "简  后来他把头发剪短了") || onScreen(s, "繁  ") {
+		t.Errorf("simplified text:\n%s", strings.Join(screen(s), "\n"))
+	}
+	v, s = newTestView(t, "後來他把頭髮剪短了，看起來很精神。\n")
+	keys(v, "/精神⏎vl⏎")
+	if !onScreen(s, "繁  後來他把頭髮剪短了") || onScreen(s, "简  ") {
+		t.Errorf("traditional text:\n%s", strings.Join(screen(s), "\n"))
 	}
 }

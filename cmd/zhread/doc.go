@@ -20,6 +20,7 @@ type doc struct {
 	lines   [][]rune
 	ind     [][2]int        // each line's first and wrapped columns
 	sty     [][]tcell.Style // each rune's style; nil for the book
+	skip    [][]bool        // runes not definition text; nil for the book
 	toks    [][]tok         // nil until the line is segmented
 	probe   []*zhdict.Probe // the probe that segmented the line
 	pending []bool          // a request for the line is in flight
@@ -56,12 +57,40 @@ func paneDoc(name string, ls []styled) *doc {
 		for i := range sty {
 			sty[i] = l.style(i)
 		}
+		skip := make([]bool, len(l.text))
+		for i := range skip {
+			skip[i] = i < l.lead || i >= len(l.text)-l.tail
+		}
 		d.lines = append(d.lines, l.text)
 		d.ind = append(d.ind, [2]int{l.x, l.wx})
 		d.sty = append(d.sty, sty)
+		d.skip = append(d.skip, skip)
 	}
 	d.alloc()
 	return d
+}
+
+// skipped reports whether line l, column c is not definition text.
+func (d *doc) skipped(l, c int) bool {
+	return d.skip != nil && c < len(d.skip[l]) && d.skip[l][c]
+}
+
+// textNear is the column of the definition text on line l nearest c,
+// looked for first in direction step, then the other way.
+func (d *doc) textNear(l, c, step int) (int, bool) {
+	n := len(d.lines[l])
+	if n == 0 {
+		return 0, true
+	}
+	c = min(max(c, 0), n-1)
+	for _, s := range []int{step, -step} {
+		for k := c; k >= 0 && k < n; k += s {
+			if !d.skipped(l, k) {
+				return k, true
+			}
+		}
+	}
+	return 0, false
 }
 
 func (d *doc) alloc() {

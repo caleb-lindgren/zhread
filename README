@@ -238,16 +238,18 @@ colour.
 | `q`             | quit                                           |
 | click, wheel    | move the cursor there; scroll the text         |
 
-Tab moves the cursor into the definitions pane, which becomes the text:
-every key above works on it as on the book, making cards and piping
-included, and a pane below it defines the word under the cursor there. Tab
-again goes a level deeper. The levels stack down the screen, each as tall as
-it was as a pane, and once they no longer fit, the oldest are cut off at the
-top. Each level above marks in blue the word it looked up. Shift-Tab goes back
-up a level, closing the pane it leaves. A click in the pane moves into it, and
-one in a level above goes back up to it. A card made in a pane gets the book's
-line and the words looked up as its source, as `book.txt:12 › 讨论 › 交換`.
-Bookmarks are for the book only.
+Tab moves the cursor into the definitions pane, which becomes the text: every
+key above works on it as on the book, making cards and piping included, and a
+pane below it defines the word under the cursor there. The cursor goes only
+over the definitions, passing over the words, readings and notes on them. The
+pane below keeps half the screen however little it shows, so nothing above it
+moves as the cursor goes from word to word. Tab again goes a level deeper. The
+levels stack down the screen, each as tall as it was as a pane, and once they
+no longer fit, the oldest are cut off at the top. Each level above marks in
+blue the word it looked up. Shift-Tab goes back up a level, closing the pane it
+leaves. A click in the pane moves into it, and one in a level above goes back
+up to it. A card made in a pane gets the book's line and the words looked up as
+its source, as `book.txt:12 › 讨论 › 交換`. Bookmarks are for the book only.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -271,13 +273,14 @@ in it that have definitions, and each gets a card of its own, in turn,
 each with the context around it; `n` skips one and Esc cancels the rest.
 The preview shows:
 
-- **The context**, in both scripts. It starts as the sentence holding the
-  word: the text between sentence-ending marks (。！？…), with any closing
-  quotes or brackets after them. A sentence under 12 characters (「好。」)
-  gets the sentence before it, or after it at the start of a paragraph; one
-  over 60 is cut to the clauses nearest the word, at ，；：、. `[` and `]`
-  move the left edge a clause left or right, `{` and `}` the right edge.
-  Lines not separated by a blank line are one paragraph, so a sentence
+- **The context**, in both scripts when the word differs between them, else in
+  the text's own, the cards then being made only in simplified. It starts as
+  the sentence holding the word: the text between sentence-ending marks (。！？…),
+  with any closing quotes or brackets after them. A sentence under 12
+  characters (「好。」) gets the sentence before it, or after it at the start of a
+  paragraph; one over 60 is cut to the clauses nearest the word, at ，；：、. `[`
+  and `]` move the left edge a clause left or right, `{` and `}` the right
+  edge. Lines not separated by a blank line are one paragraph, so a sentence
   hard-wrapped across lines is found whole.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
