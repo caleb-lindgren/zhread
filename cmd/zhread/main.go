@@ -45,7 +45,7 @@ func main() {
 		"card file to append to (default: cards.tsv beside dict/)")
 	flag.StringVar(&o.pron, "pron", zhdict.PronCN,
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
-	flag.StringVar(&o.deck, "deck", "Chinese reading",
+	flag.StringVar(&o.deck, "deck", "main",
 		"Anki deck named in a new card file's header")
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, usage)

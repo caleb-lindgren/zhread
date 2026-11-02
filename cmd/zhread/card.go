@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/csv"
@@ -158,8 +159,8 @@ func loadRecord(cardsPath string) (*record, error) {
 		senses: map[string]bool{}}
 	err := readTSV(cardsPath, func(f []string) {
 		if len(f) >= 12 {
-			rec.add(carded{f[1], f[2], f[3], f[4], strip(f[6]),
-				f[11], f[5]})
+			rec.add(carded{f[1], f[2], f[3], f[4],
+				strip(cmp.Or(f[6], f[8])), f[11], f[5]})
 		}
 	})
 	if err != nil {
@@ -366,7 +367,9 @@ func (dr *draft) forms(conv convs) forms {
 
 // note builds the card's fields. The traditional ones are left empty when
 // the word is the same in both scripts, which is what keeps Anki from
-// generating the traditional cards. The reading carries the other side's
+// generating the traditional cards; when the text is traditional, it is
+// the simplified contexts instead that are left empty, so the one set of
+// cards made is in the text's script. The reading carries the other side's
 // only when both is set, as the pane shows it only after t, and the
 // quotations go on only when cites is, as the pane shows them after x.
 func (dr *draft) note(f forms, both, cites bool) []string {
@@ -388,19 +391,23 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 			en = append(en, o.html(cites))
 		}
 	}
+	ctxS := mark(f.ctxS, f.wsS, f.weS, false)
+	clozeS := mark(f.ctxS, f.wsS, f.weS, true)
 	var trad, ctxT, clozeT string
-	if f.wordT != f.wordS {
+	if f.wordT != f.wordS || dr.trad {
 		trad = f.wordT
 		ctxT = mark(f.ctxT, f.wsT, f.weT, false)
 		clozeT = mark(f.ctxT, f.wsT, f.weT, true)
+		if f.wordT == f.wordS {
+			ctxS, clozeS = "", ""
+		}
 	}
-	ctxS := mark(f.ctxS, f.wsS, f.weS, false)
 	sum := sha1.Sum([]byte(f.wordS + "\x1f" + string(f.ctxS)))
 	return []string{
 		base64.RawURLEncoding.EncodeToString(sum[:])[:12],
 		f.wordS, trad, py,
 		strings.Join(zh, "<br>"), strings.Join(en, "<br>"),
-		ctxS, mark(f.ctxS, f.wsS, f.weS, true), ctxT, clozeT,
+		ctxS, clozeS, ctxT, clozeT,
 		html.EscapeString(dr.src), time.Now().Format("2006-01-02"),
 	}
 }
@@ -463,8 +470,8 @@ func (rec *record) save(note []string, deck string) error {
 	if err := w.Error(); err != nil {
 		return err
 	}
-	rec.add(carded{note[1], note[2], note[3], note[4], strip(note[6]),
-		note[10], note[5]})
+	rec.add(carded{note[1], note[2], note[3], note[4],
+		strip(cmp.Or(note[6], note[8])), note[10], note[5]})
 	return nil
 }
 

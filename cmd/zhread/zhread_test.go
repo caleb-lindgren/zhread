@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/zhdict"
 	"github.com/gdamore/tcell/v2"
@@ -373,7 +374,10 @@ func TestMakeCard(t *testing.T) {
 		7:  "后来他把<span class=cloze>[…]</span>剪短了，看起来很精神。",
 		8:  "後來他把<b>頭髮</b>剪短了，看起來很精神。",
 		9:  "後來他把<span class=cloze>[…]</span>剪短了，看起來很精神。",
-		10: "book.txt:3",
+		10: v.d.src + ":3",
+	}
+	if !filepath.IsAbs(f[10]) {
+		t.Errorf("source %q is not a full path", f[10])
 	}
 	for i, w := range want {
 		if f[i] != w {
@@ -789,5 +793,50 @@ func TestOneScript(t *testing.T) {
 	keys(v, "/精神⏎vl⏎")
 	if !onScreen(s, "繁  後來他把頭髮剪短了") || onScreen(s, "简  ") {
 		t.Errorf("traditional text:\n%s", strings.Join(screen(s), "\n"))
+	}
+}
+
+// cardFields saves a card for the first match of word in text and returns
+// its fields.
+func cardFields(t *testing.T, text, word string) []string {
+	t.Helper()
+	v, _ := newTestView(t, text)
+	keys(v, "/"+word+"⏎v"+strings.Repeat("l",
+		utf8.RuneCountInString(word)-1)+"⏎⏎")
+	b, err := os.ReadFile(v.rec.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	return strings.Split(lines[len(lines)-1], "\t")
+}
+
+// TestCardScript checks that a word the same in both scripts gets only
+// the cards in the script of the text it came from.
+func TestCardScript(t *testing.T) {
+	f := cardFields(t, "後來他把頭髮剪短了，看起來很精神。\n", "精神")
+	if f[2] != "精神" || f[6] != "" || f[7] != "" ||
+		f[8] != "後來他把頭髮剪短了，看起來很<b>精神</b>。" {
+		t.Errorf("traditional text: %q", f)
+	}
+	f = cardFields(t, book, "精神")
+	if f[2] != "" || f[8] != "" ||
+		f[6] != "后来他把头发剪短了，看起来很<b>精神</b>。" {
+		t.Errorf("simplified text: %q", f)
+	}
+}
+
+// TestEnglishOnly checks that a word with no Chinese definition shows its
+// English at once, in the pane and ticked on the card, without e.
+func TestEnglishOnly(t *testing.T) {
+	v, _ := newTestView(t, "最大\n")
+	keys(v, "vl")
+	if p := paneText(v); !strings.Contains(p, "largest") {
+		t.Errorf("pane:\n%s", p)
+	}
+	keys(v, "⏎")
+	if v.dr == nil || v.dr.zh != 0 || len(v.dr.sel) == 0 ||
+		!v.dr.sel[0] {
+		t.Errorf("card: %+v", v.dr)
 	}
 }

@@ -249,7 +249,8 @@ no longer fit, the oldest are cut off at the top. Each level above marks in
 blue the word it looked up. Shift-Tab goes back up a level, closing the pane it
 leaves. A click in the pane moves into it, and one in a level above goes back
 up to it. A card made in a pane gets the book's line and the words looked up as
-its source, as `book.txt:12 › 讨论 › 交換`. Bookmarks are for the book only.
+its source, as `/home/me/book.txt:12 › 讨论 › 交換`. Bookmarks are for the book
+only.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -274,7 +275,7 @@ each with the context around it; `n` skips one and Esc cancels the rest.
 The preview shows:
 
 - **The context**, in both scripts when the word differs between them, else in
-  the text's own, the cards then being made only in simplified. It starts as
+  the text's own, the cards then being made only in that script. It starts as
   the sentence holding the word: the text between sentence-ending marks (。！？…),
   with any closing quotes or brackets after them. A sentence under 12
   characters (「好。」) gets the sentence before it, or after it at the start of a
@@ -295,10 +296,13 @@ The preview shows:
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.
 
-Enter saves, Esc cancels. The other script's context comes from OpenCC's
-s2tw or tw2s, chosen by which changes the paragraph more (see dict/README
-for why OpenCC). When the word is the same in both scripts, the traditional
-fields are left empty and only the simplified cards are made.
+Enter saves, Esc cancels. The other script's context comes from OpenCC's s2tw
+or tw2s, chosen by which changes the paragraph more (see dict/README for why
+OpenCC). When the word is the same in both scripts, the traditional fields are
+left empty and only the simplified cards are made; for a traditional text it is
+the simplified contexts that are left empty, and only the traditional cards are
+made. The source is the text's full path and the line, so a card can be traced
+back to its book from anywhere.
 
 ### The card file
 
@@ -314,14 +318,14 @@ from anki/. It holds one placeholder note, which has no cards and so never
 comes up in study; Anki imports a note type only along with a note that
 uses it, so a package without one would create nothing.
 
-After that, import cards.tsv with File > Import whenever there are new
-cards. Its first lines are Anki's import headers, naming the note type,
-the deck (`-deck`) and the GUID column, so the import dialog needs no
+After that, import cards.tsv with File > Import whenever there are new cards.
+Its first lines are Anki's import headers, naming the note type, the deck
+(`main`, or `-deck`) and the GUID column, so the import dialog needs no
 settings. The GUID is a hash of the word and its context, so importing the
 whole file again updates the notes Anki already has and adds the new ones,
-without duplicates and keeping review history. An update overwrites the
-note's fields, so fix a card in cards.tsv rather than in Anki, or the next
-import undoes the fix.
+without duplicates and keeping review history. An update overwrites the note's
+fields, so fix a card in cards.tsv rather than in Anki, or the next import
+undoes the fix.
 
 After changing a template in anki/, run `make apkg` (the first run makes a
 Python venv in .venv with genanki) and import anki/zhread.apkg again: the

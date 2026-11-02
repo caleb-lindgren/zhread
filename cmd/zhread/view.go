@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -962,12 +963,13 @@ func (v *view) descend() bool {
 	if len(pane) == 0 {
 		return false
 	}
-	name := v.d.name + " › " + w
+	name, src := v.d.name+" › "+w, v.d.src+" › "+w
 	if len(v.stack) == 0 {
 		name = fmt.Sprintf("%s:%d › %s", v.d.name, v.cl+1, w)
+		src = fmt.Sprintf("%s:%d › %s", v.d.src, v.cl+1, w)
 		v.bh = v.textH()
 	}
-	lv := &level{d: paneDoc(name, pane), top: v.pscroll,
+	lv := &level{d: paneDoc(name, src, pane), top: v.pscroll,
 		bh: min(v.ph, v.need(pane))}
 	v.stack = append(v.stack, v.level)
 	v.level = lv
@@ -1455,9 +1457,9 @@ func (v *view) openCard() {
 	text := string(p.text)
 	trad := changed(text, v.conv.t2s.Convert(text)) >
 		changed(text, v.conv.s2t.Convert(text))
-	src := fmt.Sprintf("%s:%d", v.d.name, l1+1)
+	src := fmt.Sprintf("%s:%d", v.d.src, l1+1)
 	if len(v.stack) > 0 {
-		src = v.d.name // book:line › word
+		src = v.d.src // /path/to/book:line › word
 	}
 	v.queue = nil
 	for i, sp := range spans {
@@ -1643,7 +1645,7 @@ func (v *view) drawCard() {
 			} else {
 				line += k.def
 			}
-			line += "  (" + k.src + ")"
+			line += "  (" + filepath.Base(k.src) + ")"
 			y = v.put(2, y, maxY, clip([]rune(line), v.w-2),
 				plain(stDef))
 		}

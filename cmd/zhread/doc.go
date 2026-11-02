@@ -17,6 +17,7 @@ import (
 type doc struct {
 	path    string
 	name    string // what the status line calls it
+	src     string // what a card made from it gives as its source
 	lines   [][]rune
 	ind     [][2]int        // each line's first and wrapped columns
 	sty     [][]tcell.Style // each rune's style; nil for the book
@@ -40,7 +41,11 @@ func loadDoc(path string) (*doc, error) {
 	}
 	text := strings.ReplaceAll(string(b), "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\t", "    ")
-	d := &doc{path: path, name: filepath.Base(path)}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	d := &doc{path: path, name: filepath.Base(path), src: abs}
 	for _, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
 		d.lines = append(d.lines, []rune(l))
 	}
@@ -50,8 +55,8 @@ func loadDoc(path string) (*doc, error) {
 
 // paneDoc makes a definitions pane a doc, one line for each of its lines,
 // each keeping its indents and colours, so it wraps as the pane did.
-func paneDoc(name string, ls []styled) *doc {
-	d := &doc{name: name}
+func paneDoc(name, src string, ls []styled) *doc {
+	d := &doc{name: name, src: src}
 	for _, l := range ls {
 		sty := make([]tcell.Style, len(l.text))
 		for i := range sty {
