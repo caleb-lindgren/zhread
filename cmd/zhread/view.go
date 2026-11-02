@@ -893,11 +893,13 @@ func (v *view) byRows(n int) {
 	}
 }
 
+// wordFwd and wordBack move to the next and previous word, passing over
+// punctuation.
 func (v *view) wordFwd() {
 	l, c := v.cl, v.cc
 	for {
 		for _, t := range v.d.lineToks(l) {
-			if t.start > c {
+			if t.start > c && !v.d.punct(l, t) {
 				v.cl, v.cc = l, t.start
 				return
 			}
@@ -914,7 +916,7 @@ func (v *view) wordBack() {
 	for {
 		ts := v.d.lineToks(l)
 		for i := len(ts) - 1; i >= 0; i-- {
-			if ts[i].start < c {
+			if ts[i].start < c && !v.d.punct(l, ts[i]) {
 				v.cl, v.cc = l, ts[i].start
 				return
 			}

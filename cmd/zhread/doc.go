@@ -60,6 +60,11 @@ func isWord(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
+// punct reports whether t, a word of line l, is a run of punctuation.
+func (d *doc) punct(l int, t tok) bool {
+	return !t.han && !isWord(d.lines[l][t.start])
+}
+
 // tokenize splits a line into words, segmenting Han runs with seg, or
 // into characters when seg is nil or its words do not cover the run.
 func tokenize(line []rune, seg func([]rune) []string) []tok {

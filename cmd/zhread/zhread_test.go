@@ -218,6 +218,15 @@ func TestNavigation(t *testing.T) {
 	if v.cc != 2 {
 		t.Errorf("b: column %d, want 2 (今天)", v.cc)
 	}
+	// w and b pass over punctuation: 问题 / ， / 大家
+	keys(v, "0/问题⏎w")
+	if string(v.d.lines[2][v.cc:v.cc+2]) != "大家" {
+		t.Errorf("w over ，: at column %d", v.cc)
+	}
+	keys(v, "b")
+	if string(v.d.lines[2][v.cc:v.cc+2]) != "问题" {
+		t.Errorf("b over ，: at column %d", v.cc)
+	}
 	keys(v, "$")
 	if v.cc != len(v.d.lines[2])-1 {
 		t.Errorf("$: column %d", v.cc)
