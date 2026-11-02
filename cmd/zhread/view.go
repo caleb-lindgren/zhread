@@ -114,6 +114,8 @@ func (v *view) run() error {
 			}
 		case *tcell.EventKey:
 			v.key(ev)
+		case *tcell.EventMouse:
+			v.mouse(ev)
 		}
 	}
 	return nil
@@ -273,7 +275,8 @@ func (v *view) drawRow(y int, r drow) {
 		}
 		if v.selected(r.line, c) {
 			st = stSel
-		} else if cursor && word.start <= c && c < word.end {
+		} else if cursor && !v.selecting() &&
+			word.start <= c && c < word.end {
 			st = stCurWord
 		}
 		if cursor && c == v.cc {
@@ -591,6 +594,7 @@ var keyHelp = [][2]string{
 	{"J K", "scroll the definitions down, up"},
 	{"gh F1  Esc", "show, hide this help"},
 	{"q", "quit"},
+	{"click wheel", "move the cursor there; scroll the text"},
 }
 
 func helpLines() []styled {
@@ -733,6 +737,36 @@ func (v *view) key(ev *tcell.EventKey) {
 		return
 	}
 	v.count = 0
+}
+
+// mouse moves the cursor to a character of the text clicked with the left
+// button, and scrolls the text a row a notch with the wheel. A click below
+// the text, or while a prompt or card is open, does nothing.
+func (v *view) mouse(ev *tcell.EventMouse) {
+	if v.mode == prompt || v.mode == card {
+		return
+	}
+	switch b := ev.Buttons(); {
+	case b&tcell.WheelDown != 0:
+		v.byRows(1)
+	case b&tcell.WheelUp != 0:
+		v.byRows(-1)
+	case b&tcell.Button1 != 0:
+		x, y := ev.Position()
+		if y >= v.textH() || v.top+y >= len(v.rows) {
+			return
+		}
+		r := v.rows[v.top+y]
+		v.cl, v.cc = r.line, r.start
+		line := v.d.lines[r.line]
+		for cx := 0; v.cc+1 < r.end; v.cc++ {
+			cx += zhdict.Width(string(line[v.cc]))
+			if cx > x {
+				break
+			}
+		}
+		v.want, v.msg, v.pend, v.count = v.cc, "", 0, 0
+	}
 }
 
 func (v *view) runeKey(r rune) {

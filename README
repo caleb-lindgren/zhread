@@ -200,12 +200,13 @@ again on every redraw, a resize included. A longer entry scrolls with `J` and
 `K`, and the rule above it notes how many rows are out of view (↑2 ↓5). `gh` or
 F1 shows the keys there instead.
 
-Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading
-where it differs, as "qǐ yè (TW qì yè)", and a card made while it is shown
-carries both. `-pron tw` reverses the two. Words already carded are
-coloured. The cursor is white, and the rest of the word under it blue. Its
-line stays a quarter of the way down the screen, except near the start of the
-file, so the text does not shift as the definitions pane changes height.
+Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading where it
+differs, as "qǐ yè (TW qì yè)", and a card made while it is shown carries both.
+`-pron tw` reverses the two. Words already carded are coloured. The cursor is
+white, and the rest of the word under it blue, except in visual mode, where
+only the selection is coloured. Its line stays a quarter of the way down the
+screen, except near the start of the file, so the text does not shift as the
+definitions pane changes height.
 
 The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true
@@ -231,6 +232,7 @@ colour.
 | `t`             | show or hide the other side's reading          |
 | `gh`, F1; Esc   | show the keys; hide them                       |
 | `q`             | quit                                           |
+| click, wheel    | move the cursor there; scroll the text         |
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:

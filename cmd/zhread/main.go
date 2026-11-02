@@ -91,6 +91,7 @@ func main() {
 		fail(err)
 	}
 	s.SetStyle(stDef)
+	s.EnableMouse(tcell.MouseButtonEvents)
 	reqs := make(chan segReq, 1)
 	go segWorker(dict, o.pron, reqs, func(r segRes) {
 		s.PostEvent(tcell.NewEventInterrupt(r))

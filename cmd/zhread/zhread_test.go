@@ -626,3 +626,35 @@ func TestWiktionary(t *testing.T) {
 		t.Errorf("土豆 after E:\n%s", p)
 	}
 }
+
+func TestClick(t *testing.T) {
+	v, _ := newTestView(t, book)
+	// Row 2 is line 2; each Han character is two columns wide, so
+	// column 7 is the right half of 天, the fourth character.
+	v.mouse(tcell.NewEventMouse(7, 2, tcell.Button1, tcell.ModNone))
+	if v.cl != 2 || v.cc != 3 {
+		t.Fatalf("click: at %d:%d, want 2:3", v.cl, v.cc)
+	}
+	// a click below the text does nothing
+	v.draw()
+	v.mouse(tcell.NewEventMouse(0, v.textH(), tcell.Button1,
+		tcell.ModNone))
+	if v.cl != 2 || v.cc != 3 {
+		t.Errorf("click on the pane: at %d:%d", v.cl, v.cc)
+	}
+}
+
+func TestVisualNoWordHighlight(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "jjw") // on 今天
+	cells, w, _ := s.GetContents()
+	// 天, after the cursor on 今, is in the word's colours
+	if st := cells[2*w+6].Style; st != stCurWord {
+		t.Fatalf("normal: rest of the word not highlighted")
+	}
+	keys(v, "v")
+	cells, w, _ = s.GetContents()
+	if st := cells[2*w+6].Style; st != stDef {
+		t.Errorf("visual: rest of the word still highlighted")
+	}
+}
