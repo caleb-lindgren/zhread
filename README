@@ -316,14 +316,16 @@ The preview shows:
   or other clause mark it stops at. Lines not separated by a blank line are
   one paragraph, so a sentence hard-wrapped across lines is found whole.
 
-  `k` from the first definition goes up onto the context, which vi's keys then
-  edit, starting in normal mode: `h l w b e 0 ^ $` move (a run of Chinese
-  characters is one word, as in vi, so `dw` deletes to the next punctuation),
-  `x X r s D C`, and `d` or `c` with a motion (`dw`, `cb`, `d$`, `dd`) change,
-  `i a I A` insert until Esc, and `u` undoes. `j` goes back down to the
-  definitions and Enter saves. Editing the text's own script converts the
-  other script's line again, unless that line has been edited itself. The
-  edge keys start again from the text, undoing the edits.
+  `k` from the first definition goes up onto the context, in the list like the
+  definitions. `i` starts vi's editor on it, in normal mode: `h l w b e 0 ^ $`
+  move (a run of Chinese characters is one word, as in vi, so `dw` deletes to
+  the next punctuation), `x X r s D C`, and `d` or `c` with a motion (`dw`,
+  `cb`, `d$`, `dd`) change, `i a I A` insert until Esc, and `u` undoes. Esc in
+  normal mode goes back to the list, as do `j` and `k`, which move on as well;
+  Enter saves. The bottom line starts with the mode: `-- LIST --`, `-- NORMAL
+  --` or `-- INSERT --`. Editing the text's own script converts the other
+  script's line again, unless that line has been edited itself. The edge keys
+  start again from the text, undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
@@ -342,18 +344,18 @@ The preview shows:
   compounded, and is kept). A doubled form of the word, AABB or ABAB for a word
   AB (松松垮垮, 研究研究) and AA, A一A or A了A for a word A (看看, 看一看, 看了看), is taken
   whole, so the card marks and blanks all of it rather than the word in its
-  middle. Each comes with the context the card's own would start as, in the
-  text's script. A context that shares text with the card's or with one before
-  it is left out, as is one the same as another, so a sentence using the word
-  twice is offered once, or not at all when it is the card's. All are ticked to
-  start with; `j` goes on down to them from the definitions and Space unticks.
-  `a` ticks them all, or unticks them all when they all are, so that from many
-  the few wanted can be picked out. `[ ] { }` move the edges of the one under
-  the cursor, and `i` edits it in insert mode until Esc or Enter. The bottom
-  line starts with the mode: `-- LIST --` on the definitions and contexts, `--
-  NORMAL --` and `-- INSERT --` in the editor. Its other script follows,
-  converted again. The ticked ones go on the card with its own, and Anki shows
-  them in turn (see below). A card made in a definitions pane gets the book's.
+  middle; so is one in the card's own context, though the card's word stays the
+  one selected. Each comes with the context the card's own would start as, in
+  the text's script. A context that shares text with the card's or with one
+  before it is left out, as is one the same as another, so a sentence using the
+  word twice is offered once, or not at all when it is the card's. All are
+  ticked to start with; `j` goes on down to them from the definitions and Space
+  unticks. `a` ticks them all, or unticks them all when they all are, so that
+  from many the few wanted can be picked out. `[ ] { }` move the edges of the
+  one under the cursor, and `i` edits it as the card's own context is edited.
+  Its other script follows, converted again. The ticked ones go on the card
+  with its own, and Anki shows them in turn (see below). A card made in a
+  definitions pane gets the book's.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.

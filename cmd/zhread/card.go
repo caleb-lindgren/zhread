@@ -295,6 +295,14 @@ func (dr *draft) own() int {
 	return 0
 }
 
+// curVi is the editor's state on the context under the cursor.
+func (dr *draft) curVi() *vi {
+	if o := dr.other(); o != nil {
+		return &o.vi
+	}
+	return &dr.vi
+}
+
 // other is the other context under the cursor, if it is on one.
 func (dr *draft) other() *draft {
 	if k := dr.cur - len(dr.opts); dr.cur >= 0 && k >= 0 &&
@@ -591,9 +599,11 @@ const (
 
 // mark renders a context as HTML with the word in bold, or for the cloze
 // card, with cloze set, blanked as it says, along with any other
-// occurrence of it, which would otherwise give it away.
+// occurrence of it, which would otherwise give it away. A doubled form of
+// the word is marked whole, 松松垮垮 for 松垮.
 func mark(ctx []rune, ws, we int, cloze string) string {
 	word := string(ctx[ws:we])
+	ws, we = doubled(ctx, ws, we)
 	blank := `<span class=cloze>` + cloze + `</span>`
 	esc := func(rs []rune) string {
 		s := html.EscapeString(string(rs))
@@ -603,7 +613,7 @@ func mark(ctx []rune, ws, we int, cloze string) string {
 		}
 		return s
 	}
-	mid := `<b>` + html.EscapeString(word) + `</b>`
+	mid := `<b>` + html.EscapeString(string(ctx[ws:we])) + `</b>`
 	if cloze != "" {
 		mid = blank
 	}

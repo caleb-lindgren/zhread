@@ -1708,8 +1708,8 @@ func (v *view) others(dr *draft) []*draft {
 // has it, unless the segmenter splits it between two words, as 才能 in 刚才｜能吃, or
 // for a word of one character, makes it part of a longer one, as 打 of 打算. A
 // word of more inside a longer one, as 采访 in 采访记者, is nearly always that word
-// compounded. A doubled form of the word is taken whole, as doubled finds it,
-// so that a card marks and blanks 松松垮垮 rather than the 松垮 in the middle of it.
+// compounded. A doubled form of the word, as doubled finds it, is segmented
+// whole, and its context taken around it.
 // Each is a draft of its own, for its context, which starts as the one newSpan
 // picks. A context that shares text with one before it is left out, as is one
 // the same as another: a sentence using the word twice would otherwise give it
@@ -1768,6 +1768,7 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 	for h, ht := range hits {
 		for _, at := range ht.at {
 			ws, we := doubled(ht.p.text, at, at+len(word))
+			end := at + len(word)
 			cut := func(t tok) bool {
 				return t.start < ws && ws < t.end ||
 					t.start < we && we < t.end
@@ -1779,7 +1780,7 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 				!slices.ContainsFunc(toks[h], in)) {
 				continue
 			}
-			o := &draft{p: ht.p, ws: ws, we: we, trad: dr.trad,
+			o := &draft{p: ht.p, ws: at, we: end, trad: dr.trad,
 				span: newSpan(ht.p.text, ws, we)}
 			a, b := o.span.ends()
 			if slices.ContainsFunc(took, func(t taken) bool {
@@ -1903,25 +1904,32 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	f := dr.forms(v.conv)
 	lines := dr.ctxLines(f)
 	dr.cur = max(dr.cur, -len(lines))
-	if dr.cur < 0 && dr.edit(ev, f, lines[len(lines)+dr.cur],
-		func() { dr.saving = false }) {
-		dr.warn = ""
-		return
-	}
 	o := dr.other()
-	// Another context is edited in insert mode only, from i to Esc or
-	// Enter.
-	if o != nil && dr.editing {
-		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyEnter {
-			dr.editing, o.vi.insert = false, false
-			o.vi.col = max(o.vi.col-1, 0)
+	// A context, the card's own or another, is in the list until i
+	// starts the editor on it in normal mode, and is back in it after Esc
+	// there, or j or k.
+	if dr.editing {
+		ed, ef, k := dr, f, 0
+		if dr.cur < 0 {
+			k = lines[len(lines)+dr.cur]
+		} else {
+			ed, ef, k = o, o.ctxf, o.own()
+		}
+		if ev.Key() == tcell.KeyEscape && !ed.vi.insert {
+			dr.editing = false
 			return
 		}
-		if o.edit(ev, o.ctxf, o.own(), func() { dr.saving = false }) {
-			o.refresh(v.conv)
+		if ed.edit(ev, ef, k, func() { dr.saving = false }) {
+			if ed != dr {
+				ed.refresh(v.conv)
+			}
 			dr.warn = ""
+			return
 		}
-		return
+		if r == 'j' || r == 'k' || ev.Key() == tcell.KeyDown ||
+			ev.Key() == tcell.KeyUp {
+			dr.editing = false
+		}
 	}
 	dr.warn = ""
 	switch {
@@ -1956,8 +1964,13 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		dr.span.move(r)
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
-	case r == 'i' && o != nil:
-		dr.editing, o.vi.insert = true, true
+	case r == 'i' && (dr.cur < 0 || o != nil):
+		dr.editing = true
+		if o != nil {
+			o.vi.insert = false
+		} else {
+			dr.vi.insert = false
+		}
 	case r == 'a' && len(dr.others) > 0:
 		all := !slices.Contains(dr.osel, false)
 		for k := range dr.osel {
@@ -2003,7 +2016,7 @@ func (dr *draft) edit(ev *tcell.EventKey, f forms, k int,
 
 func (v *view) drawCard() {
 	dr := v.dr
-	if dr.other() == nil {
+	if dr.cur >= 0 && dr.other() == nil {
 		dr.editing = false
 	}
 	f := dr.forms(v.conv)
@@ -2020,9 +2033,11 @@ func (v *view) drawCard() {
 		if k == 1 {
 			label, rs, ws, we = "繁", f.ctxT, f.wsT, f.weT
 		}
+		ws, we = doubled(rs, ws, we)
 		lr := []rune(label + "  ")
 		cur := -1
-		if dr.cur == n-len(lines) {
+		on := dr.cur == n-len(lines)
+		if on && dr.editing {
 			dr.vi.col = min(dr.vi.col, len(rs))
 			cur = len(lr) + dr.vi.col
 			if dr.vi.col == len(rs) {
@@ -2035,6 +2050,8 @@ func (v *view) drawCard() {
 				return stCursor
 			case i < len(lr):
 				return stHint
+			case on && !dr.editing:
+				return stSel
 			case i-len(lr) >= ws && i-len(lr) < we:
 				return stWord
 			}
@@ -2112,25 +2129,26 @@ func (v *view) drawCard() {
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
-	case dr.cur < 0 && dr.vi.insert:
+	case dr.editing && dr.curVi().insert:
 		help = "Esc: back to normal mode"
 	case dr.editing:
-		help = "Esc or Enter: done"
+		help = "h l w b e 0 $ to move, i a I A x X r s D C d c u " +
+			"to edit, [ ] { } the edges  Esc, j, k: back to the " +
+			"list  Enter: save"
 	case dr.other() != nil:
 		help = "[ ] { } this context's edges  i: edit it" +
 			"  space: tick it  a: all or none  Enter: save"
 	case dr.cur < 0:
-		help = "the context: h l w b e 0 $ to move, i a I A x X r " +
-			"s D C d c u to edit, j to the definitions, " +
-			"Enter: save"
+		help = "[ ] { } the edges  i: edit the context" +
+			"  j: to the definitions  Enter: save"
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
 	mode := "-- LIST --"
 	switch {
-	case dr.editing || dr.cur < 0 && dr.vi.insert:
+	case dr.editing && dr.curVi().insert:
 		mode = "-- INSERT --"
-	case dr.cur < 0:
+	case dr.editing:
 		mode = "-- NORMAL --"
 	}
 	text := clip([]rune(mode+"  "+help), v.w)
@@ -2239,6 +2257,7 @@ func (v *view) otherLines(k int) []styled {
 	if dr.trad {
 		rs, ws, we = f.ctxT, f.wsT, f.weT
 	}
+	ws, we = doubled(rs, ws, we)
 	var out []styled
 	if k == 0 {
 		out = append(out, line(0), line(0, piece{fmt.Sprintf(

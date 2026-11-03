@@ -895,9 +895,7 @@ func TestOtherContexts(t *testing.T) {
 	if got := string(dr.others[0].ctxf.ctxS); got != "她身上散发香味" {
 		t.Errorf("after {: %q", got)
 	}
-	keys(v, "i")
-	v.key(tcell.NewEventKey(tcell.KeyDelete, 0, tcell.ModNone))
-	keys(v, "⎋")
+	keys(v, "ix⎋")
 	if got := string(dr.others[0].ctxf.ctxS); got != "身上散发香味" {
 		t.Errorf("after Delete: %q", got)
 	}
@@ -972,6 +970,26 @@ func TestDoubled(t *testing.T) {
 	}
 }
 
+// TestOwnDoubled checks that a card's own context marks and blanks a
+// doubled form of the word whole, keeping the word itself as the card's.
+func TestOwnDoubled(t *testing.T) {
+	v, _ := newTestView(t, "我看着电梯工，她松松垮垮地坐着。\n")
+	keys(v, "/松垮⏎vl⏎")
+	if v.mode != card {
+		t.Fatalf("mode %d", v.mode)
+	}
+	note := v.dr.note(v.dr.forms(v.conv), false, false)
+	if note[1] != "松垮" || note[2] != "鬆垮" {
+		t.Errorf("word %q %q", note[1], note[2])
+	}
+	blank := "她<span class=cloze>[简体]</span>地"
+	if !strings.Contains(note[6], "她<b>松松垮垮</b>地") ||
+		!strings.Contains(note[7], blank) ||
+		!strings.Contains(note[8], "她<b>鬆鬆垮垮</b>地") {
+		t.Errorf("contexts %q", note[6:10])
+	}
+}
+
 // TestCardMode checks the mode marker at the bottom of the card preview.
 func TestCardMode(t *testing.T) {
 	v, s := newTestView(t, "他散发传单给路人。\n\n"+
@@ -982,9 +1000,11 @@ func TestCardMode(t *testing.T) {
 		return strings.Fields(rows[len(rows)-1])[1]
 	}
 	for _, c := range []struct{ keys, want string }{
-		{"", "LIST"}, {"kk", "NORMAL"}, {"i", "INSERT"},
-		{"⎋", "NORMAL"}, {"jjjjj", "LIST"}, {"i", "INSERT"},
-		{"⎋", "LIST"},
+		{"", "LIST"}, {"kk", "LIST"}, {"i", "NORMAL"},
+		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"⎋", "LIST"},
+		{"ij", "LIST"}, {"jjjj", "LIST"}, {"i", "NORMAL"},
+		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"k", "LIST"},
+		{"ji⎋", "LIST"},
 	} {
 		keys(v, c.keys)
 		if got := mode(); got != c.want {
@@ -1130,7 +1150,7 @@ func TestCardOptions(t *testing.T) {
 // TestEditContext checks the vi keys on the preview's context.
 func TestEditContext(t *testing.T) {
 	v, s := newTestView(t, book)
-	keys(v, "/精神⏎⏎k0dwx")
+	keys(v, "/精神⏎⏎ki0dwx")
 	f := v.dr.forms(v.conv)
 	if got := string(f.ctxS); got != "看起来很精神。" {
 		t.Fatalf("after 0dwx: %q\n%s", got,
