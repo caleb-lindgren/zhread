@@ -1684,9 +1684,87 @@ func (v *view) startCards(pk *picker, words [][2]int) {
 		if len(dr.opts) > dr.zh {
 			dr.sel[dr.zh] = true
 		}
+		dr.others = v.others(dr)
+		dr.osel = make([]bool, len(dr.others))
+		for k := range dr.osel {
+			dr.osel[k] = true
+		}
 		v.queue = append(v.queue, dr)
 	}
 	v.nextCard()
+}
+
+// others are the contexts of the word's other places in the book, in book
+// order, for a card to show in turn with its own: wherever the text has it
+// and the segmenter does not make it part of a longer word, as it makes 打
+// part of 打算. A card made in a pane gets the book's too. Each context is
+// the one newSpan picks, and one the same as the card's own, or as one
+// before it, is left out, as a sentence using the word twice would give.
+func (v *view) others(dr *draft) []forms {
+	book := v.d
+	if len(v.stack) > 0 {
+		book = v.stack[0].d
+	}
+	word := dr.p.text[dr.ws:dr.we]
+	type hit struct {
+		p  para
+		at []int // where the word starts in p.text
+	}
+	var hits []hit
+	var rq segReq
+	for l := 0; l < len(book.lines); l++ {
+		if blank(book.lines[l]) {
+			continue
+		}
+		p := book.paragraph(l)
+		l = p.first + len(p.offs) - 1
+		var at []int
+		for i := 0; i+len(word) <= len(p.text); i++ {
+			if slices.Equal(p.text[i:i+len(word)], word) {
+				at = append(at, i)
+			}
+		}
+		if len(at) > 0 {
+			hits = append(hits, hit{p, at})
+			rq.text = append(rq.text, p.text)
+		}
+	}
+	if len(hits) == 0 {
+		return nil
+	}
+	// One probe for all the paragraphs, as the reader segments a batch.
+	toks := segment(v.dict, v.pron, rq).toks
+	own := func(f forms) string {
+		if dr.trad {
+			return string(f.ctxT)
+		}
+		return string(f.ctxS)
+	}
+	seen := map[string]bool{own(dr.forms(v.conv)): true}
+	var out []forms
+	for h, ht := range hits {
+		for _, ws := range ht.at {
+			we := ws + len(word)
+			if book == v.d && ht.p.first == dr.p.first &&
+				ws == dr.ws {
+				continue
+			}
+			if slices.ContainsFunc(toks[h], func(t tok) bool {
+				return t.start < ws && ws < t.end ||
+					t.start < we && we < t.end
+			}) {
+				continue
+			}
+			o := &draft{p: ht.p, ws: ws, we: we, trad: dr.trad,
+				span: newSpan(ht.p.text, ws, we)}
+			f := o.forms(v.conv)
+			if !seen[own(f)] {
+				seen[own(f)] = true
+				out = append(out, f)
+			}
+		}
+	}
+	return out
 }
 
 func (v *view) chooseKey(ev *tcell.EventKey) {
@@ -1826,11 +1904,11 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
 	case r == 'j' || ev.Key() == tcell.KeyDown:
-		dr.cur = max(min(dr.cur+1, len(dr.opts)-1), dr.cur)
+		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
 		dr.cur = max(dr.cur-1, -len(lines))
-	case r == ' ' && dr.cur >= 0 && len(dr.sel) > 0:
-		dr.sel[dr.cur] = !dr.sel[dr.cur]
+	case r == ' ' && dr.cur >= 0 && dr.cur < dr.rows():
+		dr.tick(dr.cur)
 	case r == 'x':
 		v.expand = !v.expand
 	case r == 'c' || r == 'E':
@@ -1909,8 +1987,8 @@ func (v *view) drawCard() {
 	if len(dr.opts) == 0 {
 		y = v.put(0, y, maxY, []rune(dr.notice), plain(stWarn))
 	}
-	// The options scroll to keep the one under the cursor in view,
-	// above the cards already made and the help line.
+	// The options and other contexts scroll to keep the one under the
+	// cursor in view, above the cards already made and the help line.
 	end := maxY
 	if len(dr.dups) > 0 {
 		end = max(maxY-len(dr.dups)-2, y+1)
@@ -1934,7 +2012,7 @@ func (v *view) drawCard() {
 		y = v.put(0, y, end, []rune(fmt.Sprintf("  ↑ %d more",
 			dr.top)), plain(stHint))
 	}
-	for i := dr.top; i < len(dr.opts) && y < end; i++ {
+	for i := dr.top; i < dr.rows() && y < end; i++ {
 		for _, l := range v.optLines(i) {
 			y = v.putw(l.x, l.wx, y, 0, end, l.text, l.style)
 		}
@@ -1959,11 +2037,12 @@ func (v *view) drawCard() {
 				plain(stDef))
 		}
 	}
-	help := "[ ] left edge  { } right edge  j k space: definitions" +
+	help := "[ ] left edge  { } right edge  j k space: definitions, " +
+		"contexts" +
 		"  k: edit the context  x c E: quotations, MoEDict, " +
 		"Wiktionary  Enter: save  Esc: cancel"
 	if dr.of > 1 {
-		help = "[ ] { } context  j k space: definitions" +
+		help = "[ ] { } context  j k space: definitions, contexts" +
 			"  x c E: quotations, MoEDict, Wiktionary" +
 			"  Enter: save  n: skip  Esc: cancel the rest"
 	}
@@ -1986,9 +2065,14 @@ func (v *view) drawCard() {
 
 // optLines are the lines option i takes in the card preview: a blank one
 // before the first English option, the option itself, and the quotations
-// that go on the card with it after x.
+// that go on the card with it after x. Past the options, they are the
+// other contexts'.
 func (v *view) optLines(i int) []styled {
-	dr, o := v.dr, v.dr.opts[i]
+	dr := v.dr
+	if i >= len(dr.opts) {
+		return v.otherLines(i - len(dr.opts))
+	}
+	o := dr.opts[i]
 	var out []styled
 	if i == dr.zh && i > 0 {
 		out = append(out, line(0))
@@ -2025,6 +2109,36 @@ func (v *view) optLines(i int) []styled {
 		}
 	}
 	return out
+}
+
+// otherLines are the lines other context k takes in the card preview: a
+// heading before the first, and the context in the text's script, with
+// the word in its colour.
+func (v *view) otherLines(k int) []styled {
+	dr, f := v.dr, v.dr.others[k]
+	rs, ws, we := f.ctxS, f.wsS, f.weS
+	if dr.trad {
+		rs, ws, we = f.ctxT, f.wsT, f.weT
+	}
+	var out []styled
+	if k == 0 {
+		out = append(out, line(0), line(0, piece{fmt.Sprintf(
+			"Elsewhere in the book (%d):", len(dr.others)), stHint}))
+	}
+	box := "[ ] "
+	if dr.osel[k] {
+		box = "[x] "
+	}
+	l := line(0, piece{box, stDef}, piece{string(rs[:ws]), stDef},
+		piece{string(rs[ws:we]), stWord}, piece{string(rs[we:]), stDef})
+	l.wx = 4
+	if len(dr.opts)+k == dr.cur {
+		l.style = plain(stSel)
+	} else if !dr.osel[k] {
+		l.style = plain(stHint)
+		l.text = clip(l.text, v.w)
+	}
+	return append(out, l)
 }
 
 // clip cuts text to fit w columns, marking the cut with an ellipsis.

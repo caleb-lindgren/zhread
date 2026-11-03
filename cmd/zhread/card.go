@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -151,9 +152,11 @@ type carded struct {
 }
 
 // Columns of cards.tsv, after the GUID: the note type's fields in order.
+// Contexts and ContextsTrad, the word's other contexts in the book, come
+// last, so the columns of cards made before them keep their places.
 var fields = []string{"Simplified", "Traditional", "Pinyin", "DefZh",
 	"DefEn", "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source",
-	"Added"}
+	"Added", "Contexts", "ContextsTrad"}
 
 func loadRecord(cardsPath string) (*record, error) {
 	rec := &record{path: cardsPath, words: map[string]bool{},
@@ -267,6 +270,25 @@ type draft struct {
 	ed   [2]*edited
 	vi   vi     // the editor on the context under the cursor
 	warn string // why Enter did not save
+	// others are the word's other contexts in the book, which the card
+	// shows in turn with its own, and osel which of them go on it. The
+	// cursor goes onto them after the options: others[k] is at
+	// len(opts)+k.
+	others []forms
+	osel   []bool
+}
+
+// rows is how many lines of the preview the cursor goes over below the
+// context: the options, then the other contexts.
+func (dr *draft) rows() int { return len(dr.opts) + len(dr.others) }
+
+// tick ticks or unticks the option or other context at i.
+func (dr *draft) tick(i int) {
+	if i < len(dr.opts) {
+		dr.sel[i] = !dr.sel[i]
+	} else {
+		dr.osel[i-len(dr.opts)] = !dr.osel[i-len(dr.opts)]
+	}
 }
 
 // edited is a context changed by hand, with where the word is in it.
@@ -316,6 +338,11 @@ func newOpts(g zhdict.Group,
 // the cursor.
 func (dr *draft) setOpts(shows func(zhdict.Group, int) bool) {
 	type key struct{ row, k int }
+	// a cursor on the other contexts stays on the same one
+	other := -1
+	if dr.cur >= len(dr.opts) && len(dr.others) > 0 {
+		other = dr.cur - len(dr.opts)
+	}
 	ticked := map[key]bool{}
 	var at *key
 	for i, o := range dr.opts {
@@ -337,6 +364,9 @@ func (dr *draft) setOpts(shows func(zhdict.Group, int) bool) {
 	}
 	if dr.cur >= 0 {
 		dr.cur = max(cur, 0)
+	}
+	if other >= 0 {
+		dr.cur = len(dr.opts) + other
 	}
 	dr.top = min(dr.top, max(dr.cur, 0))
 }
@@ -443,7 +473,9 @@ func (dr *draft) forms(conv convs) forms {
 // only when both is set, as the pane shows it only after t, and the
 // quotations go on only when cites is, as the pane shows them after x. The
 // reading is followed by its zhuyin. When cards are made in both scripts, a
-// cloze's blank says which script it asks for, [简体] or [繁體].
+// cloze's blank says which script it asks for, [简体] or [繁體]. The ticked
+// other contexts go in the last two fields, each in a div with the word in
+// bold, left empty as the contexts are; the card makes their clozes itself.
 func (dr *draft) note(f forms, both, cites bool) []string {
 	var py string
 	var zh, en []string
@@ -466,13 +498,26 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 	}
 	ctxS := mark(f.ctxS, f.wsS, f.weS, "")
 	clozeS := mark(f.ctxS, f.wsS, f.weS, gap)
+	var more, moreT string
+	for i, o := range dr.others {
+		// an edit can make the context the same as one of them
+		if !dr.osel[i] || slices.Equal(o.ctxS, f.ctxS) &&
+			slices.Equal(o.ctxT, f.ctxT) {
+			continue
+		}
+		more += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") + "</div>"
+		moreT += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") + "</div>"
+	}
 	var trad, ctxT, clozeT string
+	if f.wordT == f.wordS && !dr.trad {
+		moreT = ""
+	}
 	if f.wordT != f.wordS || dr.trad {
 		trad = f.wordT
 		ctxT = mark(f.ctxT, f.wsT, f.weT, "")
 		clozeT = mark(f.ctxT, f.wsT, f.weT, gap)
 		if f.wordT == f.wordS {
-			ctxS, clozeS = "", ""
+			ctxS, clozeS, more = "", "", ""
 		} else {
 			clozeS = mark(f.ctxS, f.wsS, f.weS, gapS)
 			clozeT = mark(f.ctxT, f.wsT, f.weT, gapT)
@@ -485,6 +530,7 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 		strings.Join(zh, "<br>"), strings.Join(en, "<br>"),
 		ctxS, clozeS, ctxT, clozeT,
 		html.EscapeString(dr.src), time.Now().Format("2006-01-02"),
+		more, moreT,
 	}
 }
 

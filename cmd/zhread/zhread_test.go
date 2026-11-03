@@ -841,6 +841,41 @@ func TestEnglishOnly(t *testing.T) {
 	}
 }
 
+// TestOtherContexts checks that a card is offered the word's other
+// contexts in the book, ticked, once each, and carries those still ticked.
+func TestOtherContexts(t *testing.T) {
+	v, _ := newTestView(t, "他散发传单给路人。\n\n"+
+		"她身上散发香味，又散发热气。\n\n花儿散发着芬芳的香气。\n")
+	keys(v, "lvl⏎")
+	if v.mode != card {
+		t.Fatalf("mode %d", v.mode)
+	}
+	dr := v.dr
+	var got []string
+	for _, f := range dr.others {
+		got = append(got, string(f.ctxS))
+	}
+	want := []string{"她身上散发香味，又散发热气。", "花儿散发着芬芳的香气。"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("other contexts %q, want %q", got, want)
+	}
+	if !dr.osel[0] || !dr.osel[1] {
+		t.Errorf("not all ticked: %v", dr.osel)
+	}
+	keys(v, strings.Repeat("j", dr.rows()-1)+" ")
+	if dr.cur != dr.rows()-1 || dr.osel[1] {
+		t.Fatalf("cursor %d of %d, ticked %v", dr.cur, dr.rows(),
+			dr.osel)
+	}
+	note := dr.note(dr.forms(v.conv), false, false)
+	if c := note[12]; c != "<div>她身上<b>散发</b>香味，又散发热气。</div>" {
+		t.Errorf("Contexts %q", c)
+	}
+	if c := note[13]; c != "<div>她身上<b>散發</b>香味，又散發熱氣。</div>" {
+		t.Errorf("ContextsTrad %q", c)
+	}
+}
+
 // cur is the character under the cursor.
 func cur(v *view) string {
 	line := v.d.lines[v.cl]

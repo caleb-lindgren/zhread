@@ -335,6 +335,14 @@ The preview shows:
   sense's quotations go on the card if `x` is showing them when it is saved,
   and are shown under it in the preview. The reading comes from the first
   ticked one.
+- **The word's other contexts**: every other place in the book that has the
+  word, unless the segmenter makes it part of a longer word there, as it
+  makes 打 part of 打算, each with the context the card's own would start as,
+  in the text's script. A context the same as the card's, or as one before
+  it, is left out. All are ticked to start with; `j` goes on down to them
+  from the definitions and Space unticks. The ticked ones go on the card
+  with its own, and Anki shows them in turn (see below). A card made in a
+  definitions pane gets the book's.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.
@@ -357,7 +365,7 @@ Commit it: it is how the record survives.
 ### Into Anki
 
 Once, import anki/zhread.apkg (File > Import, or open it). It creates the
-zhread note type: the eleven fields, the four card types and the styling
+zhread note type: the thirteen fields, the four card types and the styling
 from anki/. It holds one placeholder note, which has no cards and so never
 comes up in study; Anki imports a note type only along with a note that
 uses it, so a package without one would create nothing.
@@ -376,7 +384,17 @@ Python venv in .venv with genanki) and import anki/zhread.apkg again: the
 note type keeps a fixed ID, so Anki updates it in place. A change to the
 fields or to the card types or their order changes the note type's schema,
 and Anki then imports it as a second note type, unless "Merge note types" is
-ticked in the import dialog.
+ticked in the import dialog. Contexts and ContextsTrad were such a change,
+added as the last two fields after the first cards were made: the cards
+from before them have the two columns of cards.tsv empty.
+
+Each time a card comes up, it shows the next of its contexts: the one made
+with it, then the others ticked in the preview, in the order of the book,
+held in the Contexts and ContextsTrad fields as one div each. The front
+stores which it showed in the webview's localStorage, keyed by card type and
+word, and the back shows the same one. Where that storage does not last
+from one session to the next, the turn starts at a random context. A cloze
+card blanks the other contexts as its own is blanked, in the card's script.
 
 The recognition card shows the context with the word in bold, and asks for
 the reading and meaning. The cloze card shows the context with the word

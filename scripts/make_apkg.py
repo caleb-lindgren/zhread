@@ -24,7 +24,8 @@ MODEL_ID = 1761811200
 # The note type's fields, in the order of cards.tsv's columns after the
 # GUID, which cmd/zhread/card.go writes.
 FIELDS = ["Simplified", "Traditional", "Pinyin", "DefZh", "DefEn",
-          "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source", "Added"]
+          "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source", "Added",
+          "Contexts", "ContextsTrad"]
 
 # Anki shows a note's new cards in this order, so the traditional ones are
 # learned first. Re-importing does not reorder a collection's card types:
@@ -58,7 +59,8 @@ def main():
     # creates no deck of its own, and cards.tsv names the one it uses.
     deck = genanki.Deck(1, "Default")
     deck.add_note(genanki.Note(model=model, guid="zhread-setup",
-                               fields=["zhread setup"] + [""] * 10))
+                               fields=["zhread setup"] +
+                               [""] * (len(FIELDS) - 1)))
     out = os.path.join(ANKI, "zhread.apkg")
     genanki.Package(deck).write_to_file(out)
     print(out)

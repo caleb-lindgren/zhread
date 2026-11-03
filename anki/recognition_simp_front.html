@@ -1,1 +1,40 @@
-{{#Context}}<div class="ctx simp">{{Context}}</div>{{/Context}}
+{{#Context}}<div class="ctx simp" id=ctx>{{Context}}</div>
+<div id=ctxs hidden>{{Contexts}}</div>
+<script>
+/* Show the context and the word's others from the book in turn, a
+   different one each time the card comes up: the front moves on to the
+   next and stores which, and the back shows the one stored. Where the
+   storage does not last between sessions, the turn starts at random. */
+(function (back, cloze) {
+  var key = "zhread:{{Card}}:{{text:Simplified}}:{{text:Traditional}}";
+  var ctx = document.getElementById("ctx");
+  var more = document.getElementById("ctxs");
+  var all = [ctx.innerHTML].concat(Array.from(more.children,
+    function (c) { return c.innerHTML; }));
+  if (all.length < 2) return;
+  var i = window[key];
+  try {
+    var s = localStorage.getItem(key);
+    if (s != null) i = Number(s);
+  } catch (e) {}
+  if (back) {
+    i = i == null ? 0 : i % all.length;
+  } else {
+    i = i == null ? Math.floor(Math.random() * all.length) :
+      (i + 1) % all.length;
+    window[key] = i;
+    try { localStorage.setItem(key, i); } catch (e) {}
+  }
+  var h = all[i];
+  if (cloze && i > 0) {
+    /* As the cloze field does, blank the word and every other
+       occurrence of it, with the blank the field has. */
+    var blank = ctx.querySelector(".cloze").outerHTML;
+    h = h.replace(/<b>[^<]*<\/b>/g, blank);
+    ["{{text:Simplified}}", "{{text:Traditional}}"].forEach(function (w) {
+      if (w) h = h.split(w).join(blank);
+    });
+  }
+  ctx.innerHTML = h;
+})(false, false);
+</script>{{/Context}}
