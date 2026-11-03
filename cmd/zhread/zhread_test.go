@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -855,7 +856,7 @@ func TestOtherContexts(t *testing.T) {
 	dr := v.dr
 	var got []string
 	for _, f := range dr.others {
-		got = append(got, string(f.ctxS))
+		got = append(got, string(f.ctxf.ctxS))
 	}
 	want := []string{"她身上散发香味，又散发热气。", "花儿散发着芬芳的香气。"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
@@ -875,6 +876,43 @@ func TestOtherContexts(t *testing.T) {
 	}
 	if c := note[13]; c != "<div>她身上<b>散發</b>香味，又散發熱氣。</div>" {
 		t.Errorf("ContextsTrad %q", c)
+	}
+
+	// a ticks them all, and again none.
+	keys(v, "a")
+	if slices.Contains(dr.osel, false) {
+		t.Errorf("a left some unticked: %v", dr.osel)
+	}
+	keys(v, "a")
+	if slices.Contains(dr.osel, true) {
+		t.Errorf("a left some ticked: %v", dr.osel)
+	}
+	keys(v, "a")
+
+	// The edges and the editor work on the context under the cursor,
+	// and the other script follows an edit of the text's own.
+	keys(v, "k{")
+	if got := string(dr.others[0].ctxf.ctxS); got != "她身上散发香味" {
+		t.Errorf("after {: %q", got)
+	}
+	tab := tcell.NewEventKey(tcell.KeyTab, 0, tcell.ModNone)
+	v.key(tab)
+	keys(v, "x⎋")
+	if got := string(dr.others[0].ctxf.ctxS); got != "身上散发香味" {
+		t.Errorf("after x: %q", got)
+	}
+	if got := string(dr.others[0].ctxf.ctxT); got != "身上散發香味" {
+		t.Errorf("traditional after x: %q", got)
+	}
+	if dr.editing {
+		t.Errorf("still editing after Esc")
+	}
+	note = dr.note(dr.forms(v.conv), false, false)
+	if !strings.HasPrefix(note[12], "<div>身上<b>散发</b>香味</div>") {
+		t.Errorf("Contexts after the edits %q", note[12])
+	}
+	if !strings.Contains(string(note[6]), "他<b>散发</b>传单给路人。") {
+		t.Errorf("own context changed: %q", note[6])
 	}
 }
 

@@ -1694,17 +1694,26 @@ func (v *view) startCards(pk *picker, words [][2]int) {
 	v.nextCard()
 }
 
-// others are the contexts of the word's other places in the book, in book
-// order, for a card to show in turn with its own: wherever the text has it
-// and the segmenter does not make it part of a longer word, as it makes 打
-// part of 打算. A card made in a pane gets the book's too. Each context is
-// the one newSpan picks, and one the same as the card's own, or as one
-// before it, is left out, as a sentence using the word twice would give.
-func (v *view) others(dr *draft) []forms {
+// others are the word's other places in the book, for a card made from dr
+// to show in turn with its own. A card made in a pane gets the book's too.
+func (v *view) others(dr *draft) []*draft {
 	book := v.d
 	if len(v.stack) > 0 {
 		book = v.stack[0].d
 	}
+	return findOthers(book, book == v.d, v.dict, v.pron, v.conv, dr)
+}
+
+// findOthers finds the word of dr in book, in book order: wherever the text
+// has it and the segmenter does not make it part of a longer word, as it
+// makes 打 part of 打算. Each is a draft of its own, for its context, which
+// starts as the one newSpan picks. A context that shares text with one
+// before it is left out, as is one the same as another: a sentence using
+// the word twice would otherwise give it twice, and a long one cut to
+// sixty characters around each, twice nearly. With home set, dr is in
+// book, and the card's own context counts as one before them all.
+func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
+	conv convs, dr *draft) []*draft {
 	word := dr.p.text[dr.ws:dr.we]
 	type hit struct {
 		p  para
@@ -1733,22 +1742,28 @@ func (v *view) others(dr *draft) []forms {
 		return nil
 	}
 	// One probe for all the paragraphs, as the reader segments a batch.
-	toks := segment(v.dict, v.pron, rq).toks
+	toks := segment(dict, pron, rq).toks
 	own := func(f forms) string {
 		if dr.trad {
 			return string(f.ctxT)
 		}
 		return string(f.ctxS)
 	}
-	seen := map[string]bool{own(dr.forms(v.conv)): true}
-	var out []forms
+	seen := map[string]bool{own(dr.forms(conv)): true}
+	// the stretches of text taken, by paragraph
+	type taken struct{ first, a, b int }
+	var took []taken
+	take := func(o *draft) {
+		a, b := o.span.ends()
+		took = append(took, taken{o.p.first, a, b})
+	}
+	if home {
+		take(dr)
+	}
+	var out []*draft
 	for h, ht := range hits {
 		for _, ws := range ht.at {
 			we := ws + len(word)
-			if book == v.d && ht.p.first == dr.p.first &&
-				ws == dr.ws {
-				continue
-			}
 			if slices.ContainsFunc(toks[h], func(t tok) bool {
 				return t.start < ws && ws < t.end ||
 					t.start < we && we < t.end
@@ -1757,10 +1772,18 @@ func (v *view) others(dr *draft) []forms {
 			}
 			o := &draft{p: ht.p, ws: ws, we: we, trad: dr.trad,
 				span: newSpan(ht.p.text, ws, we)}
-			f := o.forms(v.conv)
-			if !seen[own(f)] {
-				seen[own(f)] = true
-				out = append(out, f)
+			a, b := o.span.ends()
+			if slices.ContainsFunc(took, func(t taken) bool {
+				return t.first == ht.p.first &&
+					a < t.b && t.a < b
+			}) {
+				continue
+			}
+			o.refresh(conv)
+			if !seen[own(o.ctxf)] {
+				seen[own(o.ctxf)] = true
+				take(o)
+				out = append(out, o)
 			}
 		}
 	}
@@ -1871,8 +1894,26 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	f := dr.forms(v.conv)
 	lines := dr.ctxLines(f)
 	dr.cur = max(dr.cur, -len(lines))
-	if dr.cur < 0 && v.ctxKey(ev, f, lines[len(lines)+dr.cur]) {
+	if dr.cur < 0 && dr.edit(ev, f, lines[len(lines)+dr.cur],
+		func() { dr.saving = false }) {
+		dr.warn = ""
 		return
+	}
+	o := dr.other()
+	if o != nil && dr.editing {
+		switch {
+		case !o.vi.insert && (ev.Key() == tcell.KeyEscape ||
+			ev.Key() == tcell.KeyBacktab):
+			dr.editing = false
+			return
+		case o.edit(ev, o.ctxf, o.own(), func() { dr.saving = false }):
+			o.refresh(v.conv)
+			dr.warn = ""
+			return
+		case r == 'j' || r == 'k' || ev.Key() == tcell.KeyDown ||
+			ev.Key() == tcell.KeyUp:
+			dr.editing = false
+		}
 	}
 	dr.warn = ""
 	switch {
@@ -1898,11 +1939,22 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 				headword(f.wordT, f.wordS)
 		}
 		v.nextCard()
+	case strings.ContainsRune("[]{}", r) && r != 0 && o != nil:
+		o.span.move(r)
+		o.ed, o.vi = [2]*edited{}, vi{}
+		o.refresh(v.conv)
 	case strings.ContainsRune("[]{}", r) && r != 0:
 		// The edges move over the text as it was, so they undo edits.
 		dr.span.move(r)
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
+	case ev.Key() == tcell.KeyTab && o != nil:
+		dr.editing = true
+	case r == 'a' && len(dr.others) > 0:
+		all := !slices.Contains(dr.osel, false)
+		for k := range dr.osel {
+			dr.osel[k] = !all
+		}
 	case r == 'j' || ev.Key() == tcell.KeyDown:
 		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
@@ -1921,11 +1973,11 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	}
 }
 
-// ctxKey gives a key to the editor on context line k, the line under the
-// cursor, and reports whether it took it. The first change makes the line
-// an edited copy of its own.
-func (v *view) ctxKey(ev *tcell.EventKey, f forms, k int) bool {
-	dr := v.dr
+// edit gives a key to the editor on context line k of the draft, whose
+// forms are f, and reports whether it took it. The first change makes the
+// line an edited copy of its own; changed is called on every change.
+func (dr *draft) edit(ev *tcell.EventKey, f forms, k int,
+	changed func()) bool {
 	e := dr.ed[k]
 	if e == nil {
 		ctx, ws, we := f.ctxS, f.wsS, f.weS
@@ -1934,19 +1986,18 @@ func (v *view) ctxKey(ev *tcell.EventKey, f forms, k int) bool {
 		}
 		e = &edited{append([]rune(nil), ctx...), ws, we}
 	}
-	ok := dr.vi.key(ev, e, func() {
+	return dr.vi.key(ev, e, func() {
 		dr.vi.undo = append(dr.vi.undo, e.clone())
 		dr.ed[k] = e
-		dr.saving = false
+		changed()
 	})
-	if ok {
-		dr.warn = ""
-	}
-	return ok
 }
 
 func (v *view) drawCard() {
 	dr := v.dr
+	if dr.other() == nil {
+		dr.editing = false
+	}
 	f := dr.forms(v.conv)
 	maxY := v.h - 1
 	head := " New card: " + headword(f.wordT, f.wordS)
@@ -2038,7 +2089,7 @@ func (v *view) drawCard() {
 		}
 	}
 	help := "[ ] left edge  { } right edge  j k space: definitions, " +
-		"contexts" +
+		"contexts  a: all contexts or none" +
 		"  k: edit the context  x c E: quotations, MoEDict, " +
 		"Wiktionary  Enter: save  Esc: cancel"
 	if dr.of > 1 {
@@ -2053,8 +2104,16 @@ func (v *view) drawCard() {
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
-	case dr.cur < 0 && dr.vi.insert:
+	case dr.cur < 0 && dr.vi.insert ||
+		dr.editing && dr.other().vi.insert:
 		help = "-- INSERT --  Esc: back to normal mode"
+	case dr.editing:
+		help = "this context: h l w b e 0 $ to move, i a I A x X r " +
+			"s D C d c u to edit, [ ] { } its edges, " +
+			"Esc: done, Enter: save"
+	case dr.other() != nil:
+		help = "[ ] { } this context's edges  Tab: edit it" +
+			"  space: tick it  a: all or none  Enter: save"
 	case dr.cur < 0:
 		help = "the context: h l w b e 0 $ to move, i a I A x X r " +
 			"s D C d c u to edit, j to the definitions, " +
@@ -2113,9 +2172,10 @@ func (v *view) optLines(i int) []styled {
 
 // otherLines are the lines other context k takes in the card preview: a
 // heading before the first, and the context in the text's script, with
-// the word in its colour.
+// the word in its colour, and the cursor in it while it is edited.
 func (v *view) otherLines(k int) []styled {
-	dr, f := v.dr, v.dr.others[k]
+	dr, o := v.dr, v.dr.others[k]
+	f := o.ctxf
 	rs, ws, we := f.ctxS, f.wsS, f.weS
 	if dr.trad {
 		rs, ws, we = f.ctxT, f.wsT, f.weT
@@ -2132,7 +2192,20 @@ func (v *view) otherLines(k int) []styled {
 	l := line(0, piece{box, stDef}, piece{string(rs[:ws]), stDef},
 		piece{string(rs[ws:we]), stWord}, piece{string(rs[we:]), stDef})
 	l.wx = 4
-	if len(dr.opts)+k == dr.cur {
+	if len(dr.opts)+k == dr.cur && dr.editing {
+		o.vi.col = min(o.vi.col, len(rs))
+		cur := len([]rune(box)) + o.vi.col
+		if o.vi.col == len(rs) {
+			l.text = append(l.text, ' ')
+		}
+		st := l.style
+		l.style = func(i int) tcell.Style {
+			if i == cur {
+				return stCursor
+			}
+			return st(i)
+		}
+	} else if len(dr.opts)+k == dr.cur {
 		l.style = plain(stSel)
 	} else if !dr.osel[k] {
 		l.style = plain(stHint)

@@ -108,8 +108,11 @@ func newSpan(t []rune, ws, we int) span {
 	return s
 }
 
-func (s *span) n() int   { return len(s.bounds) - 1 }
-func (s *span) len() int { return s.bounds[s.b] - s.bounds[s.a] }
+func (s *span) n() int { return len(s.bounds) - 1 }
+
+// ends are the offsets in the paragraph of the span's start and end.
+func (s *span) ends() (int, int) { return s.bounds[s.a], s.bounds[s.b] }
+func (s *span) len() int         { return s.bounds[s.b] - s.bounds[s.a] }
 
 // sentence widens the span to whole sentences.
 func (s *span) sentence() {
@@ -270,12 +273,35 @@ type draft struct {
 	ed   [2]*edited
 	vi   vi     // the editor on the context under the cursor
 	warn string // why Enter did not save
-	// others are the word's other contexts in the book, which the card
-	// shows in turn with its own, and osel which of them go on it. The
-	// cursor goes onto them after the options: others[k] is at
-	// len(opts)+k.
-	others []forms
-	osel   []bool
+	// others are the word's other places in the book, drafts of their
+	// own for their contexts, which the card shows in turn with its own,
+	// and osel which of them go on it. The cursor goes onto them after
+	// the options: others[k] is at len(opts)+k. Tab edits the one under
+	// it, which editing says.
+	others  []*draft
+	osel    []bool
+	editing bool
+	ctxf    forms // of another context: its forms, kept by refresh
+}
+
+// refresh works out again the forms of another context, after it changes.
+func (dr *draft) refresh(conv convs) { dr.ctxf = dr.forms(conv) }
+
+// own is the index into ed of the text's script.
+func (dr *draft) own() int {
+	if dr.trad {
+		return 1
+	}
+	return 0
+}
+
+// other is the other context under the cursor, if it is on one.
+func (dr *draft) other() *draft {
+	if k := dr.cur - len(dr.opts); dr.cur >= 0 && k >= 0 &&
+		k < len(dr.others) {
+		return dr.others[k]
+	}
+	return nil
 }
 
 // rows is how many lines of the preview the cursor goes over below the
@@ -499,7 +525,8 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 	ctxS := mark(f.ctxS, f.wsS, f.weS, "")
 	clozeS := mark(f.ctxS, f.wsS, f.weS, gap)
 	var more, moreT string
-	for i, o := range dr.others {
+	for i, d := range dr.others {
+		o := d.ctxf
 		// an edit can make the context the same as one of them
 		if !dr.osel[i] || slices.Equal(o.ctxS, f.ctxS) &&
 			slices.Equal(o.ctxT, f.ctxT) {

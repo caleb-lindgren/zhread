@@ -338,11 +338,17 @@ The preview shows:
 - **The word's other contexts**: every other place in the book that has the
   word, unless the segmenter makes it part of a longer word there, as it
   makes 打 part of 打算, each with the context the card's own would start as,
-  in the text's script. A context the same as the card's, or as one before
-  it, is left out. All are ticked to start with; `j` goes on down to them
-  from the definitions and Space unticks. The ticked ones go on the card
-  with its own, and Anki shows them in turn (see below). A card made in a
-  definitions pane gets the book's.
+  in the text's script. A context that shares text with the card's or with
+  one before it is left out, as is one the same as another, so a sentence
+  using the word twice is offered once, or not at all when it is the
+  card's. All are ticked to start with; `j` goes on down to them
+  from the definitions and Space unticks. `a` ticks them all, or unticks
+  them all when they all are, so that from many the few wanted can be
+  picked out. `[ ] { }` move the edges of the one under the cursor, and Tab
+  edits it with vi's keys, as `k` does the card's own, until Esc or Shift-Tab
+  in normal mode, or `j` or `k`. Its other script follows, converted again.
+  The ticked ones go on the card with its own, and Anki shows them in turn
+  (see below). A card made in a definitions pane gets the book's.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.
