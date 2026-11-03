@@ -282,6 +282,7 @@ type draft struct {
 	osel    []bool
 	editing bool
 	esc     bool  // the last key was Esc
+	gPend   bool  // g was pressed, for gh
 	discard bool  // asking whether to throw the changes away
 	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh

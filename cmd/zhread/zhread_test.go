@@ -1213,3 +1213,67 @@ func TestEditContext(t *testing.T) {
 		t.Errorf("saved context %q", got)
 	}
 }
+
+// TestCardKeys checks that the card lists its keys on gh, not in its
+// status line, and that Esc hides them before it cancels the card.
+func TestCardKeys(t *testing.T) {
+	v, s := newTestView(t, "他散发传单给路人。\n")
+	keys(v, "lvl⏎")
+	status := func() string {
+		rows := screen(s)
+		return rows[len(rows)-1]
+	}
+	if st := status(); !strings.Contains(st, "gh F1: keys") ||
+		strings.Contains(st, "Enter") {
+		t.Errorf("status line: %q", st)
+	}
+	keys(v, "gh")
+	if !onScreen(s, "edit the context under the cursor") {
+		t.Fatalf("gh does not list the keys:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "J")
+	if v.cscroll != 1 {
+		t.Errorf("J scrolled the keys to %d", v.cscroll)
+	}
+	keys(v, "⎋")
+	if v.mode != card || onScreen(s, "edit the context under") {
+		t.Errorf("Esc: mode %d, keys shown %v", v.mode,
+			onScreen(s, "edit the context under"))
+	}
+	// In insert mode g is text.
+	keys(v, "kiIg⎋")
+	if v.chelp || !onScreen(s, "g他散發") {
+		t.Errorf("g in insert mode:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "⎋⎋y")
+	if v.mode != normal {
+		t.Errorf("Esc did not leave the card: mode %d", v.mode)
+	}
+}
+
+// TestPaneMarks checks that the pane's rule notes which of x, c and E
+// would change what it shows.
+func TestPaneMarks(t *testing.T) {
+	v, s := newTestView(t, "好\n须臾\n土豆\n")
+	s.SetSize(70, 40)
+	v.rows = nil
+	rule := func() string {
+		for _, r := range screen(s) {
+			if strings.HasPrefix(r, "──") {
+				return r
+			}
+		}
+		return ""
+	}
+	for _, c := range []struct{ keys, want string }{
+		{"", " c "}, {"j", " x "}, {"je", " c E "},
+	} {
+		keys(v, c.keys)
+		if r := rule(); !strings.Contains(r, c.want) {
+			t.Errorf("after %q: rule %q, want %q", c.keys, r,
+				c.want)
+		}
+	}
+}

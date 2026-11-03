@@ -80,6 +80,11 @@ type view struct {
 	moreZh bool // show MoEDict where 兩岸詞典 defines the word too, c
 	moreEn bool // show Wiktionary where CC-CEDICT defines it too, E
 	msg    string
+	// marks are the toggles, of x c E, that would change what the pane
+	// shows for the word, noted at the right of its rule.
+	marks   string
+	chelp   bool // the card shows its keys in a pane below it
+	cscroll int  // rows of the card's keys scrolled past
 
 	pat   *regexp.Regexp
 	back  bool // last search went backward
@@ -310,7 +315,7 @@ func (v *view) draw() {
 	}
 	if v.ph > 0 {
 		y := v.h - 1 - v.ph
-		v.drawPane(y, pane)
+		v.drawPane(y, v.ph, &v.pscroll, pane, v.marks)
 		v.blocks = append(v.blocks, block{nil, y + 1, v.ph - 1})
 	}
 	v.s.HideCursor()
@@ -329,7 +334,7 @@ func (v *view) drawBlock(lv *level, y, n int, rule, active bool) {
 	v.top = max(min(v.top, len(v.rows)-1), 0)
 	if rule {
 		if y >= 0 {
-			v.rule(y, v.top, len(v.rows)-v.top-(n-1))
+			v.rule(y, "", v.top, len(v.rows)-v.top-(n-1))
 		}
 		y, n = y+1, n-1
 	}
@@ -535,6 +540,7 @@ func width(ps []piece) int {
 // starting on a line with the word and its reading, every line of it
 // indented to where it starts; or the keys.
 func (v *view) pane() []styled {
+	v.marks = ""
 	if v.help {
 		return helpLines()
 	}
@@ -549,6 +555,7 @@ func (v *view) pane() []styled {
 	if g.Notice != "" {
 		return []styled{line(0, piece{g.Notice, stHint})}
 	}
+	defer func() { v.marks = v.toggles(g) }()
 	carded := func(sn zhdict.Sense) bool {
 		return v.rec.cardedSense(word, sn)
 	}
@@ -622,6 +629,41 @@ func (v *view) pane() []styled {
 		}
 	}
 	return out
+}
+
+// toggles are those of x, c and E that would change what the pane shows of
+// g: x when a definition shown has quotations it hides (a sense that is
+// only quotations shows them anyway), c when MoEDict has a definition
+// hidden or shown beside 兩岸詞典, and E the same for Wiktionary beside
+// CC-CEDICT, while the English is shown.
+func (v *view) toggles(g zhdict.Group) string {
+	en := v.showEn || g.Zh == 0
+	var x, c, e bool
+	for i := range g.Rows {
+		if g.Extra[i] && i < g.Zh {
+			c = true
+		} else if g.Extra[i] && en {
+			e = true
+		}
+		if x || i >= g.Zh && !en || !v.shows(g, i) {
+			continue
+		}
+		x = slices.ContainsFunc(g.Senses(i),
+			func(sn zhdict.Sense) bool {
+				return len(sn.Cites) > 0 &&
+					(sn.Text != "" || len(sn.Ex) > 0)
+			})
+	}
+	var out []string
+	for _, t := range []struct {
+		on bool
+		k  string
+	}{{x, "x"}, {c, "c"}, {e, "E"}} {
+		if t.on {
+			out = append(out, t.k)
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // shows reports whether row i of g is shown: a fallback dictionary's
@@ -816,35 +858,77 @@ var keyHelp = [][2]string{
 	{"click wheel", "move the cursor there; scroll the text"},
 }
 
-func helpLines() []styled {
+// cardKeyHelp is what gh shows below a card.
+var cardKeyHelp = [][2]string{
+	{"j k", "move over the contexts and definitions"},
+	{"space", "tick the definition or context, or untick it"},
+	{"a", "tick all the other contexts, or none"},
+	{"[ ] { }", "move the context's left edge, right edge"},
+	{"i", "edit the context under the cursor"},
+	{"Enter y", "save the card (again if already carded)"},
+	{"n", "skip to the selection's next card"},
+	{"Esc q", "cancel the card and those after it"},
+	{"Esc Esc", "the same, asking first if it is edited"},
+	{"x", "show or hide quotations (on the card too)"},
+	{"c", "show or hide MoEDict beside 兩岸詞典"},
+	{"E", "show or hide Wiktionary beside CC-CEDICT"},
+	{"J K", "scroll these keys down, up"},
+	{"gh F1", "show or hide these keys; Esc hides them"},
+	{"", "In the editor on a context:"},
+	{"h l w b e", "move by character, by word"},
+	{"0 ^ $", "move to the start, first character, end"},
+	{"i a I A", "insert before, after; at the start, end"},
+	{"x X r s", "delete, delete back, replace, substitute"},
+	{"d c D C", "delete, change over a motion; to the end"},
+	{"dd cc u", "delete, change it all; undo"},
+	{"Esc j k", "out of insert mode; back to the list"},
+}
+
+func helpLines() []styled { return keyLines(keyHelp) }
+
+// keyLines lists keys and what they do, as gh shows them.
+func keyLines(keys [][2]string) []styled {
+	w := 12
+	for _, k := range keys {
+		w = max(w, zhdict.Width(k[0])+1)
+	}
 	var out []styled
-	for _, k := range keyHelp {
-		out = append(out, line(0, piece{fmt.Sprintf("%-12s", k[0]),
-			stHead}, piece{k[1], stDef}))
+	for _, k := range keys {
+		if k[0] == "" {
+			// a heading, after a blank line
+			out = append(out, line(0),
+				line(0, piece{k[1], stHint}))
+			continue
+		}
+		pad := strings.Repeat(" ", w-zhdict.Width(k[0]))
+		l := line(0, piece{k[0] + pad, stHead}, piece{k[1], stDef})
+		l.wx = w
+		out = append(out, l)
 	}
 	return out
 }
 
-// drawPane draws the rule and the pane's lines below it, scrolled by
-// pscroll rows, with how many rows are out of view above and below noted
-// at the right of the rule.
-func (v *view) drawPane(y0 int, lines []styled) {
+// drawPane draws the rule and a pane's lines below it, ph rows in all from
+// y0, scrolled by *scroll rows, with marks and how many rows are out of
+// view above and below noted at the right of the rule.
+func (v *view) drawPane(y0, ph int, scroll *int, lines []styled,
+	marks string) {
 	total := 0
 	for _, l := range lines {
 		total += v.height(l.x, l.wx, l.text)
 	}
-	shown := v.ph - 1
-	v.pscroll = max(min(v.pscroll, total-shown), 0)
-	v.rule(y0, v.pscroll, total-shown-v.pscroll)
-	y := y0 + 1 - v.pscroll
+	shown := ph - 1
+	*scroll = max(min(*scroll, total-shown), 0)
+	v.rule(y0, marks, *scroll, total-shown-*scroll)
+	y := y0 + 1 - *scroll
 	for _, l := range lines {
-		y = v.putw(l.x, l.wx, y, y0+1, y0+v.ph, l.text, l.style)
+		y = v.putw(l.x, l.wx, y, y0+1, y0+ph, l.text, l.style)
 	}
 }
 
-// rule draws the rule over a pane at row y, noting at its right how many
-// rows are out of view above and below.
-func (v *view) rule(y, above, below int) {
+// rule draws the rule over a pane at row y, noting at its right marks,
+// and how many rows are out of view above and below.
+func (v *view) rule(y int, marks string, above, below int) {
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y, '─', nil, stRule)
 	}
@@ -854,6 +938,11 @@ func (v *view) rule(y, above, below int) {
 	}
 	if below > 0 {
 		more = append(more, fmt.Sprintf("↓%d", below))
+	}
+	// the marks set off from the counts by a second space
+	if marks != "" {
+		more = append([]string{marks + " "}, more...)
+		more[len(more)-1] = strings.TrimSuffix(more[len(more)-1], " ")
 	}
 	if len(more) > 0 {
 		m := " " + strings.Join(more, " ") + " "
@@ -1916,6 +2005,32 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 		return
 	}
+	// The keys: F1 shows or hides them anywhere, gh too but where g is
+	// text or a d, c or r's motion, and Esc hides them in the list, where
+	// it would otherwise cancel the card.
+	cv := dr.curVi()
+	free := !dr.editing || !cv.insert && cv.pend == 0
+	g := dr.gPend
+	dr.gPend = false
+	switch {
+	case ev.Key() == tcell.KeyF1 || g && r == 'h':
+		v.chelp, v.cscroll, dr.esc = !v.chelp, 0, false
+		return
+	case g: // g and any other key does nothing
+		return
+	case r == 'g' && free:
+		dr.gPend = true
+		return
+	case esc && v.chelp && !dr.editing:
+		v.chelp, dr.esc = false, false
+		return
+	case v.chelp && !dr.editing && r == 'J':
+		v.cscroll++
+		return
+	case v.chelp && !dr.editing && r == 'K':
+		v.cscroll--
+		return
+	}
 	o := dr.other()
 	// A context, the card's own or another, is in the list until i
 	// starts the editor on it in normal mode, and is back in it after Esc
@@ -2039,6 +2154,16 @@ func (v *view) drawCard() {
 	}
 	f := dr.forms(v.conv)
 	maxY := v.h - 1
+	// The keys, on gh, in a pane at the bottom that leaves the card
+	// eight rows, for its word, contexts and a few options, or half the
+	// screen if that is more.
+	var keys []styled
+	ph := 0
+	if v.chelp && v.h >= 6 {
+		keys = keyLines(cardKeyHelp)
+		ph = min(v.need(keys), max(v.h-9, v.h/2))
+		maxY -= ph
+	}
 	head := " New card: " + headword(f.wordT, f.wordS)
 	if dr.of > 1 {
 		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
@@ -2131,14 +2256,19 @@ func (v *view) drawCard() {
 				plain(stDef))
 		}
 	}
-	help := "[ ] left edge  { } right edge  j k space: definitions, " +
-		"contexts  a: all contexts or none" +
-		"  k: edit the context  x c E: quotations, MoEDict, " +
-		"Wiktionary  Enter: save  Esc: cancel"
-	if dr.of > 1 {
-		help = "[ ] { } context  j k space: definitions, contexts" +
-			"  x c E: quotations, MoEDict, Wiktionary" +
-			"  Enter: save  n: skip  Esc: cancel the rest"
+	if ph > 0 {
+		v.drawPane(maxY, ph, &v.cscroll, keys, "")
+	}
+	// The keys are listed on gh, not here, but for the questions.
+	help := "gh F1: keys"
+	switch {
+	case v.chelp && dr.editing:
+		help = "gh F1: hide the keys"
+	case v.chelp:
+		help = "gh F1 Esc: hide the keys"
+	}
+	if dr.editing && dr.curVi().insert {
+		help = strings.TrimPrefix(help, "gh ")
 	}
 	st := stHint
 	switch {
@@ -2150,18 +2280,6 @@ func (v *view) drawCard() {
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
-	case dr.editing && dr.curVi().insert:
-		help = "Esc: back to normal mode"
-	case dr.editing:
-		help = "h l w b e 0 $ to move, i a I A x X r s D C d c u " +
-			"to edit, [ ] { } the edges  Esc, j, k: back to the " +
-			"list  Enter: save"
-	case dr.other() != nil:
-		help = "[ ] { } this context's edges  i: edit it" +
-			"  space: tick it  a: all or none  Enter: save"
-	case dr.cur < 0:
-		help = "[ ] { } the edges  i: edit the context" +
-			"  j: to the definitions  Enter: save"
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
