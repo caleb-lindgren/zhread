@@ -996,7 +996,7 @@ func TestDiscard(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/精神⏎⏎ki0x⎋⎋")
 	if v.mode != card || !v.dr.discard ||
-		!onScreen(s, "Throw away the edits") {
+		!onScreen(s, "Throw away the changes") {
 		t.Fatalf("no question after ⎋⎋: mode %d", v.mode)
 	}
 	keys(v, "⎋")
@@ -1012,10 +1012,19 @@ func TestDiscard(t *testing.T) {
 	if v.mode != normal {
 		t.Errorf("a lone Esc did not cancel")
 	}
-	// So do two with nothing edited.
+	// So do two with nothing changed.
 	keys(v, "/精神⏎⏎ki⎋⎋")
 	if v.mode != normal {
-		t.Errorf("Esc Esc without edits did not cancel")
+		t.Errorf("Esc Esc without changes did not cancel")
+	}
+	// An edge moved or a tick changed is a change too, asked about
+	// when the Esc out of the editor is followed by another.
+	for _, k := range []string{"k[", " k"} {
+		keys(v, "/精神⏎⏎"+k+"i⎋⎋")
+		if v.mode != card || !v.dr.discard {
+			t.Errorf("%q then Esc Esc did not ask", k)
+		}
+		keys(v, "y")
 	}
 }
 

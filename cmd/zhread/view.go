@@ -1971,11 +1971,13 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		v.nextCard()
 	case strings.ContainsRune("[]{}", r) && r != 0 && o != nil:
 		o.span.move(r)
+		dr.changed = true
 		o.ed, o.vi = [2]*edited{}, vi{}
 		o.refresh(v.conv)
 	case strings.ContainsRune("[]{}", r) && r != 0:
 		// The edges move over the text as it was, so they undo edits.
 		dr.span.move(r)
+		dr.changed = true
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
 	case r == 'i' && (dr.cur < 0 || o != nil):
@@ -1990,12 +1992,14 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		for k := range dr.osel {
 			dr.osel[k] = !all
 		}
+		dr.changed = true
 	case r == 'j' || ev.Key() == tcell.KeyDown:
 		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
 		dr.cur = max(dr.cur-1, -len(lines))
 	case r == ' ' && dr.cur >= 0 && dr.cur < dr.rows():
 		dr.tick(dr.cur)
+		dr.changed = true
 	case r == 'x':
 		v.expand = !v.expand
 	case r == 'c' || r == 'E':
@@ -2139,7 +2143,7 @@ func (v *view) drawCard() {
 	st := stHint
 	switch {
 	case dr.discard:
-		help, st = "Throw away the edits to the contexts? y: yes  "+
+		help, st = "Throw away the changes to this card? y: yes  "+
 			"any other key: no", stWarn
 	case dr.warn != "":
 		help, st = dr.warn, stWarn

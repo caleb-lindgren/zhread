@@ -361,15 +361,16 @@ The preview shows:
   any, Enter asks again before saving.
 
 Enter saves, Esc cancels. An Esc right after another, as from insert mode out
-past the list, asks first when a context has been edited, and only `y` then
-throws the card away. The other script's context comes from OpenCC's s2tw or
-tw2s, chosen by which changes the paragraph more (see dict/README for why
-OpenCC). When the word is the same in both scripts, the traditional fields are
-left empty and only the simplified cards are made; for a traditional text it is
-the simplified contexts that are left empty, and only the traditional cards are
-made. The source is the text's full path and the line, so a card can be traced
-back to its book from anywhere; it is kept in cards.tsv but not shown on the
-card. The reading is followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
+past the list, asks first when the card has been changed (a context edited or
+its edges moved, or a tick changed), and only `y` then throws the card away.
+The other script's context comes from OpenCC's s2tw or tw2s, chosen by which
+changes the paragraph more (see dict/README for why OpenCC). When the word is
+the same in both scripts, the traditional fields are left empty and only the
+simplified cards are made; for a traditional text it is the simplified contexts
+that are left empty, and only the traditional cards are made. The source is the
+text's full path and the line, so a card can be traced back to its book from
+anywhere; it is kept in cards.tsv but not shown on the card. The reading is
+followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
 
 ### The card file
 

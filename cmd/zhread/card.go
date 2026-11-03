@@ -282,7 +282,8 @@ type draft struct {
 	osel    []bool
 	editing bool
 	esc     bool  // the last key was Esc
-	discard bool  // asking whether to throw the edits away
+	discard bool  // asking whether to throw the changes away
+	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh
 }
 
@@ -297,11 +298,13 @@ func (dr *draft) own() int {
 	return 0
 }
 
-// edited reports whether the card's own context or any other has been
-// changed by hand.
+// edited reports whether the card has been changed by hand: a context,
+// the card's own or another, edited or its edges moved, or a definition
+// or context ticked or unticked.
 func (dr *draft) edited() bool {
-	return dr.ed != [2]*edited{} || slices.ContainsFunc(dr.others,
-		func(o *draft) bool { return o.ed != [2]*edited{} })
+	return dr.changed || dr.ed != [2]*edited{} ||
+		slices.ContainsFunc(dr.others,
+			func(o *draft) bool { return o.ed != [2]*edited{} })
 }
 
 // curVi is the editor's state on the context under the cursor.
