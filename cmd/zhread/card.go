@@ -281,6 +281,8 @@ type draft struct {
 	others  []*draft
 	osel    []bool
 	editing bool
+	esc     bool  // the last key was Esc
+	discard bool  // asking whether to throw the edits away
 	ctxf    forms // of another context: its forms, kept by refresh
 }
 
@@ -293,6 +295,13 @@ func (dr *draft) own() int {
 		return 1
 	}
 	return 0
+}
+
+// edited reports whether the card's own context or any other has been
+// changed by hand.
+func (dr *draft) edited() bool {
+	return dr.ed != [2]*edited{} || slices.ContainsFunc(dr.others,
+		func(o *draft) bool { return o.ed != [2]*edited{} })
 }
 
 // curVi is the editor's state on the context under the cursor.

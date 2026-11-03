@@ -990,6 +990,35 @@ func TestOwnDoubled(t *testing.T) {
 	}
 }
 
+// TestDiscard checks that an Esc right after another asks before it
+// throws away edits to a context, and that only y then does.
+func TestDiscard(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/精神⏎⏎ki0x⎋⎋")
+	if v.mode != card || !v.dr.discard ||
+		!onScreen(s, "Throw away the edits") {
+		t.Fatalf("no question after ⎋⎋: mode %d", v.mode)
+	}
+	keys(v, "⎋")
+	if v.mode != card || v.dr.discard {
+		t.Fatalf("Esc to the question did not keep the card")
+	}
+	keys(v, "⎋y")
+	if v.mode != normal {
+		t.Errorf("y did not throw the card away")
+	}
+	// One Esc on its own cancels at once, edits or none.
+	keys(v, "/精神⏎⏎ki0x⎋j⎋")
+	if v.mode != normal {
+		t.Errorf("a lone Esc did not cancel")
+	}
+	// So do two with nothing edited.
+	keys(v, "/精神⏎⏎ki⎋⎋")
+	if v.mode != normal {
+		t.Errorf("Esc Esc without edits did not cancel")
+	}
+}
+
 // TestCardMode checks the mode marker at the bottom of the card preview.
 func TestCardMode(t *testing.T) {
 	v, s := newTestView(t, "他散发传单给路人。\n\n"+

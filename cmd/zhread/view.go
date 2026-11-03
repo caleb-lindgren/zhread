@@ -1904,6 +1904,18 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	f := dr.forms(v.conv)
 	lines := dr.ctxLines(f)
 	dr.cur = max(dr.cur, -len(lines))
+	// An Esc right after another, as from insert mode back out to the
+	// list and on, asks before it throws away edits to the contexts.
+	esc := ev.Key() == tcell.KeyEscape
+	again := esc && dr.esc
+	dr.esc = esc
+	if dr.discard {
+		dr.discard = false
+		if r == 'y' {
+			v.mode, v.dr, v.queue = normal, nil, nil
+		}
+		return
+	}
 	o := dr.other()
 	// A context, the card's own or another, is in the list until i
 	// starts the editor on it in normal mode, and is back in it after Esc
@@ -1933,7 +1945,9 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	}
 	dr.warn = ""
 	switch {
-	case ev.Key() == tcell.KeyEscape || r == 'q':
+	case esc && again && dr.edited():
+		dr.discard = true
+	case esc || r == 'q':
 		v.mode, v.dr, v.queue = normal, nil, nil
 	case r == 'n':
 		v.nextCard()
@@ -2124,6 +2138,9 @@ func (v *view) drawCard() {
 	}
 	st := stHint
 	switch {
+	case dr.discard:
+		help, st = "Throw away the edits to the contexts? y: yes  "+
+			"any other key: no", stWarn
 	case dr.warn != "":
 		help, st = dr.warn, stWarn
 	case dr.saving:
