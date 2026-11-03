@@ -1,5 +1,4 @@
-<div class=simp>
-<div class=ctx>{{Context}}</div>
+<div class="ctx simp">{{Context}}</div>
 <hr id=answer>
 <div class=word id=word></div>
 <div class=py>{{Pinyin}}</div>
@@ -9,17 +8,24 @@
 {{^DefZh}}<div class=def>{{DefEn}}</div>{{/DefZh}}
 <script>
 /* The word in traditional, and the simplified form after it in brackets
-   when it differs, with the characters the two share as ～: 組合（组～）. */
+   when it differs, with the characters the two share as ～: 組合（组～）.
+   Each in its own script's font. */
 (function () {
-  var t = "{{text:Traditional}}", s = "{{text:Simplified}}", w = t || s;
-  if (t && s && t != s) {
+  var t = "{{text:Traditional}}", s = "{{text:Simplified}}";
+  var e = document.getElementById("word");
+  function add(text, cls) {
+    var span = document.createElement("span");
+    span.className = cls;
+    span.textContent = text;
+    e.appendChild(span);
+  }
+  if (t) add(t, "");
+  if (s && s != t) {
     var a = Array.from(t), b = Array.from(s);
     if (a.length == b.length) {
       b = b.map(function (c, i) { return c == a[i] ? "～" : c; });
     }
-    w = t + "（" + b.join("") + "）";
+    add(t ? "（" + b.join("") + "）" : s, "simp");
   }
-  document.getElementById("word").textContent = w;
 })();
 </script>
-</div>

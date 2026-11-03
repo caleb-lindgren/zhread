@@ -27,7 +27,11 @@ FIELDS = ["Simplified", "Traditional", "Pinyin", "DefZh", "DefEn",
           "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source", "Added"]
 
 # Anki shows a note's new cards in this order, so the traditional ones are
-# learned first.
+# learned first. Re-importing does not reorder a collection's card types:
+# with "Merge note types" Anki aligns the incoming templates to the order
+# it already has (Notetype::merge in rslib/src/notetype/merge.rs). A
+# collection made with another order is changed in Anki itself, with
+# Reposition in the note type's Cards screen.
 CARD_TYPES = [
     ("Recognition (繁)", "recognition_trad"),
     ("Cloze (繁)", "cloze_trad"),

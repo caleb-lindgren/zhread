@@ -1,21 +1,28 @@
-/* Sizes as on the cards of the note type before zhread (40px, the prompt
-   60px, the word 80px), and one colour throughout but for the word in the
-   context, which is the orange of the reader's headwords. */
+/* As the note type before zhread had it: Arial first, so that Latin text
+   (pinyin, English) is in it and only the characters, which Arial lacks,
+   fall through to the Ministry of Education's standard Kai. Characters
+   that font lacks, simplified ones in a traditional definition say, fall
+   through again to the serif the simplified text uses, rather than to
+   whatever sans the system substitutes for the generic serif. Sizes are
+   the old note type's too (40px, the prompt 60px, the word 80px). */
 .card {
+  font-family: arial, "TW-MOE-Std-Kai", "Source Han Serif CN",
+    "Source Han Serif SC", "Noto Serif CJK SC", serif;
   font-size: 40px;
   line-height: 1.5;
   text-align: left;
   max-width: 40em;
   margin: 0 auto;
 }
-/* Traditional in the Ministry of Education's standard Kai, as before;
-   simplified, and traditional where that font is missing, in a serif. */
-.trad { font-family: "TW-MOE-Std-Kai", serif; }
+/* Simplified text: the context of a 简 card and the bracketed form after
+   the word. Everything else, definitions included, is in .card's fonts. */
 .simp {
-  font-family: "Source Han Serif CN", "Source Han Serif SC",
+  font-family: arial, "Source Han Serif CN", "Source Han Serif SC",
     "Noto Serif CJK SC", serif;
 }
 .ctx { font-size: 60px; margin: 0.3em 0; }
-.ctx b, .cloze { color: #ffd7af; font-weight: bold; }
+/* The word in the context, and the cloze blank, in the orange of the
+   reader's headwords; one colour, one weight elsewhere. */
+.ctx b, .cloze { color: #ffd7af; font-weight: normal; }
 .word { font-size: 80px; }
 details summary { cursor: pointer; }
