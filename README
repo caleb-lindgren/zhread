@@ -339,17 +339,21 @@ The preview shows:
   word, unless the segmenter splits it between two words there, as 才能 in 刚才｜能吃,
   or, for a word of one character, makes it part of a longer one, as 打 of 打算 (a
   word of more inside a longer one, as 采访 in 采访记者, is nearly always that word
-  compounded, and is kept), each with the context the card's own would start
-  as, in the text's script. A context that shares text with the card's or with
-  one before it is left out, as is one the same as another, so a sentence using
-  the word twice is offered once, or not at all when it is the card's. All are
-  ticked to start with; `j` goes on down to them from the definitions and Space
-  unticks. `a` ticks them all, or unticks them all when they all are, so that
-  from many the few wanted can be picked out. `[ ] { }` move the edges of the
-  one under the cursor, and `i` edits it in insert mode until Esc or Enter. Its
-  other script follows, converted again. The ticked ones go on the card with
-  its own, and Anki shows them in turn (see below). A card made in a
-  definitions pane gets the book's.
+  compounded, and is kept). A doubled form of the word, AABB or ABAB for a word
+  AB (松松垮垮, 研究研究) and AA, A一A or A了A for a word A (看看, 看一看, 看了看), is taken
+  whole, so the card marks and blanks all of it rather than the word in its
+  middle. Each comes with the context the card's own would start as, in the
+  text's script. A context that shares text with the card's or with one before
+  it is left out, as is one the same as another, so a sentence using the word
+  twice is offered once, or not at all when it is the card's. All are ticked to
+  start with; `j` goes on down to them from the definitions and Space unticks.
+  `a` ticks them all, or unticks them all when they all are, so that from many
+  the few wanted can be picked out. `[ ] { }` move the edges of the one under
+  the cursor, and `i` edits it in insert mode until Esc or Enter. The bottom
+  line starts with the mode: `-- LIST --` on the definitions and contexts, `--
+  NORMAL --` and `-- INSERT --` in the editor. Its other script follows,
+  converted again. The ticked ones go on the card with its own, and Anki shows
+  them in turn (see below). A card made in a definitions pane gets the book's.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving.

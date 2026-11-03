@@ -1705,15 +1705,17 @@ func (v *view) others(dr *draft) []*draft {
 }
 
 // findOthers finds the word of dr in book, in book order: wherever the text
-// has it, unless the segmenter splits it between two words, as 才能 in
-// 刚才｜能吃, or for a word of one character, makes it part of a longer
-// one, as 打 of 打算. A word of more inside a longer one, as 采访 in
-// 采访记者, is nearly always that word compounded. Each is a draft of its own, for its context, which
-// starts as the one newSpan picks. A context that shares text with one
-// before it is left out, as is one the same as another: a sentence using
-// the word twice would otherwise give it twice, and a long one cut to
-// sixty characters around each, twice nearly. With home set, dr is in
-// book, and the card's own context counts as one before them all.
+// has it, unless the segmenter splits it between two words, as 才能 in 刚才｜能吃, or
+// for a word of one character, makes it part of a longer one, as 打 of 打算. A
+// word of more inside a longer one, as 采访 in 采访记者, is nearly always that word
+// compounded. A doubled form of the word is taken whole, as doubled finds it,
+// so that a card marks and blanks 松松垮垮 rather than the 松垮 in the middle of it.
+// Each is a draft of its own, for its context, which starts as the one newSpan
+// picks. A context that shares text with one before it is left out, as is one
+// the same as another: a sentence using the word twice would otherwise give it
+// twice, and a long one cut to sixty characters around each, twice nearly.
+// With home set, dr is in book, and the card's own context counts as one
+// before them all.
 func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 	conv convs, dr *draft) []*draft {
 	word := dr.p.text[dr.ws:dr.we]
@@ -1764,8 +1766,8 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 	}
 	var out []*draft
 	for h, ht := range hits {
-		for _, ws := range ht.at {
-			we := ws + len(word)
+		for _, at := range ht.at {
+			ws, we := doubled(ht.p.text, at, at+len(word))
 			cut := func(t tok) bool {
 				return t.start < ws && ws < t.end ||
 					t.start < we && we < t.end
@@ -2111,9 +2113,9 @@ func (v *view) drawCard() {
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
 	case dr.cur < 0 && dr.vi.insert:
-		help = "-- INSERT --  Esc: back to normal mode"
+		help = "Esc: back to normal mode"
 	case dr.editing:
-		help = "-- INSERT --  Esc: done"
+		help = "Esc or Enter: done"
 	case dr.other() != nil:
 		help = "[ ] { } this context's edges  i: edit it" +
 			"  space: tick it  a: all or none  Enter: save"
@@ -2122,7 +2124,23 @@ func (v *view) drawCard() {
 			"s D C d c u to edit, j to the definitions, " +
 			"Enter: save"
 	}
-	v.put(0, v.h-1, v.h, clip([]rune(help), v.w), plain(st))
+	// The mode, first: the list of definitions and contexts, or the
+	// editor on a context, in normal or insert mode.
+	mode := "-- LIST --"
+	switch {
+	case dr.editing || dr.cur < 0 && dr.vi.insert:
+		mode = "-- INSERT --"
+	case dr.cur < 0:
+		mode = "-- NORMAL --"
+	}
+	text := clip([]rune(mode+"  "+help), v.w)
+	n := len([]rune(mode))
+	v.put(0, v.h-1, v.h, text, func(i int) tcell.Style {
+		if i < n {
+			return stHead
+		}
+		return st
+	})
 }
 
 // optLines are the lines option i takes in the card preview: a blank one
@@ -2171,6 +2189,44 @@ func (v *view) optLines(i int) []styled {
 		}
 	}
 	return out
+}
+
+// doubled widens the word at [ws, we) of t to the doubled form of it that
+// it is part of, if any: AABB or ABAB for a word AB, as 松松垮垮 for 松垮
+// and 研究研究 for 研究, and AA, A一A or A了A for a word A, as 看看, 看一看
+// and 看了看 for 看.
+func doubled(t []rune, ws, we int) (int, int) {
+	// has reports whether t has rs at i.
+	has := func(i int, rs ...rune) bool {
+		return i >= 0 && i+len(rs) <= len(t) &&
+			slices.Equal(t[i:i+len(rs)], rs)
+	}
+	w := t[ws:we]
+	switch len(w) {
+	case 1:
+		a := w[0]
+		for _, mid := range []string{"", "一", "了"} {
+			m := []rune(mid)
+			n := len(m) + 1
+			if has(we, append(m, a)...) {
+				return ws, we + n
+			}
+			if has(ws-n, append([]rune{a}, m...)...) {
+				return ws - n, we
+			}
+		}
+	case 2:
+		a, b := w[0], w[1]
+		switch {
+		case has(ws-1, a) && has(we, b):
+			return ws - 1, we + 1
+		case has(we, a, b):
+			return ws, we + 2
+		case has(ws-2, a, b):
+			return ws - 2, we
+		}
+	}
+	return ws, we
 }
 
 // otherLines are the lines other context k takes in the card preview: a

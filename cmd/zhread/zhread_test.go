@@ -950,6 +950,49 @@ func TestOthersInWords(t *testing.T) {
 	}
 }
 
+// TestDoubled checks that a word inside a doubled form of it is widened
+// to the whole form, and only then.
+func TestDoubled(t *testing.T) {
+	for _, c := range []struct{ text, word, want string }{
+		{"她松松垮垮地坐着", "松垮", "松松垮垮"},
+		{"我们研究研究吧", "研究", "研究研究"},
+		{"你看看这个", "看", "看看"},
+		{"他看了看我", "看", "看了看"},
+		{"你看一看", "看", "看一看"},
+		{"我们去采访他", "采访", "采访"},
+		{"他看我", "看", "看"},
+	} {
+		r := []rune(c.text)
+		ws := len([]rune(c.text[:strings.Index(c.text, c.word)]))
+		a, b := doubled(r, ws, ws+utf8.RuneCountInString(c.word))
+		if got := string(r[a:b]); got != c.want {
+			t.Errorf("%s in %s: %s, want %s", c.word, c.text, got,
+				c.want)
+		}
+	}
+}
+
+// TestCardMode checks the mode marker at the bottom of the card preview.
+func TestCardMode(t *testing.T) {
+	v, s := newTestView(t, "他散发传单给路人。\n\n"+
+		"她身上散发香味，又散发热气。\n")
+	keys(v, "lvl⏎")
+	mode := func() string {
+		rows := screen(s)
+		return strings.Fields(rows[len(rows)-1])[1]
+	}
+	for _, c := range []struct{ keys, want string }{
+		{"", "LIST"}, {"kk", "NORMAL"}, {"i", "INSERT"},
+		{"⎋", "NORMAL"}, {"jjjjj", "LIST"}, {"i", "INSERT"},
+		{"⎋", "LIST"},
+	} {
+		keys(v, c.keys)
+		if got := mode(); got != c.want {
+			t.Errorf("after %q: %s, want %s", c.keys, got, c.want)
+		}
+	}
+}
+
 // cur is the character under the cursor.
 func cur(v *view) string {
 	line := v.d.lines[v.cl]
