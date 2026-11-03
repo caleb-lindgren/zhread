@@ -1,17 +1,21 @@
+/* Sizes as on the cards of the note type before zhread (40px, the prompt
+   60px, the word 80px), and one colour throughout but for the word in the
+   context, which is the orange of the reader's headwords. */
 .card {
-  font-family: "Noto Sans CJK TC", "PingFang TC", sans-serif;
-  font-size: 20px;
-  line-height: 1.6;
+  font-size: 40px;
+  line-height: 1.5;
   text-align: left;
   max-width: 40em;
   margin: 0 auto;
 }
-.ctx { font-size: 28px; margin: 0.5em 0; }
-.ctx b { color: #c0392b; }
-.cloze { color: #2e6fd8; font-weight: bold; }
-.word { font-size: 32px; }
-.py { color: #555; }
-.def { font-size: 18px; }
-.src { color: #999; font-size: 12px; margin-top: 1em; }
-details summary { color: #2e6fd8; cursor: pointer; font-size: 16px; }
-.nightMode .py { color: #aaa; }
+/* Traditional in the Ministry of Education's standard Kai, as before;
+   simplified, and traditional where that font is missing, in a serif. */
+.trad { font-family: "TW-MOE-Std-Kai", serif; }
+.simp {
+  font-family: "Source Han Serif CN", "Source Han Serif SC",
+    "Noto Serif CJK SC", serif;
+}
+.ctx { font-size: 60px; margin: 0.3em 0; }
+.ctx b, .cloze { color: #ffd7af; font-weight: bold; }
+.word { font-size: 80px; }
+details summary { cursor: pointer; }

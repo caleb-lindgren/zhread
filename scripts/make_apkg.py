@@ -26,11 +26,13 @@ MODEL_ID = 1761811200
 FIELDS = ["Simplified", "Traditional", "Pinyin", "DefZh", "DefEn",
           "Context", "Cloze", "ContextTrad", "ClozeTrad", "Source", "Added"]
 
+# Anki shows a note's new cards in this order, so the traditional ones are
+# learned first.
 CARD_TYPES = [
-    ("Recognition (简)", "recognition_simp"),
-    ("Cloze (简)", "cloze_simp"),
     ("Recognition (繁)", "recognition_trad"),
     ("Cloze (繁)", "cloze_trad"),
+    ("Recognition (简)", "recognition_simp"),
+    ("Cloze (简)", "cloze_simp"),
 ]
 
 
