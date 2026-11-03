@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -49,8 +50,30 @@ func loadDoc(path string) (*doc, error) {
 	for _, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
 		d.lines = append(d.lines, []rune(l))
 	}
+	// The cursor passes over the numbering of a numbered paragraph, as
+	// over a definition's.
+	d.skip = make([][]bool, len(d.lines))
+	for l, line := range d.lines {
+		if n := numLen(line); n > 0 {
+			d.skip[l] = make([]bool, n)
+			for i := range n {
+				d.skip[l][i] = true
+			}
+		}
+	}
 	d.alloc()
 	return d, nil
+}
+
+// numbering matches the number a sense or paragraph starts with: 1., 1、,
+// (1), ①, ⑴, a), with the spaces around it.
+var numbering = regexp.MustCompile(`^\s*(?:\d{1,3}[.、．]|[(（]\d{1,3}[)）]|` +
+	`[①-⑳㉑-㉟㊱-㊿⑴-⒇]|[a-z][)）])\s*`)
+
+// numLen is how many runes of numbering text starts with.
+func numLen(text []rune) int {
+	s := string(text[:min(len(text), 12)])
+	return utf8.RuneCountInString(numbering.FindString(s))
 }
 
 // paneDoc makes a definitions pane a doc, one line for each of its lines,
@@ -64,7 +87,8 @@ func paneDoc(name, src string, ls []styled) *doc {
 		}
 		skip := make([]bool, len(l.text))
 		for i := range skip {
-			skip[i] = i < l.lead || i >= len(l.text)-l.tail
+			skip[i] = i < l.lead || i >= len(l.text)-l.tail ||
+				zhdict.Width(string(l.text[i])) == 0
 		}
 		d.lines = append(d.lines, l.text)
 		d.ind = append(d.ind, [2]int{l.x, l.wx})
@@ -75,9 +99,27 @@ func paneDoc(name, src string, ls []styled) *doc {
 	return d
 }
 
-// skipped reports whether line l, column c is not definition text.
+// skipped reports whether line l, column c is not text the cursor goes to:
+// in a pane, what is not definition text, and in the book and a pane, the
+// numbering a line starts with.
 func (d *doc) skipped(l, c int) bool {
 	return d.skip != nil && c < len(d.skip[l]) && d.skip[l][c]
+}
+
+// paneLine is line l of a pane moved into as a paragraph, without the word,
+// reading, numbering and notes around its definition text: a card made from
+// a pane takes its context from the one sense, rather than from the
+// dictionary's whole entry.
+func (d *doc) paneLine(l int) para {
+	line := d.lines[l]
+	a, b := 0, len(line)
+	for a < b && d.skipped(l, a) {
+		a++
+	}
+	for b > a && d.skipped(l, b-1) {
+		b--
+	}
+	return para{text: line[a:b], first: l, offs: []int{-a}}
 }
 
 // textNear is the column of the definition text on line l nearest c,
@@ -242,7 +284,39 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	for _, l := range rq.text {
 		res.toks = append(res.toks, tokenize(l, seg))
 	}
+	p.Trad = tradText(p, rq.text, res.toks)
+	if len(runs) > 0 {
+		p.LoadTargets(d) // the sources are checked at startup
+	}
 	return res
+}
+
+// tradText reports whether the words of a batch are traditional: whether
+// more of them match only an entry's traditional headword than match only a
+// simplified one. Words written the same in both scripts say nothing.
+func tradText(p *zhdict.Probe, text [][]rune, toks [][]tok) bool {
+	n := 0
+	for l, ts := range toks {
+		for _, t := range ts {
+			if !t.han {
+				continue
+			}
+			w := string(text[l][t.start:t.end])
+			var trad, simp bool
+			for _, e := range p.Lookup(w) {
+				f := e.Fields()
+				trad = trad || f[0] == w
+				simp = simp || f[1] == w
+			}
+			switch {
+			case trad && !simp:
+				n++
+			case simp && !trad:
+				n--
+			}
+		}
+	}
+	return n > 0
 }
 
 func (d *doc) apply(r segRes) {

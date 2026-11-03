@@ -196,19 +196,27 @@ the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 definition shown beside the main one is labelled with its name, under the
 word. See dict/README for the files.
 
+A word is shown in traditional, with the simplified form after it in brackets
+when it differs and the characters the two share as ～: 企業（～业）. An entry
+that is only a variant of another of the word's is left out, as multizhdict
+leaves it out; when the text has the variant form, as 煖 for 暖, the standard
+form's entries are shown with the variant after the word, as "暖 (煖)". Which
+form the text has is judged from the words around it: the script that more of
+them match only one of.
+
 Each sense gets a line, with its examples and synonym lists after it on the
 same line, in colours of their own. A part of speech starts the first sense
 under it, and the rest line up after it; a sense with sub-senses, like
 MoEDict's ① 結構助詞： over ⑴ to ⑷, has a line of its own, with the sub-senses
 indented under it. Quotations from books are hidden until `x`, and then shown
-under the sense. A sense already on a card ends with "(carded)", matched
-against the definitions saved in cards.tsv; a carded word none of whose senses
-shown matches, as one carded from the other dictionary, has "(carded)" under
-the word instead. The definitions pane is as tall as what it shows, up to half
-the screen, so short entries leave the text more room; it is measured again on
-every redraw, a resize included. A longer entry scrolls with `J` and `K`, and
-the rule above it notes how many rows are out of view (↑2 ↓5). `gh` or F1 shows
-the keys there instead.
+under the sense. A sense already on a card ends with "(carded)", after a space
+in English, matched against the definitions saved in cards.tsv; a carded word
+none of whose senses shown matches, as one carded from the other dictionary,
+has "(carded)" under the word instead. The definitions pane is as tall as what
+it shows, up to half the screen, so short entries leave the text more room; it
+is measured again on every redraw, a resize included. A longer entry scrolls
+with `J` and `K`, and the rule above it notes how many rows are out of view (↑2
+↓5). `gh` or F1 shows the keys there instead.
 
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading where it
 differs, as "qǐ yè (TW qì yè)", and a card made while it is shown carries both.
@@ -232,7 +240,8 @@ colour.
 | `^D ^U ^F ^B`   | half page down, up; page down, up              |
 | `/ ?`, `n N`    | search forward, back (a Go regexp); repeat     |
 | `* #`           | search for the word under the cursor           |
-| `v V`, Enter    | select by character, by line; make a card      |
+| `v V`           | select by character, by line                   |
+| Enter           | make a card of the word, or of the selection   |
 | `:>cmd`         | in `v` or `V`: pipe the selection to `cmd`     |
 | `m`, `'`        | bookmark this line, go to the bookmark         |
 | `e`             | show or hide English definitions               |
@@ -241,23 +250,28 @@ colour.
 | `J K`           | scroll the definitions down, up                |
 | Tab, Shift-Tab  | move into the definitions; back up a level     |
 | `t`             | show or hide the other side's reading          |
-| `gh`, F1; Esc   | show the keys; hide them                       |
+| `gh`, F1        | show the keys                                  |
+| Esc             | hide them; end a selection; back to the book   |
 | `q`             | quit                                           |
 | click, wheel    | move the cursor there; scroll the text         |
 
 Tab moves the cursor into the definitions pane, which becomes the text: every
 key above works on it as on the book, making cards and piping included, and a
 pane below it defines the word under the cursor there. The cursor goes only
-over the definitions, passing over the words, readings and notes on them. The
+over the definitions, passing over the words, readings, sense numbers (1., (1),
+①) and notes on them, as it passes over the number a numbered paragraph of the
+book starts with. `j` and `k` keep its column on the screen, so they go
+straight down a pane whose first line starts further left than the rest. The
 pane below keeps half the screen however little it shows, so nothing above it
 moves as the cursor goes from word to word. Tab again goes a level deeper. The
 levels stack down the screen, each as tall as it was as a pane, and once they
 no longer fit, the oldest are cut off at the top. Each level above marks in
 blue the word it looked up. Shift-Tab goes back up a level, closing the pane it
-leaves. A click in the pane moves into it, and one in a level above goes back
-up to it. A card made in a pane gets the book's line and the words looked up as
-its source, as `/home/me/book.txt:12 › 讨论 › 交換`. Bookmarks are for the book
-only.
+leaves, and Esc goes back to the book from however deep. A click in the pane
+moves into it, and one in a level above goes back up to it. A card made in a
+pane takes the sense it is in as its context, and gets the book's line and the
+words looked up as its source, as `/home/me/book.txt:12 › 讨论 › 交換`.
+Bookmarks are for the book only.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -275,10 +289,20 @@ file is edited above it.
 
 ### Making a card
 
-Select the word with `v` and press Enter. A selection that no dictionary
-has as one word, such as a phrase, is split by the segmenter into the words
-in it that have definitions, and each gets a card of its own, in turn,
-each with the context around it; `n` skips one and Esc cancels the rest.
+Press Enter on the word, or select it with `v` and press Enter. A selection
+that no dictionary has as one word, such as a phrase, is split by the
+segmenter into the words in it that have definitions, and each gets a card of
+its own, in turn, each with the context around it; `n` skips one and Esc
+cancels the rest.
+
+When the words can be divided more than one way, a screen asks how first:
+牟取暴利 is one word to CC-CEDICT, and also 牟取 and 暴利. It offers the
+word, or for a phrase the segmenter's words, then the other ways to divide it
+wholly into words of two characters or more (words of one character are left
+out, or every 散发 would offer 散 and 发), and for a phrase what the forward and
+backward maximum-matching segmenters make of it. `j`/`k` and Enter, or a
+digit, choose; Esc cancels.
+
 The preview shows:
 
 - **The context**, in both scripts when the word differs between them, else in
@@ -288,14 +312,26 @@ The preview shows:
   characters (「好。」) gets the sentence before it, or after it at the start of a
   paragraph; one over 60 is cut to the clauses nearest the word, at ，；：、. `[`
   and `]` move the left edge a clause left or right, `{` and `}` the right
-  edge. Lines not separated by a blank line are one paragraph, so a sentence
-  hard-wrapped across lines is found whole.
+  edge. A context that stops short of its sentence's end leaves out the comma
+  or other clause mark it stops at. Lines not separated by a blank line are
+  one paragraph, so a sentence hard-wrapped across lines is found whole.
+
+  `k` from the first definition goes up onto the context, which vi's keys then
+  edit, starting in normal mode: `h l w b e 0 ^ $` move (a run of Chinese
+  characters is one word, as in vi, so `dw` deletes to the next punctuation),
+  `x X r s D C`, and `d` or `c` with a motion (`dw`, `cb`, `d$`, `dd`) change,
+  `i a I A` insert until Esc, and `u` undoes. `j` goes back down to the
+  definitions and Enter saves. Editing the text's own script converts the
+  other script's line again, unless that line has been edited itself. The
+  edge keys start again from the text, undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
   sense the context uses rather than all of 打's. The list scrolls to keep the
   cursor in view. `j`/`k` move and Space ticks the ones that fit the context;
-  the first Chinese and first English are ticked to start with. A ticked
+  the first Chinese and first English are ticked to start with. `c` and `E`
+  show or hide MoEDict's and Wiktionary's definitions here too, keeping what
+  is ticked. A ticked
   sense's quotations go on the card if `x` is showing them when it is saved,
   and are shown under it in the preview. The reading comes from the first
   ticked one.
@@ -309,7 +345,8 @@ OpenCC). When the word is the same in both scripts, the traditional fields are
 left empty and only the simplified cards are made; for a traditional text it is
 the simplified contexts that are left empty, and only the traditional cards are
 made. The source is the text's full path and the line, so a card can be traced
-back to its book from anywhere.
+back to its book from anywhere; it is kept in cards.tsv but not shown on the
+card. The reading is followed by its zhuyin, "zǔ hé　ㄗㄨˇ ㄏㄜˊ".
 
 ### The card file
 
@@ -336,11 +373,31 @@ undoes the fix.
 
 After changing a template in anki/, run `make apkg` (the first run makes a
 Python venv in .venv with genanki) and import anki/zhread.apkg again: the
-note type keeps a fixed ID, so Anki updates it in place.
+note type keeps a fixed ID, so Anki updates it in place. A change to the
+fields or to the card types or their order changes the note type's schema,
+and Anki then imports it as a second note type, unless "Merge note types" is
+ticked in the import dialog.
 
 The recognition card shows the context with the word in bold, and asks for
 the reading and meaning. The cloze card shows the context with the word
 blanked and the definitions below, and asks for the word; the definitions
-have the word blanked too, since MoE's examples often quote it. English
-definitions sit behind a fold on both. The 繁 cards are made only for notes
-with a Traditional field, that is, where the two scripts differ.
+have the word blanked too, since MoE's examples often quote it. When a note
+has cards in both scripts, the cloze blank says which it asks for, [简体] or
+[繁體]. English definitions sit behind a fold on both. The 繁 cards are made
+only for notes with a Traditional field, that is, where the two scripts
+differ, and come first in the note type, so Anki introduces a note's 繁 cards
+before its 简 ones.
+
+The answer gives the word as the pane does, 組合（组～）, then the reading
+and zhuyin and the definitions. Sizes are those of the cards from before
+zhread (anki/style.css): the text 40px, the context 60px, the word 80px. The
+traditional cards are in the Ministry of Education's standard Kai,
+TW-MOE-Std-Kai, as those were, falling back to a serif font where it is not
+installed, and the simplified ones in a serif font (Source Han Serif or Noto
+Serif CJK where installed). The text is all one colour but for the word in the
+context and the cloze blank, which are the orange of the reader's headwords.
+
+`go run scripts/update_cards.go cards.tsv` brought the cards made before
+these last changes up to date: the zhuyin, the clause mark at a cut context's
+end, the cloze blanks' scripts. It keeps the GUIDs, so the import updates the
+notes.

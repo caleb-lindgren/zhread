@@ -24,8 +24,9 @@ var cedictVariant = regexp.MustCompile(
 		`(?:\|([^\[\],; ]+))?(?:\[([^\]]+)\])?(?:, .*)?$`)
 
 // zhVariant matches a Chinese definition that is only a pointer to the
-// standard form, 同「咱」, after at most a gloss: 我。同「咱」。
-var zhVariant = regexp.MustCompile(`^(?:[^¶｜]*。)?同「([^「」]+)」。?$`)
+// standard form, 同「咱」 or 「暖」的異體字, after at most a gloss: 我。同「咱」。
+var zhVariant = regexp.MustCompile(
+	`^(?:[^¶｜]*。)?(?:同「([^「」]+)」|「([^「」]+)」的異體字)。?$`)
 
 // variant is the standard form a variant entry points to.
 type variant struct {
@@ -42,7 +43,7 @@ func variantOf(def string, lang int) (variant, bool) {
 		if m == nil {
 			return variant{}, false
 		}
-		return variant{trad: m[1]}, true
+		return variant{trad: m[1] + m[2]}, true
 	}
 	parts := strings.Split(def, "; ")
 	m := cedictVariant.FindStringSubmatch(parts[0])
@@ -67,8 +68,12 @@ func (v variant) is(trad, simp string) bool {
 }
 
 // sameReading compares two readings without the other side's note, case
-// or spacing.
+// or spacing. A variant entry without a reading, as some of MoEDict's are,
+// has the standard form's.
 func sameReading(a, b string) bool {
+	if a == "" {
+		return true
+	}
 	norm := func(s string) string {
 		return strings.ToLower(strings.ReplaceAll(Preferred(s), " ", ""))
 	}

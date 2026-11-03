@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -246,26 +247,42 @@ type draft struct {
 	p      para
 	ws, we int // the word, as offsets into p.text
 	span   span
+	g      zhdict.Group // the word's definitions, which opts are from
 	opts   []opt
 	zh     int    // how many of opts, from the start, are Chinese
 	notice string // stands in for opts when there are none
 	sel    []bool // which of opts go on the card
-	cur    int    // the option under the cursor
-	top    int    // the first option in view
+	// cur is the option under the cursor, or with the cursor on a
+	// context, its line counted back from the options: -1 the line just
+	// above them, -2 the one above that.
+	cur    int
+	top    int // the first option in view
 	dups   []carded
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once
 	n, of  int  // this is card n of the selection's of
+	// ed holds a context as edited, simplified then traditional, in
+	// place of the one the span and the conversion give.
+	ed   [2]*edited
+	vi   vi     // the editor on the context under the cursor
+	warn string // why Enter did not save
+}
+
+// edited is a context changed by hand, with where the word is in it.
+type edited struct {
+	text   []rune
+	ws, we int
 }
 
 // opt is one definition to choose for the card: one sense of it, so a
 // card can carry the sense the context uses rather than all twenty of
 // 打's.
 type opt struct {
-	py  string // the reading, with the other side's noted
-	s   zhdict.Sense
-	src string // the dictionary, named for a fallback's definitions
+	py     string // the reading, with the other side's noted
+	s      zhdict.Sense
+	src    string // the dictionary, named for a fallback's definitions
+	row, k int    // its row of the group and its sense in the row
 }
 
 // newOpts splits a word's definitions, those shows lets through, into
@@ -283,14 +300,45 @@ func newOpts(g zhdict.Group,
 		if g.Extra[i] {
 			src = g.Source(i)
 		}
-		for _, s := range g.Senses(i) {
-			opts = append(opts, opt{py: r[2], s: s, src: src})
+		for k, s := range g.Senses(i) {
+			opts = append(opts, opt{py: r[2], s: s, src: src,
+				row: i, k: k})
 		}
 	}
 	if g.Zh == len(g.Rows) {
 		zh = len(opts)
 	}
 	return opts, zh
+}
+
+// setOpts makes the options from the group again, after c or E has changed
+// which dictionaries are shown, keeping the ones ticked and the one under
+// the cursor.
+func (dr *draft) setOpts(shows func(zhdict.Group, int) bool) {
+	type key struct{ row, k int }
+	ticked := map[key]bool{}
+	var at *key
+	for i, o := range dr.opts {
+		if dr.sel[i] {
+			ticked[key{o.row, o.k}] = true
+		}
+		if i == dr.cur {
+			at = &key{o.row, o.k}
+		}
+	}
+	dr.opts, dr.zh = newOpts(dr.g, shows)
+	dr.sel = make([]bool, len(dr.opts))
+	cur := min(dr.cur, len(dr.opts)-1)
+	for i, o := range dr.opts {
+		dr.sel[i] = ticked[key{o.row, o.k}]
+		if at != nil && *at == (key{o.row, o.k}) {
+			cur = i
+		}
+	}
+	if dr.cur >= 0 {
+		dr.cur = max(cur, 0)
+	}
+	dr.top = min(dr.top, max(dr.cur, 0))
 }
 
 // html is the option as it goes on the card: its part of speech, heading,
@@ -315,15 +363,26 @@ func (o opt) html(cites bool) string {
 }
 
 // context returns the context's text and the word's offsets in it, with
-// whitespace at either end trimmed.
+// whitespace at either end trimmed. Where the context stops short of the end
+// of a sentence, the comma or other clause mark it ends at is dropped:
+// 「…四奔逃散」 rather than 「…四奔逃散，」.
 func (dr *draft) context() ([]rune, int, int) {
 	s := dr.span
 	a, b := s.bounds[s.a], s.bounds[s.b]
+	trim := func() {
+		for b > dr.we && unicode.IsSpace(dr.p.text[b-1]) {
+			b--
+		}
+	}
 	for a < dr.ws && unicode.IsSpace(dr.p.text[a]) {
 		a++
 	}
-	for b > dr.we && unicode.IsSpace(dr.p.text[b-1]) {
-		b--
+	trim()
+	if !s.sentEnd[s.b] {
+		for b > dr.we && strings.ContainsRune(seps, dr.p.text[b-1]) {
+			b--
+		}
+		trim()
 	}
 	return dr.p.text[a:b], dr.ws - a, dr.we - a
 }
@@ -341,7 +400,15 @@ type forms struct {
 }
 
 func (dr *draft) forms(conv convs) forms {
+	// indices into ed of the text's script and of the other
+	own, other := 0, 1
+	if dr.trad {
+		own, other = 1, 0
+	}
 	ctx, ws, we := dr.context()
+	if e := dr.ed[own]; e != nil {
+		ctx, ws, we = e.text, e.ws, e.we
+	}
 	toOther := conv.s2t.Convert
 	if dr.trad {
 		toOther = conv.t2s.Convert
@@ -354,6 +421,9 @@ func (dr *draft) forms(conv convs) forms {
 		post := []rune(toOther(string(ctx[we:])))
 		oc = append(append(append([]rune{}, pre...), w...), post...)
 		ows, owe = len(pre), len(pre)+len(w)
+	}
+	if e := dr.ed[other]; e != nil {
+		oc, ows, owe = e.text, e.ws, e.we
 	}
 	f := forms{ctxS: ctx, wsS: ws, weS: we, ctxT: oc, wsT: ows, weT: owe}
 	if dr.trad {
@@ -371,7 +441,9 @@ func (dr *draft) forms(conv convs) forms {
 // the simplified contexts instead that are left empty, so the one set of
 // cards made is in the text's script. The reading carries the other side's
 // only when both is set, as the pane shows it only after t, and the
-// quotations go on only when cites is, as the pane shows them after x.
+// quotations go on only when cites is, as the pane shows them after x. The
+// reading is followed by its zhuyin. When cards are made in both scripts, a
+// cloze's blank says which script it asks for, [简体] or [繁體].
 func (dr *draft) note(f forms, both, cites bool) []string {
 	var py string
 	var zh, en []string
@@ -384,6 +456,7 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 			if !both {
 				py = zhdict.Preferred(py)
 			}
+			py = withZhuyin(py)
 		}
 		if i < dr.zh {
 			zh = append(zh, o.html(cites))
@@ -391,15 +464,18 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 			en = append(en, o.html(cites))
 		}
 	}
-	ctxS := mark(f.ctxS, f.wsS, f.weS, false)
-	clozeS := mark(f.ctxS, f.wsS, f.weS, true)
+	ctxS := mark(f.ctxS, f.wsS, f.weS, "")
+	clozeS := mark(f.ctxS, f.wsS, f.weS, gap)
 	var trad, ctxT, clozeT string
 	if f.wordT != f.wordS || dr.trad {
 		trad = f.wordT
-		ctxT = mark(f.ctxT, f.wsT, f.weT, false)
-		clozeT = mark(f.ctxT, f.wsT, f.weT, true)
+		ctxT = mark(f.ctxT, f.wsT, f.weT, "")
+		clozeT = mark(f.ctxT, f.wsT, f.weT, gap)
 		if f.wordT == f.wordS {
 			ctxS, clozeS = "", ""
+		} else {
+			clozeS = mark(f.ctxS, f.wsS, f.weS, gapS)
+			clozeT = mark(f.ctxT, f.wsT, f.weT, gapT)
 		}
 	}
 	sum := sha1.Sum([]byte(f.wordS + "\x1f" + string(f.ctxS)))
@@ -412,22 +488,51 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 	}
 }
 
+// readingNote matches the other side's reading noted after a reading, as
+// zhdict's readings writes it: "qǐ yè (TW qì yè)".
+var readingNote = regexp.MustCompile(`^(.*) \((TW|CN) ([^()]*)\)$`)
+
+// withZhuyin is a reading with its zhuyin after it, the other side's
+// reading too: "qǐ yè　ㄑㄧˇ ㄧㄝˋ (TW qì yè　ㄑㄧˋ ㄧㄝˋ)". A reading that
+// will not convert is left as it is.
+func withZhuyin(py string) string {
+	one := func(p string) string {
+		if z := zhdict.Zhuyin(p); z != "" {
+			return p + "　" + z
+		}
+		return p
+	}
+	if m := readingNote.FindStringSubmatch(py); m != nil {
+		return one(m[1]) + " (" + m[2] + " " + one(m[3]) + ")"
+	}
+	return one(py)
+}
+
+// The blanks of a cloze card: the word, or when the note has cards in both
+// scripts, the script asked for.
+const (
+	gap  = "[…]"
+	gapS = "[简体]"
+	gapT = "[繁體]"
+)
+
 // mark renders a context as HTML with the word in bold, or for the cloze
-// card blanked, along with any other occurrence of it, which would
-// otherwise give it away.
-func mark(ctx []rune, ws, we int, cloze bool) string {
+// card, with cloze set, blanked as it says, along with any other
+// occurrence of it, which would otherwise give it away.
+func mark(ctx []rune, ws, we int, cloze string) string {
 	word := string(ctx[ws:we])
+	blank := `<span class=cloze>` + cloze + `</span>`
 	esc := func(rs []rune) string {
 		s := html.EscapeString(string(rs))
-		if cloze {
+		if cloze != "" {
 			s = strings.ReplaceAll(s, html.EscapeString(word),
-				`<span class=cloze>[…]</span>`)
+				blank)
 		}
 		return s
 	}
 	mid := `<b>` + html.EscapeString(word) + `</b>`
-	if cloze {
-		mid = `<span class=cloze>[…]</span>`
+	if cloze != "" {
+		mid = blank
 	}
 	return esc(ctx[:ws]) + mid + esc(ctx[we:])
 }

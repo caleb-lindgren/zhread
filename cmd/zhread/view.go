@@ -20,6 +20,7 @@ const (
 	vline
 	prompt
 	card
+	choose // which words of the selection to card
 )
 
 // drow is one display row: a slice of a line that fits the screen width,
@@ -36,7 +37,7 @@ type level struct {
 	top      int   // first row on screen
 
 	cl, cc  int // cursor line and column
-	want    int // column j and k aim for
+	want    int // display column j and k aim for, from vcol
 	al, ac  int // visual anchor
 	mode    int
 	pword   string // the word the pane was last scrolled for
@@ -83,6 +84,7 @@ type view struct {
 	pat   *regexp.Regexp
 	back  bool // last search went backward
 	input []rune
+	pick  *picker // the segmentations to choose from, in choose
 	dr    *draft
 	queue []*draft // the selection's cards still to come after dr
 	quit  bool
@@ -255,9 +257,17 @@ func (v *view) draw() {
 	v.w, v.h = v.s.Size()
 	v.wrap()
 	v.clamp()
+	if v.mode != card && v.mode != choose {
+		v.settle(v.cl, v.cc) // as on opening, onto a number
+	}
 	v.s.Clear()
-	if v.mode == card {
+	switch v.mode {
+	case card:
 		v.drawCard()
+		v.s.Show()
+		return
+	case choose:
+		v.drawChoose()
 		v.s.Show()
 		return
 	}
@@ -359,7 +369,7 @@ func (v *view) drawRow(y int, r drow, active bool) {
 		v.s.SetContent(r.x, y, ' ', nil, stCursor)
 	}
 	_, word := v.lookupTok()
-	x := r.x
+	x, lx := r.x, r.x
 	for c := r.start; c < r.end; c++ {
 		st := stDef
 		if v.d.sty != nil {
@@ -377,7 +387,12 @@ func (v *view) drawRow(y int, r drow, active bool) {
 		if cursor && c == v.cc {
 			st = stCursor
 		}
+		if rw := zhdict.Width(string(line[c])); rw == 0 && x > r.x {
+			v.combine(lx, y, line[c])
+			continue
+		}
 		v.s.SetContent(x, y, line[c], nil, st)
+		lx = x
 		x += zhdict.Width(string(line[c]))
 	}
 }
@@ -394,9 +409,15 @@ func (v *view) put(x, y, maxY int, text []rune,
 // minY, so text can be scrolled partly out of view at the top.
 func (v *view) putw(x, wx, y, minY, maxY int, text []rune,
 	style func(i int) tcell.Style) int {
-	cx := x
+	cx, lx := x, -1
 	for i, r := range text {
 		rw := zhdict.Width(string(r))
+		if rw == 0 {
+			if y >= minY && y < maxY && lx >= 0 {
+				v.combine(lx, y, r)
+			}
+			continue
+		}
 		if cx+rw > v.w && cx > wx {
 			cx, y = wx, y+1
 		}
@@ -406,9 +427,18 @@ func (v *view) putw(x, wx, y, minY, maxY int, text []rune,
 		if y >= minY {
 			v.s.SetContent(cx, y, r, nil, style(i))
 		}
+		lx = cx
 		cx += rw
 	}
 	return y + 1
+}
+
+// combine adds a combining mark, as the dot below in 兩岸詞典's 7̣, to the
+// character drawn at x, y. Drawn as a character of its own, a mark of no
+// width would take that one's place.
+func (v *view) combine(x, y int, r rune) {
+	mainc, comb, st, _ := v.s.GetContent(x, y)
+	v.s.SetContent(x, y, mainc, append(comb, r), st)
 }
 
 // height is how many rows putw would take for text.
@@ -542,10 +572,15 @@ func (v *view) pane() []styled {
 	var out []styled
 	for _, i := range rows {
 		r := g.Rows[i]
-		head := []piece{{word, stHead},
-			{"  " + v.reading(r[2]), stPinyin}, {"  ", stDef}}
+		head := []piece{{headword(r[0], r[1]), stHead}}
+		if i < len(g.Variant) && g.Variant[i] != "" {
+			head = append(head, piece{" (" + g.Variant[i] + ")",
+				stHint})
+		}
+		head = append(head, piece{"  " + v.reading(r[2]), stPinyin},
+			piece{"  ", stDef})
 		col := min(width(head), v.w/2)
-		ls := v.senseLines(g.Senses(i), col, carded)
+		ls := v.senseLines(g.Senses(i), col, carded, i >= g.Zh)
 		if len(ls) == 0 {
 			ls = []sline{{x: col, wx: col}}
 		}
@@ -631,13 +666,19 @@ const maxHang = 10
 // A heading over sub-senses has a line of its own, with the sub-senses, and
 // any heading among them, indented under it. Quotations, shown on x, are
 // indented under their sense. A sense carded reports as on a card is
-// marked so at the end of its last line.
+// marked so at the end of its last line, after a space if the definition
+// is English. A sense's numbering is passed over by the cursor, as the
+// word and reading are.
 func (v *view) senseLines(senses []zhdict.Sense, col int,
-	carded func(zhdict.Sense) bool) []sline {
+	carded func(zhdict.Sense) bool, en bool) []sline {
 	var out []sline
 	add := func(x int, pre []piece, ps ...piece) {
+		lead := runes(pre)
+		if len(ps) > 0 {
+			lead += numLen([]rune(ps[0].text))
+		}
 		out = append(out, sline{x: x - width(pre), wx: x,
-			ps: append(pre, ps...), lead: runes(pre)})
+			ps: append(pre, ps...), lead: lead})
 	}
 	pos, x := "", col
 	var heads []string
@@ -675,12 +716,34 @@ func (v *view) senseLines(senses []zhdict.Sense, col int,
 			}
 		}
 		if carded != nil && carded(sn) {
+			note := piece{"(carded)", stHint}
+			if en {
+				note.text = " " + note.text
+			}
 			last := &out[len(out)-1]
-			last.ps = append(last.ps, piece{"(carded)", stHint})
-			last.tail = runes([]piece{{"(carded)", stHint}})
+			last.ps = append(last.ps, note)
+			last.tail = runes([]piece{note})
 		}
 	}
 	return out
+}
+
+// headword is a word as the pane shows it, and a card's answer: the
+// traditional form, and when the simplified one differs, it after in
+// parentheses with the characters the two share as ～, 組合（组～）.
+func headword(trad, simp string) string {
+	if simp == "" || simp == trad {
+		return trad
+	}
+	t, s := []rune(trad), []rune(simp)
+	if len(t) == len(s) {
+		for i := range s {
+			if s[i] == t[i] {
+				s[i] = '～'
+			}
+		}
+	}
+	return trad + "（" + string(s) + "）"
 }
 
 // labelled is text with its usage labels in the part-of-speech colour.
@@ -736,7 +799,8 @@ var keyHelp = [][2]string{
 	{"^D ^U ^F ^B", "half page down, up; page down, up"},
 	{"/ ?  n N", "search forward, back (a Go regexp); repeat"},
 	{"* #", "search for the word under the cursor"},
-	{"v V  Enter", "select by character, by line; make a card"},
+	{"v V", "select by character, by line"},
+	{"Enter", "make a card of the word, or of the selection"},
 	{":>cmd", "in v or V: pipe the selection to a shell command"},
 	{"m '", "bookmark this line, go to the bookmark"},
 	{"e", "show or hide English definitions"},
@@ -746,7 +810,8 @@ var keyHelp = [][2]string{
 	{"t", "show or hide the other reading (Taiwan)"},
 	{"J K", "scroll the definitions down, up"},
 	{"Tab S-Tab", "move into the definitions; back up"},
-	{"gh F1  Esc", "show, hide this help"},
+	{"gh F1", "show this help"},
+	{"Esc", "hide it; end a selection; back to the book"},
 	{"q", "quit"},
 	{"click wheel", "move the cursor there; scroll the text"},
 }
@@ -804,9 +869,9 @@ func (v *view) drawStatus() {
 	case prompt:
 		left = string(v.pchar) + string(v.input)
 	case visual:
-		left = "-- VISUAL --  Enter: make a card"
+		left = "-- VISUAL --  Enter: make a card  :>cmd: pipe it"
 	case vline:
-		left = "-- VISUAL LINE --  Enter: make a card"
+		left = "-- VISUAL LINE --  Enter: make a card  :>cmd: pipe it"
 	}
 	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines), v.d.name)
 	for x := 0; x < v.w; x++ {
@@ -860,7 +925,7 @@ func (v *view) selected(l, c int) bool {
 func (v *view) key(ev *tcell.EventKey) {
 	l0, c0 := v.cl, v.cc
 	defer func() {
-		if v.mode != card {
+		if v.mode != card && v.mode != choose {
 			v.settle(l0, c0)
 		}
 	}()
@@ -871,11 +936,21 @@ func (v *view) key(ev *tcell.EventKey) {
 	case card:
 		v.cardKey(ev)
 		return
+	case choose:
+		v.chooseKey(ev)
+		return
 	}
 	v.msg = ""
 	n := max(v.count, 1)
 	switch ev.Key() {
 	case tcell.KeyEscape:
+		// Esc ends a selection or the keys; with neither, it goes back
+		// from the panes moved into to the book.
+		if v.mode == normal && !v.help && v.pend == 0 {
+			for len(v.stack) > 0 {
+				v.ascend()
+			}
+		}
 		v.mode, v.pend, v.count, v.help = normal, 0, 0, false
 		return
 	case tcell.KeyF1:
@@ -887,9 +962,8 @@ func (v *view) key(ev *tcell.EventKey) {
 		v.pend = 0
 		v.ascend()
 	case tcell.KeyEnter:
-		if v.mode == visual || v.mode == vline {
-			v.openCard()
-		}
+		v.pend, v.count = 0, 0
+		v.openCard()
 		return
 	case tcell.KeyCtrlD:
 		v.byRows(n * v.textH() / 2)
@@ -916,7 +990,7 @@ func (v *view) key(ev *tcell.EventKey) {
 // as Shift-Tab does. A click on a rule or the status line, or while a
 // prompt or card is open, does nothing.
 func (v *view) mouse(ev *tcell.EventMouse) {
-	if v.mode == prompt || v.mode == card {
+	if v.mode == prompt || v.mode == card || v.mode == choose {
 		return
 	}
 	switch b := ev.Buttons(); {
@@ -944,7 +1018,7 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			}
 			v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
 			v.settle(v.cl, v.cc)
-			v.want, v.msg, v.pend, v.count = v.cc, "", 0, 0
+			v.want, v.msg, v.pend, v.count = v.vcol(), "", 0, 0
 			return
 		}
 	}
@@ -977,7 +1051,7 @@ func (v *view) descend() bool {
 	v.top = min(v.top, len(v.rows)-1)
 	v.cl, v.cc = v.rows[v.top].line, v.rows[v.top].start
 	v.settle(v.cl-1, 0)
-	v.want = v.cc
+	v.want = v.vcol()
 	return true
 }
 
@@ -990,7 +1064,7 @@ func (v *view) settle(l0, c0 int) {
 	if !v.d.skipped(v.cl, v.cc) {
 		return
 	}
-	cc := v.cc
+	x0 := v.vcol()
 	step := -1
 	if v.cl > l0 || v.cl == l0 && v.cc >= c0 {
 		step = 1
@@ -999,8 +1073,8 @@ func (v *view) settle(l0, c0 int) {
 		for l := v.cl; l >= 0 && l < len(v.d.lines); l += s {
 			if c, ok := v.d.textNear(l, v.cc, s); ok {
 				v.cl, v.cc = l, c
-				if v.want == cc {
-					v.want = c
+				if v.want == x0 {
+					v.want = v.vcol()
 				}
 				return
 			}
@@ -1045,27 +1119,28 @@ func (v *view) runeKey(r rune) {
 	switch r {
 	case 'h':
 		v.cc = max(v.cc-n, 0)
-		v.want = v.cc
+		v.want = v.vcol()
 	case 'l':
 		v.cc += n
 		v.clamp()
-		v.want = v.cc
+		v.want = v.vcol()
 	case 'j':
-		v.cl, v.cc = v.cl+n, v.want
+		v.vert(n)
 	case 'k':
-		v.cl, v.cc = v.cl-n, v.want
+		v.vert(-n)
 	case 'w':
 		for ; n > 0; n-- {
 			v.wordFwd()
 		}
-		v.want = v.cc
+		v.want = v.vcol()
 	case 'b':
 		for ; n > 0; n-- {
 			v.wordBack()
 		}
-		v.want = v.cc
+		v.want = v.vcol()
 	case '0':
-		v.cc, v.want = 0, 0
+		v.cc = 0
+		v.want = v.vcol()
 	case '$':
 		v.cc, v.want = v.lineLen(v.cl), 1<<30
 	case 'G':
@@ -1168,10 +1243,41 @@ func (v *view) gKey(r rune) {
 		v.byRows(-n)
 	case '0':
 		v.cc = row.start
-		v.want = v.cc
+		v.want = v.vcol()
 	case '$':
 		v.cc = max(row.end-1, row.start)
-		v.want = v.cc
+		v.want = v.vcol()
+	}
+}
+
+// vcol is the cursor's display column in its line, as if the line did not
+// wrap, from the column a pane's line starts at: what j and k keep, so
+// that they go straight down the screen across lines that start at
+// different columns, as a pane's do.
+func (v *view) vcol() int {
+	x := 0
+	if v.d.ind != nil {
+		x = v.d.ind[v.cl][0]
+	}
+	line := v.d.lines[v.cl]
+	return x + zhdict.Width(string(line[:min(v.cc, len(line))]))
+}
+
+// vert moves the cursor n lines, to the character at display column want.
+func (v *view) vert(n int) {
+	v.cl = min(max(v.cl+n, 0), len(v.d.lines)-1)
+	x := 0
+	if v.d.ind != nil {
+		x = v.d.ind[v.cl][0]
+	}
+	line := v.d.lines[v.cl]
+	v.cc = 0
+	for c, r := range line {
+		if x > v.want {
+			break
+		}
+		v.cc = c
+		x += zhdict.Width(string(r))
 	}
 }
 
@@ -1385,7 +1491,8 @@ func (v *view) search(back bool) {
 			}
 		}
 		if hit >= 0 {
-			v.cl, v.cc, v.want = l, hit, hit
+			v.cl, v.cc = l, hit
+			v.want = v.vcol()
 			return
 		}
 		if back {
@@ -1397,15 +1504,42 @@ func (v *view) search(back bool) {
 	v.msg = "pattern not found: " + v.pat.String()
 }
 
-// openCard starts a card for the selection.
+// openCard starts a card for the selection, or in normal mode for the
+// word under the cursor. When the words can be divided more than one way,
+// as 牟取暴利 is one word to one dictionary and 牟取 and 暴利 to another, it
+// asks which first.
 func (v *view) openCard() {
-	l1, c1, l2, c2 := v.selRange()
-	p := v.d.paragraph(l1)
-	if l2 >= p.first+len(p.offs) {
-		v.msg = "the selection crosses a paragraph break"
+	var l1, c1, l2, c2 int
+	switch {
+	case v.selecting():
+		l1, c1, l2, c2 = v.selRange()
+	case v.mode == normal:
+		_, t := v.lookupTok()
+		if !t.han {
+			return
+		}
+		l1, c1, l2, c2 = v.cl, t.start, v.cl, t.end-1
+	default:
 		return
 	}
-	ws, we := p.pos(l1, c1), p.pos(l2, c2)+1
+	var p para
+	if v.d.sty != nil {
+		// A pane's context is the definition the word is in.
+		if l2 != l1 {
+			v.msg = "the selection crosses a line of the " +
+				"definitions"
+			return
+		}
+		p = v.d.paneLine(l1)
+	} else {
+		p = v.d.paragraph(l1)
+		if l2 >= p.first+len(p.offs) {
+			v.msg = "the selection crosses a paragraph break"
+			return
+		}
+	}
+	clip := func(i int) int { return min(max(i, 0), len(p.text)) }
+	ws, we := clip(p.pos(l1, c1)), clip(p.pos(l2, c2)+1)
 	for ws < we && strings.TrimSpace(string(p.text[ws])) == "" {
 		ws++
 	}
@@ -1419,58 +1553,131 @@ func (v *view) openCard() {
 		v.msg = err.Error()
 		return
 	}
-	word := string(p.text[ws:we])
-	pr := zhdict.NewProbe(zhdict.HanRuns(word))
-	pr.Load(v.dict)
-	pr.LoadExtra(v.dict) // checked at startup
-	pr.LoadPron(v.dict)
-	pr.PronPref = v.pron
-
-	// A selection no dictionary has as one word is split into the
-	// words that do have definitions, a card each, so selecting a
-	// phrase cards its words.
-	spans := [][2]int{{ws, we}}
-	if len(pr.Rows(word).Rows) == 0 {
-		mode := zhdict.SegViterbi
-		if pr.LoadFreq(v.dict) != nil {
-			mode = zhdict.SegBidi
-		}
-		seg := func(run []rune) []string {
-			return pr.Segment([][]rune{run}, mode)
-		}
-		spans = nil
-		for _, t := range tokenize(p.text[ws:we], seg) {
-			w := string(p.text[ws+t.start : ws+t.end])
-			if t.han && len(pr.Rows(w).Rows) > 0 {
-				spans = append(spans,
-					[2]int{ws + t.start, ws + t.end})
-			}
-		}
-		if len(spans) == 0 {
-			v.msg = "no definitions for any word in " + word
-			return
-		}
-	}
-
 	// The text is traditional if converting it to simplified changes
 	// more of it than converting it to traditional does.
 	text := string(p.text)
 	trad := changed(text, v.conv.t2s.Convert(text)) >
 		changed(text, v.conv.s2t.Convert(text))
+	word := string(p.text[ws:we])
+	pr := zhdict.NewProbe(zhdict.HanRuns(word))
+	pr.Load(v.dict)
+	pr.LoadExtra(v.dict) // checked at startup
+	pr.LoadPron(v.dict)
+	pr.LoadTargets(v.dict)
+	pr.PronPref, pr.Trad = v.pron, trad
 	src := fmt.Sprintf("%s:%d", v.d.src, l1+1)
 	if len(v.stack) > 0 {
 		src = v.d.src // /path/to/book:line › word
 	}
-	v.queue = nil
-	for i, sp := range spans {
+	pk := &picker{p: p, ws: ws, we: we, pr: pr, src: src, trad: trad,
+		opts: segOptions(pr, p.text, ws, we, v.dict)}
+	switch len(pk.opts) {
+	case 0:
+		v.msg = "no definitions for any word in " + word
+	case 1:
+		v.startCards(pk, pk.opts[0])
+	default:
+		v.pick, v.mode = pk, choose
+	}
+}
+
+// picker is a selection being made into cards: the ways to divide it into
+// words, for choose to pick from.
+type picker struct {
+	p      para
+	ws, we int // the selection, as offsets into p.text
+	pr     *zhdict.Probe
+	src    string
+	trad   bool
+	opts   [][][2]int // each a list of words, as offsets into p.text
+	cur    int
+}
+
+// maxSplits bounds the other divisions of a word offered, and splitRunes
+// the length of word they are looked for in.
+const (
+	maxSplits  = 6
+	splitRunes = 12
+)
+
+// segOptions are the ways to divide text[ws:we] into words to card. The
+// first is the selection as one word, if it is one, or else the words of it
+// the segmenter finds that have definitions, which is what a selection no
+// dictionary has as one word, a phrase, is carded as. The rest are the other
+// ways to divide it wholly into words of two characters or more, as 牟取暴利
+// into 牟取 and 暴利, and for a phrase what the two maximum-matching
+// segmenters make of it. Words of one character are left out of the
+// divisions of a word, which would otherwise offer 散 and 发 for every 散发.
+func segOptions(pr *zhdict.Probe, text []rune, ws, we int,
+	d *zhdict.Dict) [][][2]int {
+	var out [][][2]int
+	add := func(o [][2]int) {
+		if len(o) == 0 || slices.ContainsFunc(out,
+			func(x [][2]int) bool { return slices.Equal(x, o) }) {
+			return
+		}
+		out = append(out, o)
+	}
+	word := string(text[ws:we])
+	segWords := func(mode string) [][2]int {
+		seg := func(run []rune) []string {
+			return pr.Segment([][]rune{run}, mode)
+		}
+		var o [][2]int
+		for _, t := range tokenize(text[ws:we], seg) {
+			w := string(text[ws+t.start : ws+t.end])
+			if t.han && pr.Has(w) {
+				o = append(o, [2]int{ws + t.start, ws + t.end})
+			}
+		}
+		return o
+	}
+	if pr.Has(word) {
+		add([][2]int{{ws, we}})
+	} else {
+		mode := zhdict.SegViterbi
+		if pr.LoadFreq(d) != nil {
+			mode = zhdict.SegBidi
+		}
+		add(segWords(mode))
+		add(segWords(zhdict.SegFMM))
+		add(segWords(zhdict.SegBMM))
+	}
+	runs := zhdict.HanRuns(word)
+	if len(runs) != 1 || string(runs[0]) != word || we-ws > splitRunes {
+		return out
+	}
+	var split func(i int, cur [][2]int)
+	split = func(i int, cur [][2]int) {
+		if len(out) > maxSplits {
+			return
+		}
+		if i == we {
+			add(slices.Clone(cur))
+			return
+		}
+		for j := we; j >= i+2; j-- {
+			if i == ws && j == we || !pr.Has(string(text[i:j])) {
+				continue
+			}
+			split(j, append(cur, [2]int{i, j}))
+		}
+	}
+	split(ws, nil)
+	return out
+}
+
+// startCards queues a card for each of the words, in turn.
+func (v *view) startCards(pk *picker, words [][2]int) {
+	v.queue, v.pick = nil, nil
+	for i, sp := range words {
 		ws, we := sp[0], sp[1]
-		dr := &draft{p: p, ws: ws, we: we,
-			span: newSpan(p.text, ws, we),
-			src:  src, trad: trad, n: i + 1, of: len(spans)}
-		g := pr.Rows(string(p.text[ws:we]))
-		dr.opts, dr.zh = newOpts(g, v.shows)
-		dr.notice = g.Notice
-		dr.sel = make([]bool, len(dr.opts))
+		dr := &draft{p: pk.p, ws: ws, we: we,
+			span: newSpan(pk.p.text, ws, we),
+			src:  pk.src, trad: pk.trad, n: i + 1, of: len(words),
+			g: pk.pr.Rows(string(pk.p.text[ws:we]))}
+		dr.notice = dr.g.Notice
+		dr.setOpts(v.shows)
 		if dr.zh > 0 {
 			dr.sel[0] = true
 		}
@@ -1480,6 +1687,47 @@ func (v *view) openCard() {
 		v.queue = append(v.queue, dr)
 	}
 	v.nextCard()
+}
+
+func (v *view) chooseKey(ev *tcell.EventKey) {
+	pk := v.pick
+	r := ev.Rune()
+	switch {
+	case ev.Key() == tcell.KeyEscape || r == 'q':
+		v.mode, v.pick = normal, nil
+	case ev.Key() == tcell.KeyEnter || r == ' ':
+		v.startCards(pk, pk.opts[pk.cur])
+	case r >= '1' && r <= '9' && int(r-'1') < len(pk.opts):
+		v.startCards(pk, pk.opts[r-'1'])
+	case r == 'j' || ev.Key() == tcell.KeyDown:
+		pk.cur = min(pk.cur+1, len(pk.opts)-1)
+	case r == 'k' || ev.Key() == tcell.KeyUp:
+		pk.cur = max(pk.cur-1, 0)
+	}
+}
+
+// drawChoose shows the ways to divide the selection, one a line, with the
+// words of each separated by a dot.
+func (v *view) drawChoose() {
+	pk := v.pick
+	maxY := v.h - 1
+	whole := string(pk.p.text[pk.ws:pk.we])
+	y := v.put(0, 0, maxY, []rune(" Divide "+whole+" into:"),
+		plain(stHead)) + 1
+	for i, o := range pk.opts {
+		var ws []string
+		for _, w := range o {
+			ws = append(ws, string(pk.p.text[w[0]:w[1]]))
+		}
+		st := stDef
+		if i == pk.cur {
+			st = stSel
+		}
+		y = v.put(0, y, maxY, []rune(fmt.Sprintf(" %d  %s", i+1,
+			strings.Join(ws, " · "))), plain(st))
+	}
+	help := "j k: choose  Enter or 1-9: make the cards  Esc: cancel"
+	v.put(0, v.h-1, v.h, clip([]rune(help), v.w), plain(stHint))
 }
 
 // nextCard shows the next card of the selection, or returns to reading
@@ -1523,79 +1771,139 @@ func (v *view) loadConvs() error {
 	return nil
 }
 
+// ctxLines are the scripts of the context lines the preview shows, top
+// first, as indices into draft.ed: both when the word differs between
+// them, the one case the traditional cards are made, else the text's own.
+func (dr *draft) ctxLines(f forms) []int {
+	switch {
+	case f.wordT != f.wordS:
+		return []int{0, 1}
+	case dr.trad:
+		return []int{1}
+	}
+	return []int{0}
+}
+
 func (v *view) cardKey(ev *tcell.EventKey) {
 	dr := v.dr
 	r := ev.Rune()
+	if ev.Key() != tcell.KeyRune {
+		r = 0
+	}
+	f := dr.forms(v.conv)
+	lines := dr.ctxLines(f)
+	dr.cur = max(dr.cur, -len(lines))
+	if dr.cur < 0 && v.ctxKey(ev, f, lines[len(lines)+dr.cur]) {
+		return
+	}
+	dr.warn = ""
 	switch {
 	case ev.Key() == tcell.KeyEscape || r == 'q':
 		v.mode, v.dr, v.queue = normal, nil, nil
 	case r == 'n':
 		v.nextCard()
 	case ev.Key() == tcell.KeyEnter || r == 'y':
+		if f.wsS == f.weS || f.wsT == f.weT {
+			dr.warn = "the context no longer has the word; " +
+				"u undoes"
+			return
+		}
 		if len(dr.dups) > 0 && !dr.saving {
 			dr.saving = true
 			return
 		}
-		f := dr.forms(v.conv)
 		err := v.rec.save(dr.note(f, v.showTW, v.expand), v.deck)
 		if err != nil {
 			v.msg = err.Error()
 		} else {
-			v.msg = "saved a card for " + f.wordS
-			if f.wordT != f.wordS {
-				v.msg += " / " + f.wordT
-			}
+			v.msg = "saved a card for " +
+				headword(f.wordT, f.wordS)
 		}
 		v.nextCard()
-	case strings.ContainsRune("[]{}", r):
+	case strings.ContainsRune("[]{}", r) && r != 0:
+		// The edges move over the text as it was, so they undo edits.
 		dr.span.move(r)
+		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
 	case r == 'j' || ev.Key() == tcell.KeyDown:
-		dr.cur = max(min(dr.cur+1, len(dr.opts)-1), 0)
+		dr.cur = max(min(dr.cur+1, len(dr.opts)-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
-		dr.cur = max(dr.cur-1, 0)
-	case r == ' ' && len(dr.sel) > 0:
+		dr.cur = max(dr.cur-1, -len(lines))
+	case r == ' ' && dr.cur >= 0 && len(dr.sel) > 0:
 		dr.sel[dr.cur] = !dr.sel[dr.cur]
 	case r == 'x':
 		v.expand = !v.expand
+	case r == 'c' || r == 'E':
+		if r == 'c' {
+			v.moreZh = !v.moreZh
+		} else {
+			v.moreEn = !v.moreEn
+		}
+		dr.setOpts(v.shows)
 	}
+}
+
+// ctxKey gives a key to the editor on context line k, the line under the
+// cursor, and reports whether it took it. The first change makes the line
+// an edited copy of its own.
+func (v *view) ctxKey(ev *tcell.EventKey, f forms, k int) bool {
+	dr := v.dr
+	e := dr.ed[k]
+	if e == nil {
+		ctx, ws, we := f.ctxS, f.wsS, f.weS
+		if k == 1 {
+			ctx, ws, we = f.ctxT, f.wsT, f.weT
+		}
+		e = &edited{append([]rune(nil), ctx...), ws, we}
+	}
+	ok := dr.vi.key(ev, e, func() {
+		dr.vi.undo = append(dr.vi.undo, e.clone())
+		dr.ed[k] = e
+		dr.saving = false
+	})
+	if ok {
+		dr.warn = ""
+	}
+	return ok
 }
 
 func (v *view) drawCard() {
 	dr := v.dr
 	f := dr.forms(v.conv)
 	maxY := v.h - 1
-	head := " New card: " + f.wordS
-	if f.wordT != f.wordS {
-		head += " / " + f.wordT
-	}
+	head := " New card: " + headword(f.wordT, f.wordS)
 	if dr.of > 1 {
 		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
 	}
 	y := v.put(0, 0, maxY, []rune(head), plain(stHead)) + 1
-	ctx := func(label string, rs []rune, ws, we int) {
+	lines := dr.ctxLines(f)
+	dr.cur = max(dr.cur, -len(lines))
+	for n, k := range lines {
+		label, rs, ws, we := "简", f.ctxS, f.wsS, f.weS
+		if k == 1 {
+			label, rs, ws, we = "繁", f.ctxT, f.wsT, f.weT
+		}
 		lr := []rune(label + "  ")
+		cur := -1
+		if dr.cur == n-len(lines) {
+			dr.vi.col = min(dr.vi.col, len(rs))
+			cur = len(lr) + dr.vi.col
+			if dr.vi.col == len(rs) {
+				rs = append(rs[:len(rs):len(rs)], ' ')
+			}
+		}
 		style := func(i int) tcell.Style {
-			switch i -= len(lr); {
-			case i < 0:
+			switch {
+			case i == cur:
+				return stCursor
+			case i < len(lr):
 				return stHint
-			case i >= ws && i < we:
+			case i-len(lr) >= ws && i-len(lr) < we:
 				return stWord
 			}
 			return stDef
 		}
 		y = v.put(0, y, maxY, append(lr, rs...), style)
-	}
-	// Both scripts only when the word differs between them, the one case
-	// the traditional cards are made; else the text's own.
-	switch {
-	case f.wordT != f.wordS:
-		ctx("简", f.ctxS, f.wsS, f.weS)
-		ctx("繁", f.ctxT, f.wsT, f.weT)
-	case dr.trad:
-		ctx("繁", f.ctxT, f.wsT, f.weT)
-	default:
-		ctx("简", f.ctxS, f.wsS, f.weS)
 	}
 	y++
 	if len(dr.opts) == 0 {
@@ -1616,9 +1924,10 @@ func (v *view) drawCard() {
 		}
 		return n
 	}
-	dr.top = min(dr.top, dr.cur)
+	cur := max(dr.cur, 0)
+	dr.top = min(dr.top, cur)
 	// a row for the note of options scrolled past, once there are any
-	for dr.top < dr.cur && y+1+rows(dr.top, dr.cur) > end {
+	for dr.top < cur && y+1+rows(dr.top, cur) > end {
 		dr.top++
 	}
 	if dr.top > 0 {
@@ -1636,8 +1945,8 @@ func (v *view) drawCard() {
 			"Already carded (%d):", len(dr.dups))), plain(stWarn))
 		for _, k := range dr.dups {
 			w := k.simp
-			if k.trad != "" && k.trad != k.simp {
-				w = strings.TrimPrefix(w+" / "+k.trad, " / ")
+			if k.trad != "" {
+				w = headword(k.trad, k.simp)
 			}
 			line := w + "  " + k.py + "  "
 			if k.ctx != "" {
@@ -1651,16 +1960,26 @@ func (v *view) drawCard() {
 		}
 	}
 	help := "[ ] left edge  { } right edge  j k space: definitions" +
-		"  x: quotations  Enter: save  Esc: cancel"
+		"  k: edit the context  x c E: quotations, MoEDict, " +
+		"Wiktionary  Enter: save  Esc: cancel"
 	if dr.of > 1 {
 		help = "[ ] { } context  j k space: definitions" +
-			"  x: quotations  Enter: save  n: skip" +
-			"  Esc: cancel the rest"
+			"  x c E: quotations, MoEDict, Wiktionary" +
+			"  Enter: save  n: skip  Esc: cancel the rest"
 	}
 	st := stHint
-	if dr.saving {
+	switch {
+	case dr.warn != "":
+		help, st = dr.warn, stWarn
+	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
+	case dr.cur < 0 && dr.vi.insert:
+		help = "-- INSERT --  Esc: back to normal mode"
+	case dr.cur < 0:
+		help = "the context: h l w b e 0 $ to move, i a I A x X r " +
+			"s D C d c u to edit, j to the definitions, " +
+			"Enter: save"
 	}
 	v.put(0, v.h-1, v.h, clip([]rune(help), v.w), plain(st))
 }

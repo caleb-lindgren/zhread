@@ -132,6 +132,9 @@ func (p *Probe) Rows(word string) Group {
 				if _, tv := variantOf(d, lang); tv {
 					continue
 				}
+				// into every entry of the standard form,
+				// so a fallback's does not stand in for
+				// the main dictionary's
 				r.folded, t.into = true, true
 				form := t.f[1]
 				if p.Trad {
@@ -140,7 +143,6 @@ func (p *Probe) Rows(word string) Group {
 				if form != word {
 					t.variant = word
 				}
-				break
 			}
 		}
 		main := false

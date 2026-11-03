@@ -3,10 +3,10 @@
 //
 // Navigation and search follow vi. The words of the text come from the
 // same segmenter as multizhdict, and the definitions of the word under the
-// cursor are shown below the text. Select a word with v or V and press
-// Enter to make a card: the preview picks the sentence around it as
-// context, which [ ] { } adjust a clause at a time, and lists the
-// definitions to choose from. Cards are appended to cards.tsv, which is
+// cursor are shown below the text. Press Enter on a word, or on a selection
+// made with v or V, to make a card: the preview picks the sentence around
+// it as context, which [ ] { } adjust a clause at a time and vi's keys
+// edit, and lists the definitions to choose from. Cards are appended to cards.tsv, which is
 // also the record checked for words already carded.
 package main
 
@@ -24,11 +24,11 @@ import (
 const usage = `usage: zhread [options] FILE
 
 Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #;
-v V select, Enter to make a card of the selection, :>cmd to pipe it
-to cmd; m bookmark the line, ' return to it; e show English
-definitions, x quotations, t Taiwan readings, c MoEDict, E
-Wiktionary; J K scroll them; Tab move into them, Shift-Tab back;
-gh or F1 list the keys; q quit.
+v V select, Enter to make a card of the word or the selection, :>cmd
+to pipe the selection to cmd; m bookmark the line, ' return to it; e
+show English definitions, x quotations, t Taiwan readings, c MoEDict,
+E Wiktionary; J K scroll them; Tab move into them, Shift-Tab back, Esc
+back to the book; gh or F1 list the keys; q quit.
 
 options:
 `

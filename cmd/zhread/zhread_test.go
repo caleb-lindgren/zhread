@@ -106,13 +106,13 @@ func TestDups(t *testing.T) {
 
 func TestMark(t *testing.T) {
 	ctx := []rune("好人有好報<b>")
-	got := mark(ctx, 0, 1, false)
+	got := mark(ctx, 0, 1, "")
 	if got != "<b>好</b>人有好報&lt;b&gt;" {
 		t.Errorf("context: %s", got)
 	}
 	blank := `<span class=cloze>[…]</span>`
 	want := blank + "人有" + blank + "報&lt;b&gt;"
-	if got := mark(ctx, 0, 1, true); got != want {
+	if got := mark(ctx, 0, 1, gap); got != want {
 		t.Errorf("cloze: %s", got)
 	}
 }
@@ -285,7 +285,7 @@ func TestAnchored(t *testing.T) {
 func TestPane(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/企业⏎")
-	if !onScreen(s, "企业  qǐ yè") || onScreen(s, "TW qì yè") {
+	if !onScreen(s, "企業（～业）  qǐ yè") || onScreen(s, "TW qì yè") {
 		t.Errorf("not the Mainland reading alone for 企业:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -371,9 +371,9 @@ func TestMakeCard(t *testing.T) {
 	want := map[int]string{
 		1: "头发", 2: "頭髮",
 		6:  "后来他把<b>头发</b>剪短了，看起来很精神。",
-		7:  "后来他把<span class=cloze>[…]</span>剪短了，看起来很精神。",
+		7:  "后来他把<span class=cloze>[简体]</span>剪短了，看起来很精神。",
 		8:  "後來他把<b>頭髮</b>剪短了，看起來很精神。",
-		9:  "後來他把<span class=cloze>[…]</span>剪短了，看起來很精神。",
+		9:  "後來他把<span class=cloze>[繁體]</span>剪短了，看起來很精神。",
 		10: v.d.src + ":3",
 	}
 	if !filepath.IsAbs(f[10]) {
@@ -411,11 +411,11 @@ func TestSplitCard(t *testing.T) {
 		t.Fatalf("mode %d, %d cards:\n%s", v.mode, v.dr.of,
 			strings.Join(screen(s), "\n"))
 	}
-	if !onScreen(s, "New card: 讨论") || !onScreen(s, "(1 of 3)") {
+	if !onScreen(s, "New card: 討論（讨论）") || !onScreen(s, "(1 of 3)") {
 		t.Errorf("first card:\n%s", strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⏎n") // save 讨论, skip 了
-	if !onScreen(s, "New card: 企业") {
+	if !onScreen(s, "New card: 企業（～业）") {
 		t.Errorf("third card:\n%s", strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⏎")
@@ -642,7 +642,7 @@ func TestCardedSense(t *testing.T) {
 		"<br>a quotation"})
 	keys(v, "e")
 	p := paneText(v)
-	if !strings.Contains(p, sn.Text+"(carded)\n") {
+	if !strings.Contains(p, sn.Text+" (carded)\n") {
 		t.Errorf("carded sense not marked:\n%s", p)
 	}
 	if strings.Count(p, "(carded)") != 1 {
@@ -838,5 +838,168 @@ func TestEnglishOnly(t *testing.T) {
 	if v.dr == nil || v.dr.zh != 0 || len(v.dr.sel) == 0 ||
 		!v.dr.sel[0] {
 		t.Errorf("card: %+v", v.dr)
+	}
+}
+
+// cur is the character under the cursor.
+func cur(v *view) string {
+	line := v.d.lines[v.cl]
+	if v.cc >= len(line) {
+		return ""
+	}
+	return string(line[v.cc])
+}
+
+// TestPaneColumns checks that j and k keep the cursor's column on screen
+// across a pane's lines, which start at different columns, and pass over
+// the sense numbers.
+func TestPaneColumns(t *testing.T) {
+	v, s := newTestView(t, "牟\n")
+	tab(v, false)
+	segAll(v)
+	if cur(v) != "謀" {
+		t.Fatalf("Tab: on %q:\n%s", cur(v),
+			strings.Join(screen(s), "\n"))
+	}
+	for _, c := range []struct{ keys, want string }{
+		{"j", "擬"}, {"h", "擬"}, {"k", "謀"}, {"0", "謀"},
+		{"j0", "擬"},
+	} {
+		keys(v, c.keys)
+		if cur(v) != c.want {
+			t.Errorf("%s: on %q, want %q", c.keys, cur(v), c.want)
+		}
+	}
+	// Esc goes back to the book from however deep.
+	tab(v, false)
+	segAll(v)
+	keys(v, "⎋")
+	if len(v.stack) != 0 || v.cl != 0 || v.cc != 0 {
+		t.Errorf("Esc: depth %d at %d:%d", len(v.stack), v.cl, v.cc)
+	}
+}
+
+// TestNumbering checks that the cursor passes over a paragraph's number.
+func TestNumbering(t *testing.T) {
+	v, _ := newTestView(t, "1. 我們\n2、他們\n")
+	if cur(v) != "我" {
+		t.Errorf("start: on %q", cur(v))
+	}
+	keys(v, "j0h")
+	if cur(v) != "他" {
+		t.Errorf("j0h: on %q", cur(v))
+	}
+}
+
+// TestEnterInNormal checks that Enter makes a card of the word under the
+// cursor without a selection.
+func TestEnterInNormal(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/头发⏎⏎")
+	if v.mode != card || !onScreen(s, "New card: 頭髮（头发）") {
+		t.Errorf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
+	}
+}
+
+// TestChoose checks that a word the dictionaries divide differently asks
+// which words to card.
+func TestChoose(t *testing.T) {
+	v, s := newTestView(t, "他們牟取暴利。\n")
+	keys(v, "/牟⏎⏎")
+	if v.mode != choose || len(v.pick.opts) != 2 ||
+		!onScreen(s, "牟取 · 暴利") {
+		t.Fatalf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
+	}
+	keys(v, "j⏎")
+	if v.mode != card || v.dr.of != 2 || !onScreen(s, "New card: 牟取") {
+		t.Errorf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
+	}
+	keys(v, "⎋/牟⏎⏎1")
+	if v.mode != card || v.dr.of != 1 ||
+		!onScreen(s, "New card: 牟取暴利") {
+		t.Errorf("1: mode %d:\n%s", v.mode,
+			strings.Join(screen(s), "\n"))
+	}
+}
+
+// TestPaneContext checks that a card made in a pane takes the sense it is
+// in as its context, without the word, reading and number before it.
+func TestPaneContext(t *testing.T) {
+	v, s := newTestView(t, "牟\n")
+	tab(v, false)
+	segAll(v)
+	keys(v, "⏎")
+	if v.mode != card {
+		t.Fatalf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
+	}
+	ctx, _, _ := v.dr.context()
+	if got := string(ctx); !strings.HasPrefix(got, "謀取。") {
+		t.Errorf("context %q", got)
+	}
+}
+
+// TestContextEnd checks that a context cut short of its sentence's end
+// does not end with the comma it was cut at.
+func TestContextEnd(t *testing.T) {
+	text := "這裡有我們要的詞語，這是第二個很長很長的分句，" +
+		"這是第三個很長很長的分句，這是第四個很長很長的分句，" +
+		"這是第五個很長很長的分句。"
+	got := ctxOf(text, "詞語")
+	if strings.HasSuffix(got, "，") || !strings.HasPrefix(got, "這裡") {
+		t.Errorf("context %q", got)
+	}
+}
+
+// TestCardOptions checks that c in the preview adds MoEDict's definitions,
+// keeping what was ticked.
+func TestCardOptions(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "/企业⏎⏎")
+	n, ticked := len(v.dr.opts), v.dr.opts[v.dr.zh]
+	keys(v, "c")
+	if len(v.dr.opts) <= n {
+		t.Fatalf("c: %d options, had %d", len(v.dr.opts), n)
+	}
+	var sel []opt
+	for i, o := range v.dr.opts {
+		if v.dr.sel[i] {
+			sel = append(sel, o)
+		}
+	}
+	if len(sel) != 2 || sel[1].s.Text != ticked.s.Text {
+		t.Errorf("ticked after c: %+v", sel)
+	}
+	keys(v, "c")
+	if len(v.dr.opts) != n {
+		t.Errorf("c again: %d options, want %d", len(v.dr.opts), n)
+	}
+}
+
+// TestEditContext checks the vi keys on the preview's context.
+func TestEditContext(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/精神⏎⏎k0dwx")
+	f := v.dr.forms(v.conv)
+	if got := string(f.ctxS); got != "看起来很精神。" {
+		t.Fatalf("after 0dwx: %q\n%s", got,
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "i他⎋")
+	keys(v, "$hhi真⎋")
+	f = v.dr.forms(v.conv)
+	if got := string(f.ctxS); got != "他看起来很真精神。" ||
+		string(f.ctxS[f.wsS:f.weS]) != "精神" {
+		t.Fatalf("after inserts: %q, word %q", got,
+			string(f.ctxS[f.wsS:f.weS]))
+	}
+	keys(v, "uu")
+	f = v.dr.forms(v.conv)
+	if got := string(f.ctxS); got != "看起来很精神。" {
+		t.Errorf("after uu: %q", got)
+	}
+	keys(v, "j⏎")
+	got := v.rec.cards[len(v.rec.cards)-1].ctx
+	if got != "看起来很精神。" {
+		t.Errorf("saved context %q", got)
 	}
 }

@@ -682,3 +682,28 @@ func TestNoMarkup(t *testing.T) {
 		}
 	}
 }
+
+func TestZhuyin(t *testing.T) {
+	for py, want := range map[string]string{
+		"zǔ hé":       "ㄗㄨˇ ㄏㄜˊ",
+		"zāng xī xī":  "ㄗㄤ ㄒㄧ ㄒㄧ",
+		"tóu fa":      "ㄊㄡˊ ˙ㄈㄚ",
+		"zhī chí shì": "ㄓ ㄔˊ ㄕˋ",
+		"yī diǎnr":    "ㄧ ㄉㄧㄢˇㄦ",
+		"yǒu yuè":     "ㄧㄡˇ ㄩㄝˋ",
+		"wèi wēng":    "ㄨㄟˋ ㄨㄥ",
+		"jué qù xū":   "ㄐㄩㄝˊ ㄑㄩˋ ㄒㄩ",
+		"lǜ nǚ":       "ㄌㄩˋ ㄋㄩˇ",
+		"Zhōng guó":   "ㄓㄨㄥ ㄍㄨㄛˊ",
+		"yìng yín èr": "ㄧㄥˋ ㄧㄣˊ ㄦˋ",
+		"xiōng":       "ㄒㄩㄥ",
+		"a , ba":      "˙ㄚ , ˙ㄅㄚ",
+		"lu:è nu:3":   "ㄌㄩㄝˋ ㄋㄩˇ",
+		"wán r":       "ㄨㄢˊ ㄦ",
+		"hm":          "",
+	} {
+		if got := Zhuyin(py); got != want {
+			t.Errorf("Zhuyin(%q) = %q, want %q", py, got, want)
+		}
+	}
+}
