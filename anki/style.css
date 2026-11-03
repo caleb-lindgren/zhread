@@ -25,4 +25,7 @@
    reader's headwords; one colour, one weight elsewhere. */
 .ctx b, .cloze { color: #ffd7af; font-weight: normal; }
 .word { font-size: 80px; }
+/* The serif's characters fill more of the em than the Kai's do, so the
+   bracketed simplified form is set smaller to look the same size. */
+.word .simp { font-size: 0.85em; }
 details summary { cursor: pointer; }
