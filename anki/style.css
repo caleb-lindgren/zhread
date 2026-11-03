@@ -14,8 +14,10 @@
   max-width: 40em;
   margin: 0 auto;
 }
-/* Simplified text: the context of a 简 card and the bracketed form after
-   the word. Everything else, definitions included, is in .card's fonts. */
+/* Simplified text: the context of a 简 card, the bracketed form after the
+   word, and the simplified half of a word an English definition gives in
+   both scripts. Everything else, the Chinese definitions included, is
+   traditional, so in .card's fonts. */
 .simp {
   font-family: arial, "Source Han Serif CN", "Source Han Serif SC",
     "Noto Serif CJK SC", serif;
@@ -26,6 +28,7 @@
 .ctx b, .cloze { color: #ffd7af; font-weight: normal; }
 .word { font-size: 80px; }
 /* The serif's characters fill more of the em than the Kai's do, so the
-   bracketed simplified form is set smaller to look the same size. */
-.word .simp { font-size: 0.75em; }
+   simplified form, in the word's brackets or a definition, is set
+   smaller to look the same size. */
+.word .simp, .def .simp { font-size: 0.75em; }
 details summary { cursor: pointer; }

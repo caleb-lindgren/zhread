@@ -33,6 +33,39 @@
 })();
 </script>
 <script>
+/* The definitions are in traditional, set in .card's Kai, but the English
+   ones give a word in both scripts, CC-CEDICT as 組合|组合[zǔ hé] and
+   Wiktionary as 組合／组合. Set the simplified half in the simplified
+   font, rather than leave only the characters the Kai lacks to fall
+   through to it one at a time. */
+(function () {
+  var re = /([\p{Script=Han}\w·]+)[|／]([\p{Script=Han}\w·]+)/gu;
+  document.querySelectorAll(".def").forEach(function (d) {
+    var w = document.createTreeWalker(d, NodeFilter.SHOW_TEXT), ns = [];
+    while (w.nextNode()) ns.push(w.currentNode);
+    ns.forEach(function (n) {
+      var t = n.nodeValue, f = document.createDocumentFragment();
+      var at = 0, m;
+      re.lastIndex = 0;
+      while ((m = re.exec(t))) {
+        if (m[1] == m[2] || !/\p{Script=Han}/u.test(m[2])) continue;
+        var end = m.index + m[0].length;
+        f.append(t.slice(at, end - m[2].length));
+        var s = document.createElement("span");
+        s.className = "simp";
+        s.textContent = m[2];
+        f.append(s);
+        at = end;
+      }
+      if (at) {
+        f.append(t.slice(at));
+        n.replaceWith(f);
+      }
+    });
+  });
+})();
+</script>
+<script>
 /* Show the context and the word's others from the book in turn, a
    different one each time the card comes up: the front moves on to the
    next and stores which, and the back shows the one stored. Where the
