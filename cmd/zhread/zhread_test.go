@@ -895,14 +895,16 @@ func TestOtherContexts(t *testing.T) {
 	if got := string(dr.others[0].ctxf.ctxS); got != "她身上散发香味" {
 		t.Errorf("after {: %q", got)
 	}
-	keys(v, "ix⎋")
+	keys(v, "i")
+	v.key(tcell.NewEventKey(tcell.KeyDelete, 0, tcell.ModNone))
+	keys(v, "⎋")
 	if got := string(dr.others[0].ctxf.ctxS); got != "身上散发香味" {
-		t.Errorf("after x: %q", got)
+		t.Errorf("after Delete: %q", got)
 	}
 	if got := string(dr.others[0].ctxf.ctxT); got != "身上散發香味" {
-		t.Errorf("traditional after x: %q", got)
+		t.Errorf("traditional after Delete: %q", got)
 	}
-	if dr.editing {
+	if dr.editing || dr.others[0].vi.insert {
 		t.Errorf("still editing after Esc")
 	}
 	note = dr.note(dr.forms(v.conv), false, false)
@@ -911,6 +913,40 @@ func TestOtherContexts(t *testing.T) {
 	}
 	if !strings.Contains(string(note[6]), "他<b>散发</b>传单给路人。") {
 		t.Errorf("own context changed: %q", note[6])
+	}
+}
+
+// TestOthersInWords checks which of a word's places inside other words
+// are taken as its: those inside a longer word, for a word of two
+// characters or more, and not those split between two words.
+func TestOthersInWords(t *testing.T) {
+	for _, c := range []struct {
+		text, word string
+		want       int
+	}{
+		// 采访 in 采访记者
+		{"我们去采访他。\n\n咱们的采访记者最差的是谁？\n", "采访", 1},
+		// 才能 split as 刚才｜能
+		{"他很有才能。\n\n他刚才能吃饭了。\n", "才能", 0},
+		// 打 in 打算
+		{"他打人了。\n\n他打算明天走。\n", "打", 0},
+	} {
+		v, _ := newTestView(t, c.text)
+		n := utf8.RuneCountInString(c.word)
+		keys(v, "/"+c.word+"⏎v"+strings.Repeat("l", n-1)+"⏎")
+		if v.mode == choose {
+			keys(v, "⏎")
+		}
+		if v.mode != card {
+			t.Fatalf("%q: mode %d", c.text, v.mode)
+		}
+		var got []string
+		for _, o := range v.dr.others {
+			got = append(got, string(o.ctxf.ctxS))
+		}
+		if len(got) != c.want {
+			t.Errorf("%q: other contexts %q", c.text, got)
+		}
 	}
 }
 

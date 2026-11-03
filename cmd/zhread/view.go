@@ -1705,8 +1705,10 @@ func (v *view) others(dr *draft) []*draft {
 }
 
 // findOthers finds the word of dr in book, in book order: wherever the text
-// has it and the segmenter does not make it part of a longer word, as it
-// makes 打 part of 打算. Each is a draft of its own, for its context, which
+// has it, unless the segmenter splits it between two words, as 才能 in
+// 刚才｜能吃, or for a word of one character, makes it part of a longer
+// one, as 打 of 打算. A word of more inside a longer one, as 采访 in
+// 采访记者, is nearly always that word compounded. Each is a draft of its own, for its context, which
 // starts as the one newSpan picks. A context that shares text with one
 // before it is left out, as is one the same as another: a sentence using
 // the word twice would otherwise give it twice, and a long one cut to
@@ -1764,10 +1766,15 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 	for h, ht := range hits {
 		for _, ws := range ht.at {
 			we := ws + len(word)
-			if slices.ContainsFunc(toks[h], func(t tok) bool {
+			cut := func(t tok) bool {
 				return t.start < ws && ws < t.end ||
 					t.start < we && we < t.end
-			}) {
+			}
+			in := func(t tok) bool {
+				return t.start <= ws && we <= t.end
+			}
+			if slices.ContainsFunc(toks[h], cut) && (len(word) == 1 ||
+				!slices.ContainsFunc(toks[h], in)) {
 				continue
 			}
 			o := &draft{p: ht.p, ws: ws, we: we, trad: dr.trad,
@@ -1900,19 +1907,19 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		return
 	}
 	o := dr.other()
+	// Another context is edited in insert mode only, from i to Esc or
+	// Enter.
 	if o != nil && dr.editing {
-		switch {
-		case !o.vi.insert && ev.Key() == tcell.KeyEscape:
-			dr.editing = false
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyEnter {
+			dr.editing, o.vi.insert = false, false
+			o.vi.col = max(o.vi.col-1, 0)
 			return
-		case o.edit(ev, o.ctxf, o.own(), func() { dr.saving = false }):
+		}
+		if o.edit(ev, o.ctxf, o.own(), func() { dr.saving = false }) {
 			o.refresh(v.conv)
 			dr.warn = ""
-			return
-		case r == 'j' || r == 'k' || ev.Key() == tcell.KeyDown ||
-			ev.Key() == tcell.KeyUp:
-			dr.editing = false
 		}
+		return
 	}
 	dr.warn = ""
 	switch {
@@ -1948,7 +1955,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
 	case r == 'i' && o != nil:
-		dr.editing = true
+		dr.editing, o.vi.insert = true, true
 	case r == 'a' && len(dr.others) > 0:
 		all := !slices.Contains(dr.osel, false)
 		for k := range dr.osel {
@@ -2103,13 +2110,10 @@ func (v *view) drawCard() {
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
-	case dr.cur < 0 && dr.vi.insert ||
-		dr.editing && dr.other().vi.insert:
+	case dr.cur < 0 && dr.vi.insert:
 		help = "-- INSERT --  Esc: back to normal mode"
 	case dr.editing:
-		help = "this context: h l w b e 0 $ to move, i a I A x X r " +
-			"s D C d c u to edit, [ ] { } its edges, " +
-			"Esc: done, Enter: save"
+		help = "-- INSERT --  Esc: done"
 	case dr.other() != nil:
 		help = "[ ] { } this context's edges  i: edit it" +
 			"  space: tick it  a: all or none  Enter: save"
