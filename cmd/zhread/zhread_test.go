@@ -895,9 +895,7 @@ func TestOtherContexts(t *testing.T) {
 	if got := string(dr.others[0].ctxf.ctxS); got != "她身上散发香味" {
 		t.Errorf("after {: %q", got)
 	}
-	tab := tcell.NewEventKey(tcell.KeyTab, 0, tcell.ModNone)
-	v.key(tab)
-	keys(v, "x⎋")
+	keys(v, "ix⎋")
 	if got := string(dr.others[0].ctxf.ctxS); got != "身上散发香味" {
 		t.Errorf("after x: %q", got)
 	}

@@ -1902,8 +1902,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	o := dr.other()
 	if o != nil && dr.editing {
 		switch {
-		case !o.vi.insert && (ev.Key() == tcell.KeyEscape ||
-			ev.Key() == tcell.KeyBacktab):
+		case !o.vi.insert && ev.Key() == tcell.KeyEscape:
 			dr.editing = false
 			return
 		case o.edit(ev, o.ctxf, o.own(), func() { dr.saving = false }):
@@ -1948,7 +1947,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		dr.span.move(r)
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
-	case ev.Key() == tcell.KeyTab && o != nil:
+	case r == 'i' && o != nil:
 		dr.editing = true
 	case r == 'a' && len(dr.others) > 0:
 		all := !slices.Contains(dr.osel, false)
@@ -2112,7 +2111,7 @@ func (v *view) drawCard() {
 			"s D C d c u to edit, [ ] { } its edges, " +
 			"Esc: done, Enter: save"
 	case dr.other() != nil:
-		help = "[ ] { } this context's edges  Tab: edit it" +
+		help = "[ ] { } this context's edges  i: edit it" +
 			"  space: tick it  a: all or none  Enter: save"
 	case dr.cur < 0:
 		help = "the context: h l w b e 0 $ to move, i a I A x X r " +
