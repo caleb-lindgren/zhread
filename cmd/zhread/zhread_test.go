@@ -360,7 +360,8 @@ func TestMakeCard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	// TrimSuffix, not TrimSpace: the empty last columns end the row in tabs
+	lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
 	if lines[0] != "#separator:tab" || len(lines) != 7 {
 		t.Fatalf("card file:\n%s", b)
 	}
@@ -807,7 +808,8 @@ func cardFields(t *testing.T, text, word string) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	// TrimSuffix, not TrimSpace: the empty last columns end the row in tabs
+	lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
 	return strings.Split(lines[len(lines)-1], "\t")
 }
 
