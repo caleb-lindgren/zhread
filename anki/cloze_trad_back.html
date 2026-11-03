@@ -10,9 +10,11 @@
 <script>
 /* The word in traditional, and the simplified form after it in brackets
    when it differs, with the characters the two share as ～: 組合（组～）.
-   Each in its own script's font. */
+   Each in its own script's font. A word the same in both scripts has no
+   Traditional field, but is set in the traditional font all the same. */
 (function () {
   var t = "{{text:Traditional}}", s = "{{text:Simplified}}";
+  if (!t) t = s;
   var e = document.getElementById("word");
   function add(text, cls) {
     var span = document.createElement("span");
@@ -26,7 +28,7 @@
     if (a.length == b.length) {
       b = b.map(function (c, i) { return c == a[i] ? "～" : c; });
     }
-    add(t ? "（" + b.join("") + "）" : s, "simp");
+    add("（" + b.join("") + "）", "simp");
   }
 })();
 </script>
