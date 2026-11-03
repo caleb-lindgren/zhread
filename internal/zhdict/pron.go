@@ -45,7 +45,9 @@ func (p *Probe) LoadPron(d *Dict) error {
 		}
 		_, t := p.hits[f[0]]
 		_, s := p.hits[f[1]]
-		if t || s {
+		_, tt := p.targets[f[0]]
+		_, ts := p.targets[f[1]]
+		if t || s || tt || ts {
 			p.pron[f[0]] = append(p.pron[f[0]],
 				pronRow{tw: f[2], cn: f[3]})
 		}
@@ -155,7 +157,11 @@ func moeReading(py string) (label, reading string) {
 // hasReading reports whether an entry for word in a source of the given
 // language has the given primary reading.
 func (p *Probe) hasReading(word, reading string, lang int) bool {
-	for _, e := range p.hits[word] {
+	es := p.hits[word]
+	if len(es) == 0 {
+		es = p.targets[word]
+	}
+	for _, e := range es {
 		if sources[e.src].lang != lang ||
 			sources[e.src].kind == kindReadings {
 			continue

@@ -110,11 +110,20 @@ type Probe struct {
 	// reading as its source wrote it.
 	pron     map[string][]pronRow
 	PronPref string
+
+	// The entries of the standard forms of variants the input has, where
+	// the input does not have the standard form itself; see variants.go.
+	targets map[string][]entry
+	extra   bool // LoadExtra has run
+	// Trad says the input is traditional text, so a word matching an
+	// entry's simplified headword only was written as a variant.
+	Trad bool
 }
 
 // NewProbe enumerates every substring of every Han run of the input.
 func NewProbe(runs [][]rune) *Probe {
-	p := &Probe{hits: make(map[string][]entry)}
+	p := &Probe{hits: make(map[string][]entry),
+		targets: make(map[string][]entry)}
 	for _, run := range runs {
 		p.runs = append(p.runs, string(run))
 		for i := range run {
@@ -204,6 +213,7 @@ func (p *Probe) LoadExtra(d *Dict) error {
 	if err != nil {
 		return err
 	}
+	p.extra = true
 	for si, buf := range bufs {
 		if buf != nil {
 			p.scan(int32(si), &sources[si], buf)

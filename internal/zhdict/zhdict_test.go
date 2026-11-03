@@ -2,6 +2,7 @@ package zhdict
 
 import (
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -592,5 +593,92 @@ func TestWiktSenses(t *testing.T) {
 	if !pointerOnly("variant of 個|个[gè]; CL:個|个[gè]") ||
 		pointerOnly("to hit; variant of 個|个[gè]") {
 		t.Errorf("pointerOnly")
+	}
+}
+
+// TestVariants checks that variant entries fold into their standard form:
+// 暖's CC-CEDICT entries 煖, 㬉 and 煗 are only variants of it, and 卷起 is a
+// variant of 捲起 in traditional text but its own simplified form.
+func TestVariants(t *testing.T) {
+	en := func(g Group) (defs, heads, vars []string) {
+		for i := g.Zh; i < len(g.Rows); i++ {
+			defs = append(defs, g.Rows[i][NFields-1])
+			heads = append(heads, g.Rows[i][0])
+			vars = append(vars, g.Variant[i])
+		}
+		return
+	}
+	for _, c := range []struct {
+		text, word string
+		trad       bool
+		defs       []string
+		heads      []string
+		vars       []string
+	}{
+		{"暖", "暖", false, []string{"warm; to warm"}, []string{"暖"},
+			[]string{""}},
+		{"煖", "煖", true, []string{"warm; to warm"}, []string{"暖"},
+			[]string{"煖"}},
+		{"卷起", "卷起", false, nil, []string{"捲起"}, []string{""}},
+		{"卷起", "卷起", true, nil, []string{"捲起"}, []string{"卷起"}},
+	} {
+		p := newTestProbe(t, c.text)
+		p.Trad = c.trad
+		if err := p.LoadTargets(testDict(t)); err != nil {
+			t.Fatal(err)
+		}
+		defs, heads, vars := en(p.Rows(c.word))
+		for _, d := range defs {
+			if strings.Contains(d, "variant of") {
+				t.Errorf("%s (trad %v): variant row kept: %q",
+					c.word, c.trad, defs)
+			}
+		}
+		if c.defs != nil && !reflect.DeepEqual(defs, c.defs) {
+			t.Errorf("%s (trad %v): defs = %q, want %q", c.word,
+				c.trad, defs, c.defs)
+		}
+		if !reflect.DeepEqual(heads, c.heads) ||
+			!reflect.DeepEqual(vars, c.vars) {
+			t.Errorf("%s (trad %v): heads %q variants %q, "+
+				"want %q %q", c.word, c.trad, heads, vars,
+				c.heads, c.vars)
+		}
+	}
+}
+
+// markup matches HTML left in a definition: 兩岸詞典 has tables, <sup> and
+// <sub> in its cells, which parse_csld_defs.py turns into text, and any that
+// slipped through, from it or from another source, would show as raw tags.
+var markup = regexp.MustCompile(`(?i)</?(?:table|tr|td|th|br|sup|sub|` +
+	`u|b|i|font|span|div|p|a|img|em|strong|small|ruby|rt|hr|li|ul|ol)` +
+	`\b[^>]*>|&(?:[a-z]{2,8};|nbsp|amp|lt|gt|quot|sup[123]|#[0-9]+|` +
+	`#x[0-9a-fA-F]+)`)
+
+// TestNoMarkup checks every line of every source for HTML.
+func TestNoMarkup(t *testing.T) {
+	d := testDict(t)
+	extra, err := d.extraBufs()
+	if err != nil {
+		t.Skipf("extra sources unavailable: %v", err)
+	}
+	for si, s := range sources {
+		buf := d.bufs[si]
+		if s.extra {
+			buf = extra[si]
+		}
+		n := 0
+		for _, line := range strings.Split(string(buf), "\n") {
+			if m := markup.FindString(line); m != "" {
+				if n++; n <= 10 {
+					head, _, _ := strings.Cut(line, "\t")
+					t.Errorf("%s: %s has %q", s.path,
+						head, m)
+				}
+			}
+		}
+		if n > 10 {
+			t.Errorf("%s: %d lines with markup in all", s.path, n)
+		}
 	}
 }

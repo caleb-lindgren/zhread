@@ -15,12 +15,21 @@ four kinds of bar (∣ │ ︱ ｜), are a cell after it in MoEDict's form,
 如：「…」、「…」。; quotations among them are cells of their own after
 引：. The source's ～ for the headword is replaced by the headword. A word the source marks as used only on the Mainland (★)
 or in Taiwan (▲) has the mark as a cell of its own before the others.
+
+The source has HTML in 80 rows, which is turned into text (see unhtml):
+superscripts and subscripts (x<sup>2</sup>, X<sub>H</sub>) as Unicode ones
+where there are, else as ^ and _; and each row of a table, as 二十四節氣's of
+the solar terms, as a cell of its own, its columns separated by ideographic
+spaces and a cell spanning rows repeated in each. zhdict's TestNoMarkup
+checks that no source has any left.
 """
 
 import csv
+import html
 import os
 import re
 import sys
+from html.parser import HTMLParser
 
 from parse_csld import inventory, split, syllables
 
@@ -65,6 +74,106 @@ def examples(ex):
     return cells + cites
 
 
+SUP = str.maketrans("0123456789+-=()nac", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿᵃᶜ")
+SUB = str.maketrans("0123456789+-=()aehklmnopstxɑ",
+                    "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕₖₗₘₙₒₚₛₜₓₐ")
+TAG = re.compile(r"</?[a-zA-Z][^<>]*>")
+
+
+def script(m, table, mark):
+    """A <sup> or <sub>, as Unicode superscripts or subscripts where every
+    character has one, else marked with ^ or _: X<sub>H</sub> is X_H."""
+    t = html.unescape(TAG.sub("", m.group(2)))
+    if all(c.translate(table) != c or c in "，" for c in t):
+        return t.translate(table)
+    return mark + (t if len(t) == 1 else "(" + t + ")")
+
+
+def inline(c):
+    """Text with its inline HTML spelled out in plain text: superscripts and
+    subscripts as above, an overline (the Roman numeral X̅) as a combining
+    one, a line break as a space; other tags (<u>, <font>) are dropped,
+    keeping their text."""
+    c = re.sub(r"<(sup)>(.*?)</sup>", lambda m: script(m, SUP, "^"), c)
+    c = re.sub(r"<(sub)>(.*?)</sub>", lambda m: script(m, SUB, "_"), c)
+    c = re.sub(r'<span style="text-decoration:overline;">(.*?)</span>',
+               lambda m: "".join(ch + "\u0305" for ch in m.group(1)), c)
+    c = re.sub(r"<br\s*/?>", " ", c)
+    c = html.unescape(TAG.sub("", c))
+    return re.sub(r"\s+", " ", c).strip()
+
+
+class Table(HTMLParser):
+    """The rows of an HTML table as lists of cell texts, a cell spanning
+    rows repeated in each, so that every row reads on its own."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.rows, self.cell, self.spans = [], None, {}
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.rows.append([])
+        elif tag in ("td", "th"):
+            self.cell, self.rowspan = "", int(dict(attrs).get(
+                "rowspan") or 1)
+        elif self.cell is not None:
+            self.cell += self.get_starttag_text()
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self.cell is not None:
+            row = self.rows[-1]
+            self.fill(row)
+            if self.rowspan > 1:
+                self.spans[len(row)] = [self.cell, self.rowspan - 1]
+            row.append(self.cell)
+            self.cell = None
+        elif tag == "tr":
+            self.fill(self.rows[-1])
+        elif self.cell is not None:
+            self.cell += "</" + tag + ">"
+
+    def fill(self, row):
+        """Put in the cells of rows above that span this one."""
+        while len(row) in self.spans:
+            span = self.spans[len(row)]
+            row.append(span[0])
+            span[1] -= 1
+            if span[1] == 0:
+                del self.spans[len(row) - 1]
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell += data
+
+    def handle_entityref(self, name):
+        self.handle_data("&" + name + ";")
+
+    def handle_charref(self, name):
+        self.handle_data("&#" + name + ";")
+
+
+def unhtml(c):
+    """A definition cell with its HTML turned into text, as a list of
+    cells: the source puts tables of terms (二十四節氣, 八卦) inside a
+    definition, and each row of one becomes a cell of its own, its columns
+    separated by ideographic spaces."""
+    cells = []
+    for i, part in enumerate(re.split(r"(<table.*?</table>)", c)):
+        if i % 2 == 0:
+            part = inline(part)
+            if part:
+                cells.append(part)
+            continue
+        t = Table()
+        t.feed(part)
+        for row in t.rows:
+            text = "\u3000".join(x for x in map(inline, row) if x)
+            if text:
+                cells.append(text)
+    return cells
+
+
 def reading(py, zhuyin, syl):
     """The reading split into syllables, or as written if it cannot be."""
     py = py.strip().replace("ɡ", "g").replace("ɑ", "a").lower()
@@ -95,12 +204,11 @@ def main():
                     "〜", trad)
                 # A few cells have [例] more than once.
                 text, *ex = c.split("[例]")
-                ex = "｜".join(ex)
+                ex = inline("｜".join(ex))
                 if m := HEAD.match(text):
                     cells.append(m.group(1))
                     text = text[m.end():]
-                if text.strip():
-                    cells.append(text.strip())
+                cells += unhtml(text)
                 cells += examples(ex)
             if not cells:
                 continue

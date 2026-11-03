@@ -52,6 +52,13 @@ would interleave the two, because a long English gloss outruns a short
 Chinese one. A word only the Chinese dictionaries carry comes out as
 Chinese lines alone.
 
+An English definition that only points elsewhere ("see …", "CL:…") comes
+after the rest. An entry that is only a variant of another the word has,
+with the same reading, is left out: CC-CEDICT's 煖, 㬉 and 煗 simplify to 暖
+and say "variant of 暖[nuǎn]", and 兩岸詞典's 偺 is 我。同「咱」。. A word
+written only in a variant form, such as 煖, gets the standard form's
+entries instead, since they are where its definitions are.
+
 - Chinese: dict/csld.tsv (兩岸詞典), falling back to
   dict/MoEDICT/MoEDict-05-Simp03-cards.txt and dict/ccdict_additions.tsv.
 - English: dict/cedict_parsed.tsv and dict/cedict_additions.tsv, falling
