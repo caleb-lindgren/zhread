@@ -3,7 +3,9 @@
 // MoEDict gives Taiwan readings and CC-CEDICT Mainland ones, and for some
 // words they differ: 企業 is qì yè in Taiwan and qǐ yè on the Mainland. The
 // cross-strait dictionary lists both readings wherever they differ, and
-// csld_pron.tsv holds those rows (see dict/parse_csld.py). Each entry's
+// csld_pron.tsv holds those rows (see dict/parse_csld.py); wikt_pron.tsv
+// adds Wiktionary's pairs for words it lacks, such as 導播 dǎo bò against
+// dǎo bō (see dict/parse_wikt_pron.py). Each entry's
 // reading is matched against the side of the table its source speaks for,
 // and when a row matches, the preferred reading is printed first and the
 // other noted after it: "qǐ yè (TW qì yè)".
@@ -19,7 +21,9 @@ import (
 	"strings"
 )
 
-const pronPath = "csld_pron.tsv"
+// The reading tables, in the same layout. No word is in both: the
+// Wiktionary table leaves out those the cross-strait one has.
+var pronPaths = []string{"csld_pron.tsv", "wikt_pron.tsv"}
 
 // Reading preference, for -pron.
 const (
@@ -29,16 +33,17 @@ const (
 
 type pronRow struct{ tw, cn string }
 
-// loadPron reads the rows of the table whose headwords are candidates of
+// loadPron reads the rows of the tables whose headwords are candidates of
 // this input, keyed on the traditional form, which is what both sources'
 // first field holds.
 func (p *Probe) LoadPron(d *Dict) error {
-	buf, err := d.pronBuf()
+	bufs, err := d.pronBufs()
 	if err != nil {
 		return err
 	}
 	p.pron = make(map[string][]pronRow)
-	for _, line := range bytes.Split(buf, []byte("\n")) {
+	for _, line := range bytes.Split(bytes.Join(bufs, []byte("\n")),
+		[]byte("\n")) {
 		f := strings.Split(string(line), "\t")
 		if len(f) != 4 || f[0] == "trad" {
 			continue

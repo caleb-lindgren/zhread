@@ -98,6 +98,21 @@ def bold_roman(rec):
     return ""
 
 
+def syllabify(word, py, syl):
+    """Split py into a syllable per character of word, an erhua 兒 being
+    part of the syllable before it: 中不溜兒 is zhōng bù liūr. Fewer
+    syllables are tried first, since a reading can often be forced into
+    too many (z hōng bù liūr), but rarely into too few. None if no split
+    fits."""
+    n = len(HAN.findall(word))
+    py = py.lower()
+    for k in range(word.count("兒"), -1, -1):
+        s = split(py, n - k, syl)
+        if s is not None:
+            return s
+    return None
+
+
 def readings(rec, syl):
     """The Standard Mandarin reading and a differing Taiwan one, split
     into syllables.
@@ -117,7 +132,13 @@ def readings(rec, syl):
             continue
         if not tags & {"Standard", "Standard-Chinese"}:
             continue
-        py = re.sub(r"\s*\(.*?\)\s*$", "", s["zh_pron"]).strip()
+        # A reading tagged phonetic spells out tone sandhi (lífǎ after
+        # 理髮's Taiwan lǐfǎ); one may also carry it after the reading,
+        # unclosed: "bùkānyījí [Phonetic: bùkānyìjí".
+        if "phonetic" in tags:
+            continue
+        py = re.sub(r"\s*\[Phonetic:.*$", "", s["zh_pron"])
+        py = re.sub(r"\s*\(.*?\)\s*$", "", py).strip()
         first = first or py
         if "Mainland-China" in tags:
             mainland = py
@@ -127,12 +148,11 @@ def readings(rec, syl):
     tw = ""
     if mainland and taiwan and squash(mainland) == squash(cn):
         tw = taiwan
-    n = len(HAN.findall(rec["word"]))
 
     def sp(py):
         if not py or " " in py:
             return py
-        return split(py.lower(), n, syl) or py
+        return syllabify(rec["word"], py, syl) or py
 
     cn, tw = sp(cn), sp(tw)
     if squash(tw) == squash(cn):

@@ -91,12 +91,13 @@ word whichever dictionary it came from:
 The differences come from the cross-strait dictionary (兩岸詞典), which
 gives both readings for every entry where they differ; dict/csld_pron.tsv
 holds the 6,440 of its rows that differ in pronunciation rather than only
-in notation (see dict/README). A reading is looked up in the column for the
-side its dictionary speaks for, and in the other column too for MoEDict,
-which sometimes already gives the Mainland reading (認識 rèn shi).
-CC-CEDICT's own "Taiwan pr. [...]" note, when it ends a definition, moves
-into the reading column; one inside parentheses applies to a single sense
-and stays where it is.
+in notation (see dict/README). For words it lacks, dict/wikt_pron.tsv adds
+2,269 pairs from Wiktionary, such as 導播 dǎo bò against dǎo bō. A
+reading is looked up in the column for the side its dictionary speaks for,
+and in the other column too for MoEDict, which sometimes already gives the
+Mainland reading (認識 rèn shi). CC-CEDICT's own "Taiwan pr. [...]" note,
+when it ends a definition, moves into the reading column; one inside
+parentheses applies to a single sense and stays where it is.
 
 The table's rows are per sense but do not say which sense, so a row is not
 applied where it could belong to another entry. A Taiwan reading that

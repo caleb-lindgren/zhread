@@ -420,7 +420,7 @@ func TestFreqLookup(t *testing.T) {
 }
 
 func TestReadings(t *testing.T) {
-	p := newTestProbe(t, "企業和模認識垃圾")
+	p := newTestProbe(t, "企業和模認識垃圾導播")
 	if err := p.LoadPron(testDict(t)); err != nil {
 		t.Skipf("reading table unavailable: %v", err)
 	}
@@ -450,6 +450,12 @@ func TestReadings(t *testing.T) {
 		// mó is a Mainland reading too, so the row mó → mú, which is
 		// about another sense, is not applied to it.
 		{"模", "◆ <名>  ｜ ① 範式", "mó", "mó"},
+		// A pair from Wiktionary, for a word the cross-strait
+		// dictionary lacks.
+		{"導播", "電視節目", "dǎo bō (TW dǎo bò)",
+			"dǎo bò (CN dǎo bō)"},
+		{"導播", "to direct", "dǎo bō (TW dǎo bò)",
+			"dǎo bò (CN dǎo bō)"},
 	}
 	for _, pref := range []string{PronCN, PronTW} {
 		p.PronPref = pref
