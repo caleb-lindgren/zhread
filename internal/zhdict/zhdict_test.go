@@ -488,7 +488,7 @@ func TestReadings(t *testing.T) {
 // Mainland's.
 func TestReadingFallback(t *testing.T) {
 	d := testDict(t)
-	p := newTestProbe(t, "一字不识溜冰場閩語羧")
+	p := newTestProbe(t, "一字不识溜冰場閩語羧下咽薄伽丘標致")
 	if err := p.LoadExtra(d); err != nil {
 		t.Skipf("extra sources unavailable: %v", err)
 	}
@@ -519,6 +519,13 @@ func TestReadingFallback(t *testing.T) {
 			"mín yǔ (CN Mǐn yǔ)"},
 		// A single character.
 		{"羧", "CC-CEDICT", "", "suō", "suō"},
+		// Two readings in CC-CEDICT, beautiful and Peugeot.
+		{"標致", "CC-CEDICT", "(of a woman)", "biāo zhi", "biāo zhi"},
+		// Two senses, listed in fallback_exclude.tsv.
+		{"下咽", "CC-CEDICT", "(anatomy)", "xià yān", "xià yān"},
+		// The Wiktionary table's row applies to neither reading.
+		{"薄伽丘", "MoE", "", "Bó jiā qiū (TW bó qié qiū)",
+			"bó qié qiū (CN Bó jiā qiū)"},
 	}
 	for _, pref := range []string{PronCN, PronTW} {
 		p.PronPref = pref

@@ -109,6 +109,7 @@ type Probe struct {
 	// which side to print first; see pron.go. A nil map leaves every
 	// reading as its source wrote it.
 	pron     map[string][]pronRow
+	exclude  map[string]pronRow // fallback pairs not to apply, tw/cn
 	PronPref string
 
 	// The entries of the standard forms of variants the input has, where

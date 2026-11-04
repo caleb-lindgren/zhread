@@ -20,6 +20,7 @@ type Dict struct {
 	freqOnce, pronOnce sync.Once
 	freq               []byte
 	pron               [][]byte // one per entry of pronPaths
+	exclude            []byte   // excludePath
 	freqErr, pronErr   error
 
 	extraOnce sync.Once
@@ -87,6 +88,10 @@ func (d *Dict) pronBufs() ([][]byte, error) {
 				return
 			}
 			d.pron = append(d.pron, buf)
+		}
+		d.exclude, d.pronErr = mapFile(filepath.Join(d.dir, excludePath))
+		if d.pronErr != nil {
+			d.pron = nil
 		}
 	})
 	return d.pron, d.pronErr

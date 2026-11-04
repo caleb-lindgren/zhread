@@ -26,6 +26,12 @@ import (
 // Wiktionary table leaves out those the cross-strait one has.
 var pronPaths = []string{"csld_pron.tsv", "wikt_pron.tsv"}
 
+// excludePath lists the words fallback is not to rewrite: those whose
+// MoEDict and CC-CEDICT entries were checked and found to be two senses
+// rather than two standards. Columns: trad, MoEDict's reading,
+// CC-CEDICT's, a note.
+const excludePath = "fallback_exclude.tsv"
+
 // Reading preference, for -pron.
 const (
 	PronCN = "cn"
@@ -56,6 +62,13 @@ func (p *Probe) LoadPron(d *Dict) error {
 		if t || s || tt || ts {
 			p.pron[f[0]] = append(p.pron[f[0]],
 				pronRow{tw: f[2], cn: f[3]})
+		}
+	}
+	p.exclude = make(map[string]pronRow)
+	for _, line := range bytes.Split(d.exclude, []byte("\n")) {
+		f := strings.Split(string(line), "\t")
+		if len(f) == 4 && f[0] != "trad" {
+			p.exclude[f[0]] = pronRow{tw: f[1], cn: f[2]}
 		}
 	}
 	return nil
@@ -166,8 +179,11 @@ func moeReading(py string) (label, reading string) {
 	return label, reading
 }
 
-// fallback gives the readings of a word that neither table has, when
-// MoEDict and CC-CEDICT each have exactly one for it and they differ.
+// fallback gives the readings of a word that neither table has a row for,
+// when MoEDict and CC-CEDICT each have exactly one and they differ. A row
+// that applies to neither is about some other reading, or is wrong:
+// Wiktionary's 薄伽丘 is bo qié qiú against bó jiā qiū, where MoEDict has
+// bó qié qiū and CC-CEDICT, capitalised, Bó jiā qiū.
 // MoEDict's is then taken for Taiwan's and CC-CEDICT's for the Mainland's:
 // 一字不識 yī zì bù shì against yī zì bù shí, 保住 bǎo zhu against
 // bǎo zhù. Most such pairs are the two standards, but not all, so the
@@ -182,20 +198,20 @@ func moeReading(py string) (label, reading string) {
 //     and has no row in its table, it gives one reading for both sides,
 //     and its line is shown rather than MoEDict's.
 //
-// Even so, about one pair in twenty-five is two senses: 下咽 xià yàn "to
-// swallow" against xià yān "hypopharynx", 寶子 bǎo zǐ an incense burner
-// against bǎo zi "babe", and among proper nouns 南樂 nán yuè southern
-// music against Nán lè the county. Proper nouns are kept all the same,
-// since most are regional readings like any other: 閩語 mín yǔ against
-// Mǐn yǔ, 好萊塢 hǎo lái wū against Hǎo lái wù.
+// Even so, some pairs are two senses: 下咽 xià yàn "to swallow" against
+// xià yān "hypopharynx", 寶子 bǎo zǐ an incense burner against bǎo zi
+// "babe", and among proper nouns 南樂 nán yuè southern music against
+// Nán lè the county. Those found by checking each pair by hand are in
+// excludePath. Proper nouns are kept all the same, since most are
+// regional readings like any other: 閩語 mín yǔ against Mǐn yǔ, 好萊塢
+// hǎo lái wū against Hǎo lái wù.
 //
 // Whether the cross-strait dictionary has the word is known only once
 // LoadExtra has run; before then there is no fallback.
 func (p *Probe) fallback(w *[NFields]string) (moe, cedict string,
 	ok bool) {
 	word := w[0]
-	if !p.extra || utf8.RuneCountInString(word) < 2 ||
-		len(p.pron[word]) > 0 {
+	if !p.extra || utf8.RuneCountInString(word) < 2 {
 		return "", "", false
 	}
 	var nm, nc int
@@ -229,11 +245,12 @@ func (p *Probe) fallback(w *[NFields]string) (moe, cedict string,
 			// A name and a common noun can share a reading, in
 			// different case (名利場 Míng lì chǎng and míng lì
 			// chǎng); the lower-case spelling is kept.
+			if nc > 0 && !strings.EqualFold(squash(f[2]),
+				squash(cedict)) {
+				return "", "", false
+			}
 			if nc == 0 || f[2] == strings.ToLower(f[2]) {
 				cedict = f[2]
-			}
-			if !strings.EqualFold(squash(f[2]), squash(cedict)) {
-				return "", "", false
 			}
 			nc++
 		}
@@ -241,6 +258,21 @@ func (p *Probe) fallback(w *[NFields]string) (moe, cedict string,
 	if nm == 0 || nc == 0 ||
 		strings.EqualFold(squash(moe), squash(cedict)) {
 		return "", "", false
+	}
+	// An exclusion holds while both dictionaries give the readings it
+	// was checked against.
+	if x, ok := p.exclude[word]; ok && squash(x.tw) == squash(moe) &&
+		squash(x.cn) == squash(cedict) {
+		return "", "", false
+	}
+	// A row is in the way only if readings would apply it: to MoEDict's
+	// reading on either side, to CC-CEDICT's on the Mainland side, in
+	// the same case, as pronMatch compares.
+	for _, r := range p.pron[word] {
+		m, t, c := squash(moe), squash(r.tw), squash(r.cn)
+		if m == t || m == c || squash(cedict) == c {
+			return "", "", false
+		}
 	}
 	return moe, cedict, true
 }
