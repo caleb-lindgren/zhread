@@ -90,7 +90,7 @@ word whichever dictionary it came from:
 
 The differences come from the cross-strait dictionary (兩岸詞典), which
 gives both readings for every entry where they differ; dict/csld_pron.tsv
-holds the 6,440 of its rows that differ in pronunciation rather than only
+holds the 6,443 of its rows that differ in pronunciation rather than only
 in notation (see dict/README). For words it lacks, dict/wikt_pron.tsv adds
 2,269 pairs from Wiktionary, such as 導播 dǎo bò against dǎo bō. A
 reading is looked up in the column for the side its dictionary speaks for,
@@ -105,8 +105,21 @@ CC-CEDICT also gives the word is left alone: MoEDict's 模 mó "model" is
 mó on the Mainland too, and the table's 模 mó → mú is about 模 "mould".
 Likewise a Mainland reading is not matched when the dictionary has the
 row's other reading as an entry of its own: 和 hé "sum" is not the 和 hàn
-"and" that the Mainland reads hé. Such entries, and any word the table
-does not have, print the reading their dictionary gives, unmarked.
+"and" that the Mainland reads hé. Such entries print the reading their
+dictionary gives, unmarked.
+
+A word neither table has falls back on the two dictionaries themselves:
+where MoEDict and CC-CEDICT each give it exactly one reading and the two
+differ, MoEDict's is taken for Taiwan's and CC-CEDICT's for the
+Mainland's, on both lines (一字不識 yī zì bù shí (TW yī zì bù shì)). This
+applies to words of two or more characters that 兩岸詞典 does not have,
+about 700 of them. Neutral tones count (保住 bǎo zhù (TW bǎo zhu)). About
+one pair in twenty-five, judged from a sample of 80, is two senses rather
+than two standards: 下咽 xià yàn "to swallow" against xià yān
+"hypopharynx". Single characters are left out because that is much
+commoner among them (羧 zuī a woollen cloth, suō the carboxyl), and so
+are words with several readings in either dictionary. Any other word
+prints the reading its dictionary gives, unmarked.
 
 ### Segmentation
 

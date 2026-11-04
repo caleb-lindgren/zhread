@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // The reading tables, in the same layout. No word is in both: the
@@ -98,8 +99,11 @@ func (p *Probe) readings(f *[NFields]string, e entry) {
 			tw = f[3][m[2]:m[3]]
 			f[3] = f[3][:m[0]]
 		} else if r, ok := p.pronMatch(f[0], py, false); ok &&
-			!p.hasReading(f[0], r.tw, LangEn) {
+			!p.hasReading(f, r.tw, LangEn) {
 			tw = r.tw
+		} else if moe, ce, ok := p.fallback(f); ok &&
+			strings.EqualFold(squash(ce), squash(py)) {
+			tw = moe
 		}
 	default:
 		label, reading := moeReading(py)
@@ -117,11 +121,14 @@ func (p *Probe) readings(f *[NFields]string, e entry) {
 		// row's Taiwan reading as an entry of its own: 和 hé "sum" is
 		// not the 和 hàn "and" whose Mainland reading is hé.
 		if r, ok := p.pronMatch(f[0], reading, true); ok &&
-			!p.hasReading(f[0], reading, LangEn) {
+			!p.hasReading(f, reading, LangEn) {
 			tw, cn = py, label+r.cn
 		} else if r, ok := p.pronMatch(f[0], reading, false); ok &&
-			!p.hasReading(f[0], r.tw, LangZh) {
+			!p.hasReading(f, r.tw, LangZh) {
 			tw, cn = label+r.tw, py
+		} else if moe, ce, ok := p.fallback(f); ok &&
+			squash(moe) == squash(reading) {
+			tw, cn = py, label+ce
 		} else {
 			return
 		}
@@ -159,14 +166,110 @@ func moeReading(py string) (label, reading string) {
 	return label, reading
 }
 
-// hasReading reports whether an entry for word in a source of the given
-// language has the given primary reading.
-func (p *Probe) hasReading(word, reading string, lang int) bool {
-	es := p.hits[word]
-	if len(es) == 0 {
-		es = p.targets[word]
+// fallback gives the readings of a word that neither table has, when
+// MoEDict and CC-CEDICT each have exactly one for it and they differ.
+// MoEDict's is then taken for Taiwan's and CC-CEDICT's for the Mainland's:
+// 一字不識 yī zì bù shì against yī zì bù shí, 保住 bǎo zhu against
+// bǎo zhù. Most such pairs are the two standards, but not all, so the
+// rule is kept to where a mismatch is least likely to be two senses:
+//
+//   - The word has more than one character. A single character's
+//     readings are often of different senses: MoEDict's 羧 zuī is a
+//     woollen cloth, CC-CEDICT's suō the carboxyl.
+//   - Each dictionary has one reading. Several mean several senses, or
+//     an alternative reading (MoEDict's 渴 hé, "backflowing water").
+//   - The cross-strait dictionary does not have the word. Where it does
+//     and has no row in its table, it gives one reading for both sides,
+//     and its line is shown rather than MoEDict's.
+//
+// Even so, about one pair in twenty-five is two senses: 下咽 xià yàn "to
+// swallow" against xià yān "hypopharynx", 寶子 bǎo zǐ an incense burner
+// against bǎo zi "babe", and among proper nouns 南樂 nán yuè southern
+// music against Nán lè the county. Proper nouns are kept all the same,
+// since most are regional readings like any other: 閩語 mín yǔ against
+// Mǐn yǔ, 好萊塢 hǎo lái wū against Hǎo lái wù.
+//
+// Whether the cross-strait dictionary has the word is known only once
+// LoadExtra has run; before then there is no fallback.
+func (p *Probe) fallback(w *[NFields]string) (moe, cedict string,
+	ok bool) {
+	word := w[0]
+	if !p.extra || utf8.RuneCountInString(word) < 2 ||
+		len(p.pron[word]) > 0 {
+		return "", "", false
 	}
-	for _, e := range es {
+	var nm, nc int
+	for _, e := range p.entriesOf(w) {
+		s := sources[e.src]
+		if s.kind == kindReadings {
+			head := string(splitN(e.line, '\t', 2)[0])
+			if s.lang == LangZh && head == word {
+				return "", "", false
+			}
+			continue
+		}
+		f := e.Fields()
+		if f[0] != word || f[2] == "" {
+			continue
+		}
+		switch s.lang {
+		case LangZh:
+			_, r := moeReading(f[2])
+			if nm == 0 {
+				moe = r
+			}
+			if squash(r) != squash(moe) {
+				return "", "", false
+			}
+			nm++
+		case LangEn:
+			if cedictTaiwan.MatchString(f[3]) {
+				return "", "", false
+			}
+			// A name and a common noun can share a reading, in
+			// different case (名利場 Míng lì chǎng and míng lì
+			// chǎng); the lower-case spelling is kept.
+			if nc == 0 || f[2] == strings.ToLower(f[2]) {
+				cedict = f[2]
+			}
+			if !strings.EqualFold(squash(f[2]), squash(cedict)) {
+				return "", "", false
+			}
+			nc++
+		}
+	}
+	if nm == 0 || nc == 0 ||
+		strings.EqualFold(squash(moe), squash(cedict)) {
+		return "", "", false
+	}
+	return moe, cedict, true
+}
+
+// entriesOf gives the entries that may be of the word whose fields f
+// are. The candidates are keyed on the form the input has, which may be
+// either headword: 一字不识 finds the entries of 一字不識 under its
+// simplified form. Callers still check the traditional headword.
+func (p *Probe) entriesOf(f *[NFields]string) []entry {
+	var es []entry
+	for i, k := range []string{f[0], f[1]} {
+		if i == 1 && k == f[0] {
+			break
+		}
+		if hs := p.hits[k]; len(hs) > 0 {
+			es = append(es, hs...)
+		} else {
+			es = append(es, p.targets[k]...)
+		}
+	}
+	return es
+}
+
+// hasReading reports whether an entry in a source of the given language
+// for the word whose fields f are has the given primary reading.
+func (p *Probe) hasReading(f *[NFields]string, reading string,
+	lang int) bool {
+	word := f[0]
+	for _, e := range p.entriesOf(f) {
 		if sources[e.src].lang != lang ||
 			sources[e.src].kind == kindReadings {
 			continue

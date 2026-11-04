@@ -483,6 +483,71 @@ func TestReadings(t *testing.T) {
 	}
 }
 
+// TestReadingFallback covers words neither reading table has, where
+// MoEDict's reading is taken for Taiwan's and CC-CEDICT's for the
+// Mainland's.
+func TestReadingFallback(t *testing.T) {
+	d := testDict(t)
+	p := newTestProbe(t, "一字不识溜冰場閩語羧")
+	if err := p.LoadExtra(d); err != nil {
+		t.Skipf("extra sources unavailable: %v", err)
+	}
+	if err := p.LoadPron(d); err != nil {
+		t.Skipf("reading table unavailable: %v", err)
+	}
+	read := func(word, src, def string) string {
+		t.Helper()
+		g := p.Rows(word)
+		for i, r := range g.Rows {
+			if g.Source(i) == src && strings.HasPrefix(r[3], def) {
+				return r[2]
+			}
+		}
+		t.Fatalf("no %s line of %s starts %q", src, word, def)
+		return ""
+	}
+	cases := []struct{ word, src, def, cn, tw string }{
+		// Simplified input finds the traditional entries.
+		{"一字不识", "MoE", "", "yī zì bù shí (TW yī zì bù shì)",
+			"yī zì bù shì (CN yī zì bù shí)"},
+		{"一字不识", "CC-CEDICT", "", "yī zì bù shí (TW yī zì bù shì)",
+			"yī zì bù shì (CN yī zì bù shí)"},
+		// The cross-strait dictionary has the word, with one reading.
+		{"溜冰場", "CC-CEDICT", "", "liū bīng chǎng", "liū bīng chǎng"},
+		// A proper noun: CC-CEDICT's capitals are kept.
+		{"閩語", "MoE", "", "Mǐn yǔ (TW mín yǔ)",
+			"mín yǔ (CN Mǐn yǔ)"},
+		// A single character.
+		{"羧", "CC-CEDICT", "", "suō", "suō"},
+	}
+	for _, pref := range []string{PronCN, PronTW} {
+		p.PronPref = pref
+		for _, c := range cases {
+			want := c.cn
+			if pref == PronTW {
+				want = c.tw
+			}
+			if got := read(c.word, c.src, c.def); got != want {
+				t.Errorf("-pron %s: %s %s: got %q, want %q",
+					pref, c.word, c.src, got, want)
+			}
+		}
+	}
+
+	// Without the extra sources it cannot be told whether the
+	// cross-strait dictionary has the word, so nothing is rewritten.
+	q := newTestProbe(t, "一字不識")
+	if err := q.LoadPron(d); err != nil {
+		t.Skipf("reading table unavailable: %v", err)
+	}
+	q.PronPref = PronCN
+	for _, r := range q.Rows("一字不識").Rows {
+		if strings.Contains(r[2], "(TW") {
+			t.Errorf("without LoadExtra: got %q", r[2])
+		}
+	}
+}
+
 func TestMoELines(t *testing.T) {
 	def := "◆ <動>  ｜ ① 擊、敲擊。 ｜ 如：「打鐵趁熱」。 ｜ " +
 		"唐．杜甫．詩：「打鼓發船何郡郎。」 ｜ 似：擊 ｜ ◆ <名> 量詞。"
