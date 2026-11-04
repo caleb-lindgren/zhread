@@ -1223,8 +1223,10 @@ func TestCardKeys(t *testing.T) {
 		rows := screen(s)
 		return rows[len(rows)-1]
 	}
-	if st := status(); !strings.Contains(st, "gh F1: keys") ||
-		strings.Contains(st, "Enter") {
+	// no keys, but at the right the toggles that change the card
+	if st := strings.TrimSpace(status()); !strings.HasSuffix(st,
+		" c E") || strings.Contains(st, "Enter") ||
+		strings.Contains(st, "gh") {
 		t.Errorf("status line: %q", st)
 	}
 	keys(v, "gh")
@@ -1268,12 +1270,33 @@ func TestPaneMarks(t *testing.T) {
 		return ""
 	}
 	for _, c := range []struct{ keys, want string }{
-		{"", " c "}, {"j", " x "}, {"je", " c E "},
+		{"", "─ c e  ↓"}, {"j", "─ x c e ─"}, {"j", "─ c e ─"},
+		{"e", "─ c e E ─"},
 	} {
 		keys(v, c.keys)
 		if r := rule(); !strings.Contains(r, c.want) {
 			t.Errorf("after %q: rule %q, want %q", c.keys, r,
 				c.want)
 		}
+	}
+}
+
+// TestCardMarks checks that the card's status line notes x only while a
+// ticked definition has quotations.
+func TestCardMarks(t *testing.T) {
+	v, s := newTestView(t, "须臾\n")
+	keys(v, "⏎")
+	end := func() string {
+		rows := screen(s)
+		f := strings.Fields(rows[len(rows)-1])
+		return strings.Join(f[3:], " ")
+	}
+	if got := end(); got != "c E" {
+		t.Errorf("須臾: marks %q, want %q", got, "c E")
+	}
+	// its second sense, unticked, has the quotation
+	keys(v, "j ")
+	if got := end(); got != "x c E" {
+		t.Errorf("須臾 with its second sense ticked: marks %q", got)
 	}
 }

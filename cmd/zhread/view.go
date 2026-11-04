@@ -631,19 +631,23 @@ func (v *view) pane() []styled {
 	return out
 }
 
-// toggles are those of x, c and E that would change what the pane shows of
-// g: x when a definition shown has quotations it hides (a sense that is
-// only quotations shows them anyway), c when MoEDict has a definition
-// hidden or shown beside 兩岸詞典, and E the same for Wiktionary beside
+// toggles are those of x, c, e and E that would change what the pane
+// shows of g: x when a definition shown has quotations it hides (a sense
+// that is only quotations shows them anyway), c when MoEDict has a
+// definition hidden or shown beside 兩岸詞典, e when there are English
+// definitions after Chinese ones, and E when Wiktionary has one beside
 // CC-CEDICT, while the English is shown.
 func (v *view) toggles(g zhdict.Group) string {
 	en := v.showEn || g.Zh == 0
-	var x, c, e bool
+	var x, c, e, E bool
 	for i := range g.Rows {
+		if i >= g.Zh && g.Zh > 0 {
+			e = true
+		}
 		if g.Extra[i] && i < g.Zh {
 			c = true
 		} else if g.Extra[i] && en {
-			e = true
+			E = true
 		}
 		if x || i >= g.Zh && !en || !v.shows(g, i) {
 			continue
@@ -654,16 +658,41 @@ func (v *view) toggles(g zhdict.Group) string {
 					(sn.Text != "" || len(sn.Ex) > 0)
 			})
 	}
+	return marks(x, c, e, E)
+}
+
+// marks notes which of x, c, e and E have anything to show or hide.
+func marks(x, c, e, E bool) string {
 	var out []string
 	for _, t := range []struct {
 		on bool
 		k  string
-	}{{x, "x"}, {c, "c"}, {e, "E"}} {
+	}{{x, "x"}, {c, "c"}, {e, "e"}, {E, "E"}} {
 		if t.on {
 			out = append(out, t.k)
 		}
 	}
 	return strings.Join(out, " ")
+}
+
+// cardToggles are those of x, c and E that would change the card: x when
+// a definition ticked has quotations, c when MoEDict has a definition
+// beside 兩岸詞典, and E when Wiktionary has one beside CC-CEDICT. e is
+// never one, as the card lists its English definitions whatever e says.
+func (v *view) cardToggles() string {
+	dr := v.dr
+	var x, c, E bool
+	for i, o := range dr.opts {
+		x = x || dr.sel[i] && len(o.s.Cites) > 0
+	}
+	for i := range dr.g.Rows {
+		if dr.g.Extra[i] && i < dr.g.Zh {
+			c = true
+		} else if dr.g.Extra[i] {
+			E = true
+		}
+	}
+	return marks(x, c, false, E)
 }
 
 // shows reports whether row i of g is shown: a fallback dictionary's
@@ -2260,16 +2289,7 @@ func (v *view) drawCard() {
 		v.drawPane(maxY, ph, &v.cscroll, keys, "")
 	}
 	// The keys are listed on gh, not here, but for the questions.
-	help := "gh F1: keys"
-	switch {
-	case v.chelp && dr.editing:
-		help = "gh F1: hide the keys"
-	case v.chelp:
-		help = "gh F1 Esc: hide the keys"
-	}
-	if dr.editing && dr.curVi().insert {
-		help = strings.TrimPrefix(help, "gh ")
-	}
+	help := ""
 	st := stHint
 	switch {
 	case dr.discard:
@@ -2290,7 +2310,13 @@ func (v *view) drawCard() {
 	case dr.editing:
 		mode = "-- NORMAL --"
 	}
-	text := clip([]rune(mode+"  "+help), v.w)
+	// At the right, the toggles that would change the card, as on the
+	// reader's rule.
+	right := ""
+	if m := v.cardToggles(); m != "" {
+		right = " " + m + " "
+	}
+	text := clip([]rune(mode+"  "+help), v.w-zhdict.Width(right))
 	n := len([]rune(mode))
 	v.put(0, v.h-1, v.h, text, func(i int) tcell.Style {
 		if i < n {
@@ -2298,6 +2324,10 @@ func (v *view) drawCard() {
 		}
 		return st
 	})
+	if right != "" {
+		v.put(max(v.w-zhdict.Width(right), 0), v.h-1, v.h,
+			[]rune(right), plain(stHint))
+	}
 }
 
 // optLines are the lines option i takes in the card preview: a blank one

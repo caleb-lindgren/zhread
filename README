@@ -216,10 +216,11 @@ has "(carded)" under the word instead. The definitions pane is as tall as what
 it shows, up to half the screen, so short entries leave the text more room; it
 is measured again on every redraw, a resize included. A longer entry scrolls
 with `J` and `K`, and the rule above it notes how many rows are out of view (↑2
-↓5), and before that which of `x`, `c` and `E` would change what the pane shows
-for the word: `x` when a definition shown has quotations it hides, `c` when
-MoEDict has a definition beside 兩岸詞典's, `E` when Wiktionary has one beside
-CC-CEDICT's while English is shown. `gh` or F1 shows the keys there instead.
+↓5), and before that which of `x`, `c`, `e` and `E` would change what the pane
+shows for the word: `x` when a definition shown has quotations it hides, `c`
+when MoEDict has a definition beside 兩岸詞典's, `e` when there are English
+definitions after Chinese ones, `E` when Wiktionary has one beside CC-CEDICT's
+while English is shown. `gh` or F1 shows the keys there instead.
 
 Readings are Mainland, as in multizhdict; `t` adds the Taiwan reading where it
 differs, as "qǐ yè (TW qì yè)", and a card made while it is shown carries both.
@@ -327,9 +328,11 @@ The preview shows:
   normal mode goes back to the list, as do `j` and `k`, which move on as well;
   Enter saves. The bottom line starts with the mode: `-- LIST --`, `-- NORMAL
   --` or `-- INSERT --`; after it come only the card's questions and warnings,
-  the keys being listed instead by `gh` or F1, as in the reader, in a pane
-  below the card that `J` and `K` scroll. Esc in the list hides the keys
-  before it cancels. Editing the text's own script converts the other script's
+  and at its right, as on the reader's rule, which of `x` (a ticked definition
+  has quotations), `c` and `E` would change the card. `e` never would: the
+  card lists the English definitions whatever it says. The keys are listed
+  instead by `gh` or F1, as in the reader, in a pane below the card that `J`
+  and `K` scroll. Esc in the list hides the keys before it cancels. Editing the text's own script converts the other script's
   line again, unless that line has been edited itself. The edge keys start
   again from the text, undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
