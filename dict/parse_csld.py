@@ -9,6 +9,9 @@ differ in pronunciation are kept, not those differing only in notation:
 the Taiwan column writes the tone sandhi of 一 and 不 (一人 yìrén) and
 erhua as spoken (一點兒 yìdiǎr), where the Mainland column writes the base
 forms (yīrén, yīdiǎnr).
+
+The source's pinyin has typos (坑人 kēngrēn, 奎 kúi, 呼牛呼馬 hūniú-hūm),
+corrected from csld_fixes.tsv; see pinyin() and check_csld.py.
 """
 
 import csv
@@ -108,16 +111,46 @@ def notational(trad, tw, cn):
     return True
 
 
+SIDES = {"tw": "臺灣", "cn": "大陸"}
+
+
+def load_fixes(here):
+    """csld_fixes.tsv, keyed on (trad, side): the source's pinyin and the
+    reading to use instead."""
+    fixes = {}
+    with open(f"{here}/csld_fixes.tsv", encoding="utf-8") as f:
+        next(f)
+        for line in f:
+            trad, side, source, fixed, _ = line.rstrip("\n").split("\t")
+            fixes[(trad, side)] = (source, fixed)
+    return fixes
+
+
+def pinyin(r, side, fixes):
+    """The row's pinyin for side ("tw" or "cn"), corrected where
+    csld_fixes.tsv has the word. A fix applies only to the reading it
+    was made against: a word can have several rows (酇 cuó and zàn), and
+    a source corrected upstream is not overwritten. check_csld.py lists
+    a typo whose fix no longer applies."""
+    trad = r["正體字形"].strip()
+    py = r[SIDES[side] + "漢拼"].strip()
+    fix = fixes.get((trad, side))
+    if fix is None or fix[0] != py:
+        return py
+    return fix[1]
+
+
 def main():
     src = sys.argv[1]
     here = os.path.dirname(os.path.abspath(__file__))
     syl = inventory(f"{here}/cedict_parsed.tsv")
+    fixes = load_fixes(here)
     w = csv.writer(sys.stdout, delimiter="\t", lineterminator="\n")
     w.writerow(["trad", "simp", "tw", "cn"])
     skipped = 0
     with open(src, encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            cn = r["大陸漢拼"].strip()
+            cn = pinyin(r, "cn", fixes)
             if not cn:
                 continue
             # A reading the Mainland has and Taiwan lacks pairs with
@@ -129,7 +162,7 @@ def main():
             fix = lambda s: s.replace("ɡ", "g").replace("ɑ", "a").lower()
             tw_n = syllables(r["臺灣音讀"])
             cn_n = syllables(r["大陸音讀"])
-            tw = split(fix(r["臺灣漢拼"]), tw_n, syl)
+            tw = split(fix(pinyin(r, "tw", fixes)), tw_n, syl)
             cnp = split(fix(cn), cn_n, syl)
             if tw is None or cnp is None:
                 skipped += 1

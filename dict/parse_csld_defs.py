@@ -31,7 +31,7 @@ import re
 import sys
 from html.parser import HTMLParser
 
-from parse_csld import inventory, split, syllables
+from parse_csld import inventory, load_fixes, pinyin, split, syllables
 
 BARS = str.maketrans({"∣": "｜", "│": "｜", "︱": "｜"})
 GLOSS = re.compile(r"(（[^（）]*）)$")
@@ -185,6 +185,7 @@ def reading(py, zhuyin, syl):
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     syl = inventory(f"{here}/cedict_parsed.tsv")
+    fixes = load_fixes(here)
     print("trad\tsimp\ttw\tcn\tdef")
     with open(sys.argv[1], encoding="utf-8") as f:
         for r in csv.DictReader(f):
@@ -215,8 +216,8 @@ def main():
             mark = r["臺／陸特有詞"].strip()
             if mark:
                 cells.insert(0, mark)
-            tw = reading(r["臺灣漢拼"], r["臺灣音讀"], syl)
-            cn = reading(r["大陸漢拼"], r["大陸音讀"], syl)
+            tw = reading(pinyin(r, "tw", fixes), r["臺灣音讀"], syl)
+            cn = reading(pinyin(r, "cn", fixes), r["大陸音讀"], syl)
             print("\t".join([trad, simp, tw, cn, "¶".join(cells)]))
 
 

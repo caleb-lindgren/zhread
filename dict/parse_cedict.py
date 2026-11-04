@@ -25,8 +25,14 @@ cedict = cedict.assign(**{
 })
 
 # Convert numbered tones to tone marks
-pinyin_match = r"\b[A-Za-z][a-z]*[1-5]\b"
-pinyin_replace_nums = lambda x: transcriptions.to_pinyin(x[0]) if transcriptions.is_pinyin(x[0]) else x[0]
+# CC-CEDICT writes ü as u: (lu:4, nu:e4), which dragonmapper misreads
+# (lù:), so it is turned into ü first.
+pinyin_match = r"\b[A-Za-z](?:u:|[a-z])*[1-5]\b"
+def pinyin_replace_nums(x):
+    syl = x[0].replace("u:", "ü").replace("U:", "Ü")
+    if not transcriptions.is_pinyin(syl):
+        return x[0]
+    return transcriptions.to_pinyin(syl)
 
 cedict = cedict.assign(**{
     "py": cedict["py"].str.replace(pinyin_match, pinyin_replace_nums, regex=True),
