@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/opencc"
@@ -1802,24 +1803,51 @@ func (v *view) startCards(pk *picker, words [][2]int) {
 		if len(dr.opts) > dr.zh {
 			dr.sel[dr.zh] = true
 		}
-		dr.others = v.others(dr)
-		dr.osel = make([]bool, len(dr.others))
-		for k := range dr.osel {
-			dr.osel[k] = true
-		}
 		v.queue = append(v.queue, dr)
+	}
+	// The first card's other places are found now; the rest's in the
+	// background while it is shown, in turn, each draft's ready closed
+	// once they are. Nothing else touches a draft still queued, and
+	// what findOthers reads of the book and the dictionaries is not
+	// written after they are loaded.
+	others := v.othersFn()
+	setOthers(v.queue[0], others)
+	if rest := v.queue[1:]; len(rest) > 0 {
+		for _, dr := range rest {
+			dr.ready = make(chan struct{})
+		}
+		go func() {
+			for _, dr := range rest {
+				setOthers(dr, others)
+				close(dr.ready)
+			}
+		}()
 	}
 	v.nextCard()
 }
 
-// others are the word's other places in the book, for a card made from dr
-// to show in turn with its own. A card made in a pane gets the book's too.
-func (v *view) others(dr *draft) []*draft {
+// setOthers finds dr's other places with others, all ticked.
+func setOthers(dr *draft, others func(*draft) []*draft) {
+	dr.others = others(dr)
+	dr.osel = make([]bool, len(dr.others))
+	for k := range dr.osel {
+		dr.osel[k] = true
+	}
+}
+
+// othersFn finds a word's other places in the book, for a card made from
+// a draft to show in turn with its own. A card made in a pane gets the
+// book's too. It takes what it needs of v now, so it can run in the
+// background.
+func (v *view) othersFn() func(*draft) []*draft {
 	book := v.d
 	if len(v.stack) > 0 {
 		book = v.stack[0].d
 	}
-	return findOthers(book, book == v.d, v.dict, v.pron, v.conv, dr)
+	home, dict, pron, conv := book == v.d, v.dict, v.pron, v.conv
+	return func(dr *draft) []*draft {
+		return findOthers(book, home, dict, pron, conv, dr)
+	}
 }
 
 // findOthers finds the word of dr in book, in book order: wherever the text
@@ -1840,9 +1868,11 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 	type hit struct {
 		p  para
 		at []int // where the word starts in p.text
+		// the paragraph's clauses, split once it has a place kept
+		bounds  []int
+		sentEnd []bool
 	}
 	var hits []hit
-	var rq segReq
 	for l := 0; l < len(book.lines); l++ {
 		if blank(book.lines[l]) {
 			continue
@@ -1856,14 +1886,30 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 			}
 		}
 		if len(at) > 0 {
-			hits = append(hits, hit{p, at})
-			rq.text = append(rq.text, p.text)
+			hits = append(hits, hit{p: p, at: at})
 		}
 	}
 	if len(hits) == 0 {
 		return nil
 	}
-	// One probe for all the paragraphs, as the reader segments a batch.
+	// Each place is segmented in a window around it, from the token
+	// boundary before it to the one after, as tokWindow finds them, not
+	// in its whole paragraph, which in a book without blank lines is the
+	// whole book. Places in one window share it, and all the windows
+	// one probe, as the reader segments a batch.
+	type window struct{ h, a, b int }
+	wins := map[window]int{} // into rq.text
+	rq := segReq{toksOnly: true}
+	for h, ht := range hits {
+		for _, at := range ht.at {
+			ws, we := doubled(ht.p.text, at, at+len(word))
+			a, b := tokWindow(ht.p.text, ws, we)
+			if _, ok := wins[window{h, a, b}]; !ok {
+				wins[window{h, a, b}] = len(rq.text)
+				rq.text = append(rq.text, ht.p.text[a:b])
+			}
+		}
+	}
 	toks := segment(dict, pron, rq).toks
 	own := func(f forms) string {
 		if dr.trad {
@@ -1883,23 +1929,30 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 		take(dr)
 	}
 	var out []*draft
-	for h, ht := range hits {
+	for h := range hits {
+		ht := &hits[h]
 		for _, at := range ht.at {
 			ws, we := doubled(ht.p.text, at, at+len(word))
 			end := at + len(word)
+			wa, wb := tokWindow(ht.p.text, ws, we)
+			ts := toks[wins[window{h, wa, wb}]]
+			// the tokens' offsets are into the window
 			cut := func(t tok) bool {
-				return t.start < ws && ws < t.end ||
-					t.start < we && we < t.end
+				return t.start < ws-wa && ws-wa < t.end ||
+					t.start < we-wa && we-wa < t.end
 			}
 			in := func(t tok) bool {
-				return t.start <= ws && we <= t.end
+				return t.start <= ws-wa && we-wa <= t.end
 			}
-			if slices.ContainsFunc(toks[h], cut) && (len(word) == 1 ||
-				!slices.ContainsFunc(toks[h], in)) {
+			if slices.ContainsFunc(ts, cut) && (len(word) == 1 ||
+				!slices.ContainsFunc(ts, in)) {
 				continue
 			}
+			if ht.bounds == nil {
+				ht.bounds, ht.sentEnd = clauses(ht.p.text)
+			}
 			o := &draft{p: ht.p, ws: at, we: end, trad: dr.trad,
-				span: newSpan(ht.p.text, ws, we)}
+				span: spanIn(ht.bounds, ht.sentEnd, ws, we)}
 			a, b := o.span.ends()
 			if slices.ContainsFunc(took, func(t taken) bool {
 				return t.first == ht.p.first &&
@@ -1916,6 +1969,33 @@ func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
 		}
 	}
 	return out
+}
+
+// tokWindow widens [ws, we) of t to boundaries that tokenize's tokens
+// cannot cross: tokenize makes a token of each run of other word
+// characters and of punctuation, divides each run of Han characters by
+// segmenting that run alone, and skips spaces, so a change of kind is
+// always a boundary, and the window's tokens are the same as the text's.
+func tokWindow(t []rune, ws, we int) (int, int) {
+	kind := func(r rune) int {
+		switch {
+		case unicode.IsSpace(r):
+			return 0
+		case isHan(r):
+			return 1
+		case isWord(r):
+			return 2
+		}
+		return 3
+	}
+	a, b := ws, we
+	for a > 0 && kind(t[a]) != 0 && kind(t[a-1]) == kind(t[a]) {
+		a--
+	}
+	for b < len(t) && kind(t[b-1]) != 0 && kind(t[b]) == kind(t[b-1]) {
+		b++
+	}
+	return a, b
 }
 
 func (v *view) chooseKey(ev *tcell.EventKey) {
@@ -1968,6 +2048,9 @@ func (v *view) nextCard() {
 		return
 	}
 	v.dr, v.queue = v.queue[0], v.queue[1:]
+	if v.dr.ready != nil {
+		<-v.dr.ready // its other places, found in the background
+	}
 	f := v.dr.forms(v.conv)
 	v.dr.dups = v.rec.dups(f.wordS, f.wordT)
 	v.mode = card

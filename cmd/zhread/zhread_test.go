@@ -1300,3 +1300,27 @@ func TestCardMarks(t *testing.T) {
 		t.Errorf("須臾 with its second sense ticked: marks %q", got)
 	}
 }
+
+// TestQueuedOthers checks that the cards queued after the first, whose
+// other places are found in the background, have them when shown.
+func TestQueuedOthers(t *testing.T) {
+	v, s := newTestView(t, "我们讨论了企业的问题。\n\n"+
+		"他们也讨论过这家企业，觉得企业不错。\n")
+	keys(v, "/讨论了企业⏎vllll⏎")
+	if v.mode != card || v.dr.of != 3 {
+		t.Fatalf("mode %d, %d cards:\n%s", v.mode, v.dr.of,
+			strings.Join(screen(s), "\n"))
+	}
+	if n := len(v.dr.others); n != 1 {
+		t.Errorf("讨论: %d other places, want 1", n)
+	}
+	keys(v, "nn")
+	if n := len(v.dr.others); v.dr.n != 3 || n != 1 {
+		t.Errorf("card %d: %d other places, want card 3 with 1",
+			v.dr.n, n)
+	}
+	if !onScreen(s, "觉得企业不错") {
+		t.Errorf("企业's other place not shown:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+}

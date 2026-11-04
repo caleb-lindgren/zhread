@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -73,14 +74,18 @@ type span struct {
 
 func newSpan(t []rune, ws, we int) span {
 	bounds, sentEnd := clauses(t)
+	return spanIn(bounds, sentEnd, ws, we)
+}
+
+// spanIn is newSpan with the text's clauses, as clauses splits it, worked
+// out already: a paragraph with the word many times is split once. The
+// spans share bounds and sentEnd, which they only read.
+func spanIn(bounds []int, sentEnd []bool, ws, we int) span {
 	s := span{bounds: bounds, sentEnd: sentEnd}
-	for s.ca+1 < len(bounds) && bounds[s.ca+1] <= ws {
-		s.ca++
-	}
-	s.cb = s.ca + 1
-	for s.cb < len(bounds)-1 && bounds[s.cb] < we {
-		s.cb++
-	}
+	// the last clause starting at or before ws, and the first after it
+	// ending at or after we
+	s.ca = min(sort.SearchInts(bounds, ws+1)-1, len(bounds)-1)
+	s.cb = max(s.ca+1, min(sort.SearchInts(bounds, we), len(bounds)-1))
 	s.a, s.b = s.ca, s.cb
 	s.sentence()
 	for s.len() < minCtx && (s.a > 0 || s.b < s.n()) {
@@ -286,6 +291,9 @@ type draft struct {
 	discard bool  // asking whether to throw the changes away
 	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh
+	// ready, if not nil, is closed once others is found in the
+	// background, for a card queued after the first
+	ready chan struct{}
 }
 
 // refresh works out again the forms of another context, after it changes.
