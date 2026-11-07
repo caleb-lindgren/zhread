@@ -23,12 +23,13 @@ import (
 
 const usage = `usage: zhread [options] FILE
 
-Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #;
-v V select, Enter to make a card of the word or the selection, :>cmd
-to pipe the selection to cmd; m bookmark the line, ' return to it; e
-show English definitions, x quotations, t Taiwan readings, c MoEDict,
-E Wiktionary; J K scroll them; Tab move into them, Shift-Tab back, Esc
-back to the book; gh or F1 list the keys; q quit.
+Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #; the
+arrows, Home, End, PgUp, PgDn, with Ctrl to go further and Shift to
+select; v V select, Enter to make a card of the word or the selection,
+:>cmd to pipe the selection to cmd; m bookmark the line, ' return to
+it; e show English definitions, x quotations, t Taiwan readings, c
+MoEDict, E Wiktionary; J K scroll them; Tab move into them, Shift-Tab
+back, Esc back to the book; gh or F1 list the keys; q quit.
 
 options:
 `
@@ -37,7 +38,7 @@ options:
 type convs struct{ s2t, t2s *opencc.Converter }
 
 func main() {
-	var o struct{ dict, cards, pron, deck string }
+	var o struct{ dict, cards, pron, deck, demo, gif string }
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default: found as\n"+
 			"multizhdict finds it)")
@@ -47,11 +48,26 @@ func main() {
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
 	flag.StringVar(&o.deck, "deck", "main",
 		"Anki deck named in a new card file's header")
+	flag.StringVar(&o.demo, "demo", "",
+		"play the actions in this file (- for standard\n"+
+			"input) and write what they show to -gif, instead\n"+
+			"of reading; -demo help describes the file")
+	flag.StringVar(&o.gif, "gif", "zhread.gif", "the GIF -demo writes")
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, usage)
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if o.demo == "help" {
+		fmt.Print(demoHelp)
+		return
+	}
+	if o.demo != "" {
+		if err := runDemo(o.dict, o.demo, o.gif); err != nil {
+			fail(err)
+		}
+		return
+	}
 	if flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(2)
@@ -92,7 +108,7 @@ func main() {
 		fail(err)
 	}
 	s.SetStyle(stDef)
-	s.EnableMouse(tcell.MouseButtonEvents)
+	s.EnableMouse(tcell.MouseDragEvents)
 	reqs := make(chan segReq, 1)
 	go segWorker(dict, o.pron, reqs, func(r segRes) {
 		s.PostEvent(tcell.NewEventInterrupt(r))

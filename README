@@ -17,6 +17,12 @@ lined up; scroll sideways with the arrow keys. Run `gomultizhdict` directly
 to send the output anywhere else. Input may be traditional or simplified:
 both headword forms of every entry are matched.
 
+Each definition is its senses alone, without the examples (如：「…」),
+the quotations from books (引：…) or the Taiwan reading where it differs.
+`-ex`, `-quotes` and `-tw` print them, and `-extra` prints MoEDict's and
+Wiktionary's definitions beside 兩岸詞典's and CC-CEDICT's, as zhread's
+`c` and `E` show them; `-all` is all four.
+
 ### Building
 
     make                 # builds bin/gomultizhdict and bin/gozhread
@@ -80,13 +86,14 @@ no column.
 
 MoEDict gives Taiwan readings and CC-CEDICT Mainland ones; 兩岸詞典 and
 Wiktionary give both. Where the two differ, the Mainland reading is
-printed first and the Taiwan one noted after it, on every line for the
-word whichever dictionary it came from:
+printed, and with `-tw` the Taiwan one noted after it, on every line for
+the word whichever dictionary it came from:
 
     企業  企业  qǐ yè (TW qì yè)  從事生產、運輸、貿易等經濟活動…
     企業  企业  qǐ yè (TW qì yè)  company; firm; enterprise; …
 
-`-pron tw` prints the Taiwan reading first instead: `qì yè (CN qǐ yè)`.
+`-pron tw` prints the Taiwan reading instead, or first: `qì yè (CN qǐ
+yè)`.
 
 The differences come from the cross-strait dictionary (兩岸詞典), which
 gives both readings for every entry where they differ; dict/csld_pron.tsv
@@ -187,6 +194,8 @@ select, each with the sentence it came from:
 
     zhread book.txt
 
+zhread.gif shows it at work (see "The demo" below).
+
 `zhread` is a wrapper that opens `gozhread` in its own st window, in the
 font multizhdict's window uses (Liberation Mono, 24 pixels; `ZHREAD_FONT`
 to change), and returns to the shell at once. If gozhread fails, the window
@@ -250,30 +259,36 @@ The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true
 colour.
 
-| keys            | action                                         |
-| --------------- | ---------------------------------------------- |
-| `h j k l`       | character left, line down, line up, right      |
-| `w b`           | next word, previous word                       |
-| `0 $`, `g0 g$`  | start, end of the line; of the screen row      |
-| `gj gk`, arrows | screen row down, up                            |
-| `gg G`          | first line, last line (or line N with a count) |
-| `^D ^U ^F ^B`   | half page down, up; page down, up              |
-| `/ ?`, `n N`    | search forward, back (a Go regexp); repeat     |
-| `* #`           | search for the word under the cursor           |
-| `v V`           | select by character, by line                   |
-| Enter           | make a card of the word, or of the selection   |
-| `:>cmd`         | in `v` or `V`: pipe the selection to `cmd`     |
-| `m`, `'`        | bookmark this line, go to the bookmark         |
-| `e`             | show or hide English definitions               |
-| `x`             | show or hide quotations                        |
-| `c`, `E`        | show or hide MoEDict, Wiktionary as well       |
-| `J K`           | scroll the definitions down, up                |
-| Tab, Shift-Tab  | move into the definitions; back up a level     |
-| `t`             | show or hide the other side's reading          |
-| `gh`, F1        | show the keys                                  |
-| Esc             | hide them; end a selection; back to the book   |
-| `q`             | quit                                           |
-| click, wheel    | move the cursor there; scroll the text         |
+| keys           | action                                               |
+| -------------- | ---------------------------------------------------- |
+| `h j k l`      | character left, line down, line up, right            |
+| `w b`          | next word, previous word                             |
+| `0 $`, `g0 g$` | start, end of the line; of the screen row            |
+| `gj gk`        | screen row down, up                                  |
+| ← →, ^← ^→     | character left, right; word back, forward            |
+| ↑ ↓, ^↑ ^↓     | screen row up, down; paragraph back, forward         |
+| Home End       | start, end of the screen row; with Ctrl, of the text |
+| PgUp PgDn      | page up, down                                        |
+| Shift-         | with any of the four above: select as it moves       |
+| `gg G`         | first line, last line (or line N with a count)       |
+| `^D ^U ^F ^B`  | half page down, up; page down, up                    |
+| `/ ?`, `n N`   | search forward, back (a Go regexp); repeat           |
+| `* #`          | search for the word under the cursor                 |
+| `v V`          | select by character, by line                         |
+| Enter          | make a card of the word, or of the selection         |
+| `:>cmd`        | in `v` or `V`: pipe the selection to `cmd`           |
+| `m`, `'`       | bookmark this line, go to the bookmark               |
+| `e`            | show or hide English definitions                     |
+| `x`            | show or hide quotations                              |
+| `c`, `E`       | show or hide MoEDict, Wiktionary as well             |
+| `J K`          | scroll the definitions down, up                      |
+| Tab, Shift-Tab | move into the definitions; back up a level           |
+| `t`            | show or hide the other side's reading                |
+| `gh`, F1       | show the keys                                        |
+| Esc            | hide them; end a selection; back to the book         |
+| `q`            | quit                                                 |
+| click, wheel   | move the cursor there; scroll the text               |
+| drag           | select from where the button was pressed             |
 
 Tab moves the cursor into the definitions pane, which becomes the text: every
 key above works on it as on the book, making cards and piping included, and a
@@ -292,6 +307,17 @@ moves into it, and one in a level above goes back up to it. A card made in a
 pane takes the sense it is in as its context, and gets the book's line and the
 words looked up as its source, as `/home/me/book.txt:12 › 讨论 › 交換`.
 Bookmarks are for the book only.
+
+The arrows, Home, End, Page Up and Page Down move as in an editor that wraps
+its lines: ← and → go on past the end of a line to the next, ↑ ↓ Home and
+End work on screen rows, and Ctrl-↑ and Ctrl-↓ go to the start of a
+paragraph, a line after a blank one (in a pane, any line). With Shift they
+select from where the cursor was. A selection begun so, or by dragging the
+mouse, ends at the next move without Shift, and at a click, as an editor's
+does; one begun with `v` or `V` stays until Esc, as in vi. Dragging needs the
+terminal to report the mouse moving with the button held (xterm's mode
+1002), as st and xterm do; in both, Shift with the mouse still selects the
+terminal's own text, for copying.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -381,9 +407,41 @@ The preview shows:
   Its other script follows, converted again. The ticked ones go on the card
   with its own, and Anki shows them in turn (see below). A card made in a
   definitions pane gets the book's.
+- **More contexts**, after `m`, from outside the book, unticked, under the
+  book's, each labelled with where it came from: the other `.txt` files in
+  the book's directory; the examples in other words' entries in 兩岸詞典 and
+  MoEDict that have the word (扣動 has none of its own, but 連射's
+  「扣動扳機連射數槍」 has it), or where none of an entry's examples has it,
+  the sentence of its definition that does; and the sentence corpora in
+  dict/corpora, if any (see below). Both scripts of the word are looked for,
+  and a place is kept only where the segmenter takes the word as a word, as
+  in the book. Each `m` adds the next four of each source, shortest first,
+  but a dictionary's examples before its prose and sentences under eight
+  characters last, and the bottom line counts them: `兩岸詞典 4/12` is four
+  shown of twelve, and a `+` after the twelve means there were more places
+  than the 300 shortest looked at. The search reads some 200 MB with both
+  corpora, about a second, in the background. A ticked one goes on the card
+  with its label after it, in small grey type.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
-  any, Enter asks again before saving.
+  any, Enter asks again before saving. Cards for the word itself are
+  numbered, and `u` adds this one to such a card instead of saving a new
+  one, asking which by number when there are several: the contexts, the
+  card's own and the other ones ticked, that the card does not have yet go
+  on as further contexts, and the definitions ticked that it lacks are added
+  after its own. Nothing is taken off, and its GUID, own context, reading and
+  source stay, so the import updates the note in place. For such a word the
+  senses ticked to start with are the ones already on its cards, so `u`
+  adds only contexts unless more are ticked, and a new card for another
+  sense is a matter of unticking those and ticking that one.
+
+The corpora are fetched by `scripts/get_corpora.sh` into dict/corpora, which
+is not in git: Tatoeba's Mandarin sentences (89,289; CC BY 2.0 FR) and the
+Leipzig Corpora Collection's zho_news_2007-2009_1M (a million sentences
+from news, a 285 MB download and 131 MB after; CC BY). Other corpora of the
+Leipzig collection are named as arguments, `scripts/get_corpora.sh
+zho_wikipedia_2018_1M`; any file of one sentence a line put in dict/corpora
+as NAME.txt is searched too, labelled NAME.
 
 Enter saves, Esc cancels. An Esc right after another, as from insert mode out
 past the list, asks first when the card has been changed (a context edited or
@@ -437,10 +495,12 @@ word, and the back shows the same one. Where that storage does not last
 from one session to the next, the turn starts at a random context. A cloze
 card blanks the other contexts as its own is blanked, in the card's script.
 
-The recognition card shows the context with the word in bold, and asks for
-the reading and meaning. The cloze card shows the context with the word
-blanked and the definitions below, and asks for the word; the definitions
-have the word blanked too, since MoE's examples often quote it. When a note
+The recognition card shows the context with the word in bold, wherever it
+has it, and asks for the reading and meaning. The cloze card shows the
+context with the word blanked, every place it has it, and the definitions
+below, and asks for the word. The definitions have the word blanked too,
+since MoE's examples often quote it, and then each of its characters, a ＿
+apiece, as 天和地 in a definition of 天地 would give half of it away. When a note
 has cards in both scripts, the cloze blank says which it asks for, [简体] or
 [繁體]. English definitions sit behind a fold on both. The 繁 cards are made
 only for notes with a Traditional field, that is, where the two scripts
@@ -458,5 +518,24 @@ context and the cloze blank, which are the orange of the reader's headwords.
 
 `go run scripts/update_cards.go cards.tsv` brought the cards made before
 these last changes up to date: the zhuyin, the clause mark at a cut context's
-end, the cloze blanks' scripts. It keeps the GUIDs, so the import updates the
-notes.
+end, the cloze blanks' scripts, and the word in bold at every place in a
+context rather than the one it was carded at. It keeps the GUIDs, so the
+import updates the notes.
+
+### The demo
+
+zhread.gif shows zhread reading the 道德經 a word at a time, then carding
+天下 with its second sense rather than the first. `scripts/zhread_demo.sh`
+makes it, and is rerun to make it again after zhread changes: it plays a
+list of actions (keys, mouse drags, captions, pauses) on a simulated screen
+with `gozhread -demo` and draws each screen as a frame, so it needs only Go
+and a font with Chinese in it, found with fc-match (FONT=/path/to/font
+otherwise). The actions are in the script; `gozhread -demo help` lists
+them. The text, where it starts, how many words it moves over, the word
+carded and the sense taken are variables at its top, which the environment
+overrides:
+
+    FILE=texts/hongloumeng.txt START=此開卷 WORD=夢幻 SENSE=1 \
+        scripts/zhread_demo.sh
+
+The cards the demo makes go to a scratch file, not cards.tsv.

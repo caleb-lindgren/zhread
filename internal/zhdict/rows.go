@@ -31,10 +31,12 @@ func (g Group) IsExtra(i int) bool { return i < len(g.Extra) && g.Extra[i] }
 // Source names the dictionary row i comes from.
 func (g Group) Source(i int) string { return sources[g.src[i]].name }
 
-// Senses splits row i's definition into senses, by its source's layout.
+// Senses splits row i's definition into senses, by its source's layout. A
+// row of a Group built by hand, without sources, is one sense.
 func (g Group) Senses(i int) []Sense {
 	def := g.Rows[i][NFields-1]
 	switch {
+	case i >= len(g.src):
 	case sources[g.src[i]].kind == kindPleco:
 		return MoESenses(def)
 	case sources[g.src[i]].name == "兩岸詞典":

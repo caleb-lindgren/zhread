@@ -90,10 +90,17 @@ type view struct {
 	pat   *regexp.Regexp
 	back  bool // last search went backward
 	input []rune
-	pick  *picker // the segmentations to choose from, in choose
-	dr    *draft
-	queue []*draft // the selection's cards still to come after dr
-	quit  bool
+	// shiftSel is set while the selection was begun with Shift or the
+	// mouse, so that a move without Shift ends it.
+	shiftSel bool
+	// drag is set while the left button is held after a press on the
+	// text, at dl, dc, so that moving it selects.
+	drag   bool
+	dl, dc int
+	pick   *picker // the segmentations to choose from, in choose
+	dr     *draft
+	queue  []*draft // the selection's cards still to come after dr
+	quit   bool
 }
 
 // Colours from vis's zenburn theme (lua/themes/zenburn.lua). Every one is
@@ -140,6 +147,9 @@ func (v *view) run() error {
 				d.doc.apply(d)
 			case pipeDone:
 				v.msg = string(d)
+			case examplesFound:
+				d.dr.exs, d.dr.searching = d.src, false
+				d.dr.showExamples()
 			}
 		case *tcell.EventKey:
 			v.key(ev)
@@ -885,7 +895,13 @@ var keyHelp = [][2]string{
 	{"gh F1", "show this help"},
 	{"Esc", "hide it; end a selection; back to the book"},
 	{"q", "quit"},
+	{"← →  ^← ^→", "character left, right; word back, forward"},
+	{"↑ ↓  ^↑ ^↓", "screen row up, down; paragraph back, forward"},
+	{"Home End", "start, end of the screen row; with ^, of the text"},
+	{"PgUp PgDn", "page up, down"},
+	{"Shift-", "with any of the last four: select as it moves"},
 	{"click wheel", "move the cursor there; scroll the text"},
+	{"drag", "select from where the button was pressed"},
 }
 
 // cardKeyHelp is what gh shows below a card.
@@ -893,9 +909,11 @@ var cardKeyHelp = [][2]string{
 	{"j k", "move over the contexts and definitions"},
 	{"space", "tick the definition or context, or untick it"},
 	{"a", "tick all the other contexts, or none"},
+	{"m", "more contexts: other texts, dictionaries, corpora"},
 	{"[ ] { }", "move the context's left edge, right edge"},
 	{"i", "edit the context under the cursor"},
 	{"Enter y", "save the card (again if already carded)"},
+	{"u", "add contexts, definitions to the word's card"},
 	{"n", "skip to the selection's next card"},
 	{"Esc q", "cancel the card and those after it"},
 	{"Esc Esc", "the same, asking first if it is edited"},
@@ -1092,10 +1110,10 @@ func (v *view) key(ev *tcell.EventKey) {
 		v.byRows(n * v.textH())
 	case tcell.KeyCtrlB:
 		v.byRows(-n * v.textH())
-	case tcell.KeyDown:
-		v.byRows(n)
-	case tcell.KeyUp:
-		v.byRows(-n)
+	case tcell.KeyLeft, tcell.KeyRight, tcell.KeyUp, tcell.KeyDown,
+		tcell.KeyHome, tcell.KeyEnd, tcell.KeyPgUp, tcell.KeyPgDn:
+		v.pend = 0
+		v.navKey(ev, n)
 	case tcell.KeyRune:
 		v.runeKey(ev.Rune())
 		return
@@ -1103,22 +1121,164 @@ func (v *view) key(ev *tcell.EventKey) {
 	v.count = 0
 }
 
+// navKey moves the cursor n times as the arrow keys, Home, End, Page Up
+// and Page Down do in an editor: by character, word, screen row,
+// paragraph, to the ends of the row or the text, by page. Shift selects
+// from where the cursor was; a selection so begun, or by dragging the
+// mouse, ends at the next move without Shift, as an editor's does, while
+// one begun with v or V stays, as in vi.
+func (v *view) navKey(ev *tcell.EventKey, n int) {
+	mod := ev.Modifiers()
+	ctrl := mod&tcell.ModCtrl != 0
+	if mod&tcell.ModShift != 0 {
+		if v.mode == normal {
+			v.al, v.ac, v.mode = v.cl, v.cc, visual
+			v.shiftSel = true
+		}
+	} else if v.shiftSel {
+		if v.mode == visual {
+			v.mode = normal
+		}
+		v.shiftSel = false
+	}
+	switch k := ev.Key(); {
+	case k == tcell.KeyLeft && ctrl:
+		for ; n > 0; n-- {
+			v.wordBack()
+		}
+	case k == tcell.KeyRight && ctrl:
+		for ; n > 0; n-- {
+			v.wordFwd()
+		}
+	case k == tcell.KeyLeft || k == tcell.KeyRight:
+		for ; n > 0; n-- {
+			v.charStep(k == tcell.KeyRight)
+		}
+	case k == tcell.KeyUp && ctrl:
+		for ; n > 0; n-- {
+			v.paraBack()
+		}
+	case k == tcell.KeyDown && ctrl:
+		for ; n > 0; n-- {
+			v.paraFwd()
+		}
+	case k == tcell.KeyUp:
+		v.byRows(-n)
+		return // keeping the column it aimed for
+	case k == tcell.KeyDown:
+		v.byRows(n)
+		return
+	case k == tcell.KeyPgUp:
+		v.byRows(-n * v.textH())
+		return
+	case k == tcell.KeyPgDn:
+		v.byRows(n * v.textH())
+		return
+	case k == tcell.KeyHome && ctrl:
+		v.cl, v.cc = 0, 0
+	case k == tcell.KeyEnd && ctrl:
+		v.cl = len(v.d.lines) - 1
+		v.cc = max(v.lineLen(v.cl)-1, 0)
+	case k == tcell.KeyHome:
+		v.cc = v.rows[v.rowOf(v.cl, v.cc)].start
+	case k == tcell.KeyEnd:
+		row := v.rows[v.rowOf(v.cl, v.cc)]
+		v.cc = max(row.end-1, row.start)
+	}
+	v.want = v.vcol()
+}
+
+// charStep moves the cursor a character right, or left, going on to the
+// next line's start or the last line's end at the end of a line.
+func (v *view) charStep(right bool) {
+	switch {
+	case right && v.cc < v.lineLen(v.cl)-1:
+		v.cc++
+	case right && v.cl < len(v.d.lines)-1:
+		v.cl, v.cc = v.cl+1, 0
+	case !right && v.cc > 0:
+		v.cc--
+	case !right && v.cl > 0:
+		v.cl--
+		v.cc = max(v.lineLen(v.cl)-1, 0)
+	}
+}
+
+// paraStart reports whether line l starts a paragraph: a line after a
+// blank one, as the book's paragraphs are taken for contexts, or in a
+// pane, any line, each being a sense.
+func (v *view) paraStart(l int) bool {
+	return !blank(v.d.lines[l]) &&
+		(l == 0 || v.d.sty != nil || blank(v.d.lines[l-1]))
+}
+
+// paraFwd moves to the start of the next paragraph, or the end of the
+// text after the last.
+func (v *view) paraFwd() {
+	for l := v.cl + 1; l < len(v.d.lines); l++ {
+		if v.paraStart(l) {
+			v.cl, v.cc = l, 0
+			return
+		}
+	}
+	v.cl = len(v.d.lines) - 1
+	v.cc = max(v.lineLen(v.cl)-1, 0)
+}
+
+// paraBack moves to the start of the paragraph, or from there to the
+// start of the one before. The start is the first text the cursor can go
+// to, past a number the line starts with.
+func (v *view) paraBack() {
+	l := v.cl
+	if first, _ := v.d.textNear(l, 0, 1); v.paraStart(l) &&
+		v.cc <= first {
+		l--
+	}
+	for ; l >= 0; l-- {
+		if v.paraStart(l) {
+			v.cl, v.cc = l, 0
+			return
+		}
+	}
+	v.cl, v.cc = 0, 0
+}
+
 // mouse moves the cursor to a character clicked with the left button,
 // and scrolls the text a row a notch with the wheel. A click in the pane
 // moves into it, as Tab does, and one in a level above goes back up to it,
-// as Shift-Tab does. A click on a rule or the status line, or while a
-// prompt or card is open, does nothing.
+// as Shift-Tab does. A click ends a selection, and dragging with the button
+// held selects from where it was pressed, as far as the level's text on
+// screen goes. A click on a rule or the status line, or while a prompt or
+// card is open, does nothing.
 func (v *view) mouse(ev *tcell.EventMouse) {
 	if v.mode == prompt || v.mode == card || v.mode == choose {
+		v.drag = false
 		return
 	}
+	x, y := ev.Position()
 	switch b := ev.Buttons(); {
 	case b&tcell.WheelDown != 0:
 		v.byRows(1)
 	case b&tcell.WheelUp != 0:
 		v.byRows(-1)
+	case b&tcell.Button1 != 0 && v.drag:
+		for _, bl := range v.blocks {
+			if bl.lv != v.level {
+				continue
+			}
+			y = min(max(y, bl.y), bl.y+bl.n-1)
+			ri := min(v.top+y-bl.y, len(v.rows)-1)
+			l, c := v.rows[ri].line, v.colAt(ri, x)
+			if v.mode == normal && (l != v.dl || c != v.dc) {
+				v.al, v.ac, v.mode = v.dl, v.dc, visual
+				v.shiftSel = true
+			}
+			v.cl, v.cc = l, c
+			v.settle(v.dl, v.dc)
+			v.want = v.vcol()
+			return
+		}
 	case b&tcell.Button1 != 0:
-		x, y := ev.Position()
 		for _, bl := range v.blocks {
 			if y < bl.y || y >= bl.y+bl.n {
 				continue
@@ -1135,11 +1295,17 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			if ri >= len(v.rows) {
 				return
 			}
+			if v.selecting() {
+				v.mode = normal
+			}
 			v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
 			v.settle(v.cl, v.cc)
 			v.want, v.msg, v.pend, v.count = v.vcol(), "", 0, 0
+			v.drag, v.dl, v.dc = true, v.cl, v.cc
 			return
 		}
+	default: // released
+		v.drag = false
 	}
 }
 
@@ -1305,6 +1471,7 @@ func (v *view) runeKey(r rune) {
 		if r == 'V' {
 			m = vline
 		}
+		v.shiftSel = false
 		if v.mode == m {
 			v.mode = normal
 		} else {
@@ -2051,9 +2218,53 @@ func (v *view) nextCard() {
 	if v.dr.ready != nil {
 		<-v.dr.ready // its other places, found in the background
 	}
-	f := v.dr.forms(v.conv)
-	v.dr.dups = v.rec.dups(f.wordS, f.wordT)
+	dr := v.dr
+	f := dr.forms(v.conv)
+	dr.dups = v.rec.dups(f.wordS, f.wordT)
+	dr.exact = exact(dr.dups, f)
+	// For a word already carded, the senses ticked to start with are
+	// those on its cards, where any are shown: what u would add to is
+	// then what is ticked, and a new card for another sense is a matter
+	// of ticking that one instead.
+	if len(dr.exact) > 0 {
+		var on []bool
+		for _, o := range dr.opts {
+			on = append(on, v.rec.cardedSense(f.wordS, o.s) ||
+				v.rec.cardedSense(f.wordT, o.s))
+		}
+		if slices.Contains(on, true) {
+			dr.sel = on
+		}
+	}
 	v.mode = card
+}
+
+// update adds the draft to the existing card k: see merge.
+func (v *view) update(k carded, f forms) {
+	dr := v.dr
+	var nctx, ndef int
+	err := v.rec.update(k.guid, func(row []string) {
+		nctx, ndef = dr.merge(row, f, v.expand)
+	})
+	word := headword(f.wordT, f.wordS)
+	switch {
+	case err != nil:
+		v.msg = err.Error()
+	case nctx+ndef == 0:
+		v.msg = "the card for " + word + " already has all this"
+	default:
+		v.msg = fmt.Sprintf("added %s and %s to the card for %s",
+			plural(nctx, "context"), plural(ndef, "definition"),
+			word)
+	}
+	v.nextCard()
+}
+
+func plural(n int, s string) string {
+	if n == 1 {
+		return "1 " + s
+	}
+	return fmt.Sprintf("%d %ss", n, s)
 }
 
 func changed(a, b string) int {
@@ -2171,7 +2382,20 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 	}
 	dr.warn = ""
+	if dr.which {
+		dr.which = false
+		if r >= '1' && int(r-'1') < len(dr.exact) {
+			v.update(dr.exact[r-'1'], f)
+		}
+		return
+	}
 	switch {
+	case r == 'u' && len(dr.exact) > 0:
+		if len(dr.exact) == 1 {
+			v.update(dr.exact[0], f)
+		} else {
+			dr.which = true
+		}
 	case esc && again && dr.edited():
 		dr.discard = true
 	case esc || r == 'q':
@@ -2214,6 +2438,8 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		} else {
 			dr.vi.insert = false
 		}
+	case r == 'm':
+		v.moreExamples()
 	case r == 'a' && len(dr.others) > 0:
 		all := !slices.Contains(dr.osel, false)
 		for k := range dr.osel {
@@ -2288,7 +2514,7 @@ func (v *view) drawCard() {
 		if k == 1 {
 			label, rs, ws, we = "繁", f.ctxT, f.wsT, f.weT
 		}
-		ws, we = doubled(rs, ws, we)
+		word := wordAt(rs, ws, we)
 		lr := []rune(label + "  ")
 		cur := -1
 		on := dr.cur == n-len(lines)
@@ -2307,7 +2533,8 @@ func (v *view) drawCard() {
 				return stHint
 			case on && !dr.editing:
 				return stSel
-			case i-len(lr) >= ws && i-len(lr) < we:
+			case i >= len(lr) && i-len(lr) < len(word) &&
+				word[i-len(lr)]:
 				return stWord
 			}
 			return stDef
@@ -2352,19 +2579,26 @@ func (v *view) drawCard() {
 		y++
 		y = v.put(0, y, maxY, []rune(fmt.Sprintf(
 			"Already carded (%d):", len(dr.dups))), plain(stWarn))
+		// The cards u can add to are numbered, for when it asks which.
+		n := 0
 		for _, k := range dr.dups {
 			w := k.simp
 			if k.trad != "" {
 				w = headword(k.trad, k.simp)
 			}
-			line := w + "  " + k.py + "  "
+			line := "   " + w + "  " + k.py + "  "
+			isK := func(e carded) bool { return e.guid == k.guid }
+			if slices.ContainsFunc(dr.exact, isK) {
+				n++
+				line = fmt.Sprintf("%d  %s", n, line[3:])
+			}
 			if k.ctx != "" {
 				line += k.ctx
 			} else {
 				line += k.def
 			}
 			line += "  (" + filepath.Base(k.src) + ")"
-			y = v.put(2, y, maxY, clip([]rune(line), v.w-2),
+			y = v.put(0, y, maxY, clip([]rune(line), v.w),
 				plain(stDef))
 		}
 	}
@@ -2380,9 +2614,18 @@ func (v *view) drawCard() {
 			"any other key: no", stWarn
 	case dr.warn != "":
 		help, st = dr.warn, stWarn
+	case dr.which:
+		help, st = fmt.Sprintf("Add to which card? 1-%d  "+
+			"any other key: none", len(dr.exact)), stWarn
+	case dr.saving && len(dr.exact) > 0:
+		help, st = "Already carded. Enter: new card  u: add to it"+
+			"  Esc: cancel", stWarn
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
+	}
+	if help == "" {
+		help = dr.exMsg
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
@@ -2499,6 +2742,26 @@ func doubled(t []rune, ws, we int) (int, int) {
 	return ws, we
 }
 
+// wordAt marks the characters of rs the card shows as its word: the
+// word at ws, we, or the doubled form around it, and every other place rs
+// has the word, as mark marks them on the card.
+func wordAt(rs []rune, ws, we int) []bool {
+	on := make([]bool, len(rs))
+	word := rs[ws:we]
+	for i := 0; len(word) > 0 && i+len(word) <= len(rs); i++ {
+		if slices.Equal(rs[i:i+len(word)], word) {
+			for k := i; k < i+len(word); k++ {
+				on[k] = true
+			}
+		}
+	}
+	ws, we = doubled(rs, ws, we)
+	for k := ws; k < we; k++ {
+		on[k] = true
+	}
+	return on
+}
+
 // otherLines are the lines other context k takes in the card preview: a
 // heading before the first, and the context in the text's script, with
 // the word in its colour, and the cursor in it while it is edited.
@@ -2509,18 +2772,43 @@ func (v *view) otherLines(k int) []styled {
 	if dr.trad {
 		rs, ws, we = f.ctxT, f.wsT, f.weT
 	}
-	ws, we = doubled(rs, ws, we)
 	var out []styled
-	if k == 0 {
+	if k == 0 && o.from == "" {
+		n := 0
+		for _, o := range dr.others {
+			if o.from == "" {
+				n++
+			}
+		}
 		out = append(out, line(0), line(0, piece{fmt.Sprintf(
-			"Elsewhere in the book (%d):", len(dr.others)), stHint}))
+			"Elsewhere in the book (%d):", n), stHint}))
+	}
+	if o.from != "" && (k == 0 || dr.others[k-1].from == "") {
+		out = append(out, line(0), line(0, piece{
+			"From other texts, dictionaries, corpora:", stHint}))
 	}
 	box := "[ ] "
 	if dr.osel[k] {
 		box = "[x] "
 	}
-	l := line(0, piece{box, stDef}, piece{string(rs[:ws]), stDef},
-		piece{string(rs[ws:we]), stWord}, piece{string(rs[we:]), stDef})
+	ps := []piece{{box, stDef}}
+	on := wordAt(rs, ws, we)
+	for i := 0; i < len(rs); {
+		j := i + 1
+		for j < len(rs) && on[j] == on[i] {
+			j++
+		}
+		st := stDef
+		if on[i] {
+			st = stWord
+		}
+		ps = append(ps, piece{string(rs[i:j]), st})
+		i = j
+	}
+	if o.from != "" {
+		ps = append(ps, piece{"  " + o.from, stHint})
+	}
+	l := line(0, ps...)
 	l.wx = 4
 	if len(dr.opts)+k == dr.cur && dr.editing {
 		o.vi.col = min(o.vi.col, len(rs))

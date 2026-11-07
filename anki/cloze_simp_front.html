@@ -6,13 +6,27 @@
 {{^DefZh}}<div class=def>{{DefEn}}</div>{{/DefZh}}
 <script>
 /* Blank the word wherever the definitions quote it: MoE examples often
-   do, which would give the answer away. */
+   do, which would give the answer away. Then blank each of its
+   characters wherever one is left, a ＿ apiece, since 天和地 in a
+   definition of 天地 gives half of it away too. The whole word goes
+   first, so a quoted word is one blank rather than one a character. */
 (function () {
   var forms = ["{{text:Simplified}}", "{{text:Traditional}}"];
-  document.querySelectorAll(".def").forEach(function (e) {
-    forms.forEach(function (w) {
-      if (w) e.innerHTML = e.innerHTML.split(w).join("[…]");
+  var chars = [];
+  forms.forEach(function (w) {
+    Array.from(w).forEach(function (c) {
+      if (/\p{Script=Han}/u.test(c) && chars.indexOf(c) < 0) chars.push(c);
     });
+  });
+  document.querySelectorAll(".def").forEach(function (e) {
+    var h = e.innerHTML;
+    forms.forEach(function (w) {
+      if (w) h = h.split(w).join("[…]");
+    });
+    chars.forEach(function (c) {
+      h = h.split(c).join("＿");
+    });
+    e.innerHTML = h;
   });
 })();
 </script>

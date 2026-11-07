@@ -157,6 +157,7 @@ type record struct {
 type carded struct {
 	simp, trad, py, def, ctx, src string
 	en                            string // the English definitions
+	guid                          string // its row's GUID in cards.tsv
 }
 
 // Columns of cards.tsv, after the GUID: the note type's fields in order.
@@ -171,8 +172,7 @@ func loadRecord(cardsPath string) (*record, error) {
 		senses: map[string]bool{}}
 	err := readTSV(cardsPath, func(f []string) {
 		if len(f) >= 12 {
-			rec.add(carded{f[1], f[2], f[3], f[4],
-				strip(cmp.Or(f[6], f[8])), f[11], f[5]})
+			rec.add(cardOf(f))
 		}
 	})
 	if err != nil {
@@ -266,9 +266,14 @@ type draft struct {
 	// cur is the option under the cursor, or with the cursor on a
 	// context, its line counted back from the options: -1 the line just
 	// above them, -2 the one above that.
-	cur    int
-	top    int // the first option in view
-	dups   []carded
+	cur  int
+	top  int // the first option in view
+	dups []carded
+	// exact are the dups for the word itself, which u adds the card to
+	// instead of saving it as a new one; which is set while u asks
+	// which of several.
+	exact  []carded
+	which  bool
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once
@@ -291,6 +296,14 @@ type draft struct {
 	discard bool  // asking whether to throw the changes away
 	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh
+	// from, for another context found outside the book by m, says where:
+	// "兩岸詞典「擊發」", "tatoeba".
+	from string
+	// exs are the places m found outside the book, once it has looked;
+	// searching while it looks; exMsg what it found.
+	exs       []*exSrc
+	searching bool
+	exMsg     string
 	// ready, if not nil, is closed once others is found in the
 	// background, for a card queued after the first
 	ready chan struct{}
@@ -561,8 +574,10 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 			slices.Equal(o.ctxT, f.ctxT) {
 			continue
 		}
-		more += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") + "</div>"
-		moreT += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") + "</div>"
+		more += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") +
+			srcLabel(d.from) + "</div>"
+		moreT += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") +
+			srcLabel(d.from) + "</div>"
 	}
 	var trad, ctxT, clozeT string
 	if f.wordT == f.wordS && !dr.trad {
@@ -619,26 +634,191 @@ const (
 )
 
 // mark renders a context as HTML with the word in bold, or for the cloze
-// card, with cloze set, blanked as it says, along with any other
-// occurrence of it, which would otherwise give it away. A doubled form of
-// the word is marked whole, 松松垮垮 for 松垮.
+// card, with cloze set, blanked as it says. Any other occurrence of the
+// word is bolded or blanked the same way: the cloze would otherwise give
+// the word away, and the answer should show every place the cloze
+// blanked. A doubled form of the word is marked whole, 松松垮垮 for 松垮.
 func mark(ctx []rune, ws, we int, cloze string) string {
-	word := string(ctx[ws:we])
+	word := html.EscapeString(string(ctx[ws:we]))
 	ws, we = doubled(ctx, ws, we)
 	blank := `<span class=cloze>` + cloze + `</span>`
+	if cloze == "" {
+		blank = `<b>` + word + `</b>`
+	}
 	esc := func(rs []rune) string {
 		s := html.EscapeString(string(rs))
-		if cloze != "" {
-			s = strings.ReplaceAll(s, html.EscapeString(word),
-				blank)
+		if word == "" {
+			return s
 		}
-		return s
+		return strings.ReplaceAll(s, word, blank)
 	}
 	mid := `<b>` + html.EscapeString(string(ctx[ws:we])) + `</b>`
 	if cloze != "" {
 		mid = blank
 	}
 	return esc(ctx[:ws]) + mid + esc(ctx[we:])
+}
+
+// exact are the cards of dups for the word itself, in either script,
+// rather than for a word containing it or contained in it: the cards Enter
+// can add to instead of making a new one.
+func exact(dups []carded, f forms) []carded {
+	var out []carded
+	for _, k := range dups {
+		if k.simp == f.wordS || k.trad != "" && k.trad == f.wordT {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// divs matches each context of the Contexts fields, without the label
+// of where it came from.
+var divs = regexp.MustCompile(`<div>(.*?)(?: <span class=src>.*?</span>)?` +
+	`</div>`)
+
+// srcLabel is the label a context found outside the book carries on the
+// card, after it, saying where it came from.
+func srcLabel(from string) string {
+	if from == "" {
+		return ""
+	}
+	return ` <span class=src>` + html.EscapeString(from) + `</span>`
+}
+
+// merge adds to row, an existing card's row of cards.tsv, what the draft
+// would put on a card of its own and the row lacks: its contexts, the
+// card's own and the others ticked, as further contexts, and its ticked
+// definitions. A context is new when neither script's text is already one
+// of the row's, its own or another. Each goes into the fields of the
+// scripts the row has cards in, so a card in one script stays in one.
+// Nothing is taken away, and the GUID, the card's own context, its
+// reading and its source are kept, so Anki updates the note in place. It
+// returns how many contexts and definitions were added.
+func (dr *draft) merge(row []string, f forms, cites bool) (nctx, ndef int) {
+	have := map[string]bool{}
+	for _, i := range []int{6, 8} {
+		if row[i] != "" {
+			have[strip(row[i])] = true
+		}
+	}
+	for _, i := range []int{12, 13} {
+		for _, m := range divs.FindAllStringSubmatch(row[i], -1) {
+			have[strip(m[1])] = true
+		}
+	}
+	add := func(o forms, from string) {
+		s, t := string(o.ctxS), string(o.ctxT)
+		if have[s] || have[t] {
+			return
+		}
+		have[s], have[t] = true, true
+		if row[6] != "" {
+			row[12] += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") +
+				srcLabel(from) + "</div>"
+		}
+		if row[8] != "" {
+			row[13] += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") +
+				srcLabel(from) + "</div>"
+		}
+		nctx++
+	}
+	add(f, "")
+	for i, o := range dr.others {
+		if dr.osel[i] {
+			add(o.ctxf, o.from)
+		}
+	}
+	for i, o := range dr.opts {
+		if !dr.sel[i] {
+			continue
+		}
+		col := 4
+		if i >= dr.zh {
+			col = 5
+		}
+		if slices.Contains(strings.Split(row[col], "<br>"),
+			o.html(false)) {
+			continue
+		}
+		if row[col] != "" {
+			row[col] += "<br>"
+		}
+		row[col] += o.html(cites)
+		ndef++
+	}
+	return nctx, ndef
+}
+
+// update rewrites the row of cards.tsv with the GUID guid as change
+// leaves it, padded first to every column, and reads the record again.
+func (rec *record) update(guid string, change func([]string)) error {
+	b, err := os.ReadFile(rec.path)
+	if err != nil {
+		return err
+	}
+	lines := strings.SplitAfter(string(b), "\n")
+	found := false
+	for i, l := range lines {
+		if strings.HasPrefix(l, "#") || !strings.HasPrefix(l,
+			guid+"\t") {
+			continue
+		}
+		r := csv.NewReader(strings.NewReader(l))
+		r.Comma, r.FieldsPerRecord, r.LazyQuotes = '\t', -1, true
+		row, err := r.Read()
+		if err != nil || row[0] != guid {
+			continue
+		}
+		for len(row) < 1+len(fields) {
+			row = append(row, "")
+		}
+		change(row)
+		var sb strings.Builder
+		if err := writeRow(&sb, row); err != nil {
+			return err
+		}
+		lines[i] = sb.String()
+		found = true
+		break
+	}
+	if !found {
+		return errors.New("no card " + guid + " in " + rec.path)
+	}
+	tmp := rec.path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(strings.Join(lines, "")),
+		0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, rec.path); err != nil {
+		return err
+	}
+	fresh, err := loadRecord(rec.path)
+	if err != nil {
+		return err
+	}
+	*rec = *fresh
+	return nil
+}
+
+// writeRow writes a row of cards.tsv, with tabs and line breaks in its
+// fields made spaces.
+func writeRow(w io.Writer, row []string) error {
+	cw := csv.NewWriter(w)
+	cw.Comma = '\t'
+	for i := range row {
+		row[i] = strings.Map(func(r rune) rune {
+			if r == '\t' || r == '\n' || r == '\r' {
+				return ' '
+			}
+			return r
+		}, row[i])
+	}
+	if err := cw.Write(row); err != nil {
+		return err
+	}
+	cw.Flush()
+	return cw.Error()
 }
 
 // save appends the note to cards.tsv, writing Anki's import headers first
@@ -662,26 +842,18 @@ func (rec *record) save(note []string, deck string) error {
 			return err
 		}
 	}
-	w := csv.NewWriter(fh)
-	w.Comma = '\t'
-	for i := range note {
-		note[i] = strings.Map(func(r rune) rune {
-			if r == '\t' || r == '\n' || r == '\r' {
-				return ' '
-			}
-			return r
-		}, note[i])
-	}
-	if err := w.Write(note); err != nil {
+	if err := writeRow(fh, note); err != nil {
 		return err
 	}
-	w.Flush()
-	if err := w.Error(); err != nil {
-		return err
-	}
-	rec.add(carded{note[1], note[2], note[3], note[4],
-		strip(cmp.Or(note[6], note[8])), note[10], note[5]})
+	rec.add(cardOf(note))
 	return nil
+}
+
+// cardOf is the record of a row of cards.tsv, GUID first.
+func cardOf(f []string) carded {
+	return carded{simp: f[1], trad: f[2], py: f[3], def: f[4],
+		ctx: strip(cmp.Or(f[6], f[8])), src: f[10], en: f[5],
+		guid: f[0]}
 }
 
 // strip removes the HTML tags of a context field, for display.

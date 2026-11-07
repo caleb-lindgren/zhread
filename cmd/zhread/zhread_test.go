@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image/gif"
 	"os"
 	"path/filepath"
 	"slices"
@@ -108,7 +109,7 @@ func TestDups(t *testing.T) {
 func TestMark(t *testing.T) {
 	ctx := []rune("好人有好報<b>")
 	got := mark(ctx, 0, 1, "")
-	if got != "<b>好</b>人有好報&lt;b&gt;" {
+	if got != "<b>好</b>人有<b>好</b>報&lt;b&gt;" {
 		t.Errorf("context: %s", got)
 	}
 	blank := `<span class=cloze>[…]</span>`
@@ -391,16 +392,166 @@ func TestMakeCard(t *testing.T) {
 		t.Errorf("pinyin %q", f[3])
 	}
 
-	// The same word again is a duplicate: the first Enter warns, the
-	// second saves.
+	// The same word again is a duplicate: the first Enter warns, offering
+	// to add to the card instead, the second saves.
 	keys(v, "/头发⏎vl⏎⏎")
-	if v.mode != card || !onScreen(s, "save anyway") {
+	if v.mode != card || !onScreen(s, "u: add to") {
 		t.Fatalf("no duplicate warning:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⎋")
 	if n := len(v.rec.cards); n != 1 {
 		t.Errorf("%d cards after cancelling, want 1", n)
+	}
+}
+
+// TestUpdateCard checks that u adds a card's context and a definition
+// ticked to the word's existing card, rather than making another.
+func TestUpdateCard(t *testing.T) {
+	v, _ := newTestView(t, "他把头发剪短了。\n\n她的头发很长，很好看。\n")
+	// The second paragraph's context would be the first card's other
+	// one; a unticks it, so the second card has something to add.
+	keys(v, "/头发⏎vl⏎a⏎")
+	if len(v.rec.cards) != 1 {
+		t.Fatalf("%d cards", len(v.rec.cards))
+	}
+	guid := v.rec.cards[0].guid
+	keys(v, "gg/头发⏎n⏎")
+	dr := v.dr
+	if len(dr.exact) != 1 {
+		t.Fatalf("exact dups: %d", len(dr.exact))
+	}
+	// the carded senses are ticked to start with
+	for i := range dr.opts {
+		if dr.sel[i] != v.rec.cardedSense("头发", dr.opts[i].s) {
+			t.Errorf("option %d ticked %v", i, dr.sel[i])
+		}
+	}
+	keys(v, "u")
+	if v.mode != normal || len(v.rec.cards) != 1 {
+		t.Fatalf("mode %d, %d cards", v.mode, len(v.rec.cards))
+	}
+	if !strings.HasPrefix(v.msg, "added") {
+		t.Errorf("message %q", v.msg)
+	}
+	b, _ := os.ReadFile(v.rec.path)
+	var row []string
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, guid+"\t") {
+			row = strings.Split(l, "\t")
+		}
+	}
+	if row == nil {
+		t.Fatalf("the card's GUID is gone:\n%s", b)
+	}
+	// the second context was already the first card's other context
+	if !strings.Contains(row[6], "他把<b>头发</b>剪短了") ||
+		strings.Count(row[12], "<div>") != 1 {
+		t.Errorf("contexts %q %q", row[6], row[12])
+	}
+	keys(v, "gg/头发⏎n⏎u")
+	if v.msg == "" || !strings.Contains(v.msg, "already has") {
+		t.Errorf("again: %q", v.msg)
+	}
+}
+
+// click presses the left button at x, y and lets it go.
+func click(v *view, x, y int) {
+	v.mouse(tcell.NewEventMouse(x, y, tcell.Button1, tcell.ModNone))
+	v.mouse(tcell.NewEventMouse(x, y, tcell.ButtonNone, tcell.ModNone))
+}
+
+// special sends a key other than a character.
+func special(v *view, k tcell.Key, mod tcell.ModMask) {
+	v.key(tcell.NewEventKey(k, 0, mod))
+	v.draw()
+}
+
+func TestArrows(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "jj")
+	special(v, tcell.KeyRight, tcell.ModNone)
+	if v.cc != 1 {
+		t.Errorf("→: column %d", v.cc)
+	}
+	special(v, tcell.KeyRight, tcell.ModCtrl)
+	if v.cc != 2 {
+		t.Errorf("^→: column %d, want 2 (今天)", v.cc)
+	}
+	special(v, tcell.KeyLeft, tcell.ModCtrl)
+	if v.cc != 0 {
+		t.Errorf("^←: column %d, want 0 (我们)", v.cc)
+	}
+	// ← at a line's start goes to the end of the line above
+	special(v, tcell.KeyLeft, tcell.ModNone)
+	special(v, tcell.KeyLeft, tcell.ModNone)
+	if v.cl != 0 || v.cc != 2 {
+		t.Errorf("←←: at %d:%d, want 0:2", v.cl, v.cc)
+	}
+	special(v, tcell.KeyDown, tcell.ModCtrl)
+	if v.cl != 2 || v.cc != 0 {
+		t.Errorf("^↓: at %d:%d, want 2:0", v.cl, v.cc)
+	}
+	special(v, tcell.KeyUp, tcell.ModCtrl)
+	if v.cl != 0 {
+		t.Errorf("^↑: line %d", v.cl)
+	}
+	special(v, tcell.KeyEnd, tcell.ModCtrl)
+	if v.cl != 2 || v.cc != len(v.d.lines[2])-1 {
+		t.Errorf("^End: at %d:%d", v.cl, v.cc)
+	}
+	special(v, tcell.KeyHome, tcell.ModNone)
+	row := v.rows[v.rowOf(v.cl, v.cc)]
+	if v.cc != row.start || row.start == 0 {
+		t.Errorf("Home: column %d, row from %d", v.cc, row.start)
+	}
+	special(v, tcell.KeyEnd, tcell.ModNone)
+	if v.cc != row.end-1 {
+		t.Errorf("End: column %d", v.cc)
+	}
+	special(v, tcell.KeyHome, tcell.ModCtrl)
+	if v.cl != 0 || v.cc != 0 {
+		t.Errorf("^Home: at %d:%d", v.cl, v.cc)
+	}
+
+	// Shift selects; a move without it ends the selection.
+	keys(v, "jj")
+	special(v, tcell.KeyRight, tcell.ModShift|tcell.ModCtrl)
+	special(v, tcell.KeyRight, tcell.ModShift)
+	if v.mode != visual || v.selText() != "我们今天" {
+		t.Errorf("Shift: mode %d, selected %q", v.mode, v.selText())
+	}
+	special(v, tcell.KeyRight, tcell.ModNone)
+	if v.mode != normal {
+		t.Errorf("→ after Shift: mode %d", v.mode)
+	}
+	// but not one begun with v
+	keys(v, "v")
+	special(v, tcell.KeyRight, tcell.ModNone)
+	if v.mode != visual {
+		t.Errorf("→ after v: mode %d", v.mode)
+	}
+}
+
+func TestDrag(t *testing.T) {
+	v, _ := newTestView(t, book)
+	m := func(x int, b tcell.ButtonMask) {
+		v.mouse(tcell.NewEventMouse(x, 2, b, tcell.ModNone))
+		v.draw()
+	}
+	m(0, tcell.Button1)
+	if v.mode != normal {
+		t.Fatalf("a press selects")
+	}
+	m(4, tcell.Button1)
+	m(7, tcell.Button1)
+	m(7, tcell.ButtonNone)
+	if v.mode != visual || v.selText() != "我们今天" {
+		t.Errorf("drag: mode %d, selected %q", v.mode, v.selText())
+	}
+	click(v, 0, 2)
+	if v.mode != normal {
+		t.Errorf("a click leaves the selection")
 	}
 }
 
@@ -664,14 +815,13 @@ func TestClick(t *testing.T) {
 	v, _ := newTestView(t, book)
 	// Row 2 is line 2; each Han character is two columns wide, so
 	// column 7 is the right half of 天, the fourth character.
-	v.mouse(tcell.NewEventMouse(7, 2, tcell.Button1, tcell.ModNone))
+	click(v, 7, 2)
 	if v.cl != 2 || v.cc != 3 {
 		t.Fatalf("click: at %d:%d, want 2:3", v.cl, v.cc)
 	}
 	// a click below the text does nothing
 	v.draw()
-	v.mouse(tcell.NewEventMouse(0, v.textH(), tcell.Button1,
-		tcell.ModNone))
+	click(v, 0, v.textH())
 	if v.cl != 2 || v.cc != 3 {
 		t.Errorf("click on the pane: at %d:%d", v.cl, v.cc)
 	}
@@ -769,15 +919,14 @@ func TestNestedPanes(t *testing.T) {
 	}
 	// a click in the pane moves into it, one in the book back up
 	py := v.h - v.ph
-	v.mouse(tcell.NewEventMouse(0, py, tcell.Button1, tcell.ModNone))
+	click(v, 0, py)
 	v.draw()
 	if len(v.stack) != 1 || v.cl != 0 {
 		t.Fatalf("click in the pane: depth %d at %d", len(v.stack),
 			v.cl)
 	}
 	b := v.blocks[1] // the book's
-	v.mouse(tcell.NewEventMouse(0, b.y+b.n-1, tcell.Button1,
-		tcell.ModNone))
+	click(v, 0, b.y+b.n-1)
 	if len(v.stack) != 0 {
 		t.Errorf("click in the book: depth %d", len(v.stack))
 	}
@@ -871,10 +1020,10 @@ func TestOtherContexts(t *testing.T) {
 			dr.osel)
 	}
 	note := dr.note(dr.forms(v.conv), false, false)
-	if c := note[12]; c != "<div>她身上<b>散发</b>香味，又散发热气。</div>" {
+	if c := note[12]; c != "<div>她身上<b>散发</b>香味，又<b>散发</b>热气。</div>" {
 		t.Errorf("Contexts %q", c)
 	}
-	if c := note[13]; c != "<div>她身上<b>散發</b>香味，又散發熱氣。</div>" {
+	if c := note[13]; c != "<div>她身上<b>散發</b>香味，又<b>散發</b>熱氣。</div>" {
 		t.Errorf("ContextsTrad %q", c)
 	}
 
@@ -1322,5 +1471,109 @@ func TestQueuedOthers(t *testing.T) {
 	if !onScreen(s, "觉得企业不错") {
 		t.Errorf("企业's other place not shown:\n%s",
 			strings.Join(screen(s), "\n"))
+	}
+}
+
+func TestParseKeys(t *testing.T) {
+	ks, err := parseKeys("w<C-S-Right>*3 <Space><S-Tab>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ks) != 6 {
+		t.Fatalf("%d keys", len(ks))
+	}
+	k := ks[1].ev
+	if k.Key() != tcell.KeyRight ||
+		k.Modifiers() != tcell.ModCtrl|tcell.ModShift ||
+		ks[1].label != "Ctrl+Shift+→" {
+		t.Errorf("<C-S-Right>: %v %v %q", k.Key(), k.Modifiers(),
+			ks[1].label)
+	}
+	if ks[4].ev.Rune() != ' ' || ks[5].ev.Key() != tcell.KeyBacktab {
+		t.Errorf("<Space><S-Tab>: %v %v", ks[4].ev.Rune(),
+			ks[5].ev.Key())
+	}
+	if _, err := parseKeys("<Nope>"); err == nil {
+		t.Errorf("<Nope> parsed")
+	}
+}
+
+// TestDemo plays a short demo and checks the GIF has a frame for each
+// key that changed the screen.
+func TestDemo(t *testing.T) {
+	if _, err := zhdict.FindDir(""); err != nil {
+		t.Skipf("dictionaries unavailable: %v", err)
+	}
+	if _, err := fontFile(); err != nil {
+		t.Skipf("no font: %v", err)
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp) // restored after runDemo's
+	text := filepath.Join(tmp, "book.txt")
+	os.WriteFile(text, []byte(book), 0o644)
+	acts := filepath.Join(tmp, "acts")
+	os.WriteFile(acts, []byte("size 40 12\nopen "+text+
+		"\nfind 我们\ncaption hello\nkeys <C-Right>*2 <S-Right>\n"),
+		0o644)
+	out := filepath.Join(tmp, "out.gif")
+	if err := runDemo("", acts, out); err != nil {
+		t.Fatal(err)
+	}
+	fh, err := os.Open(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fh.Close()
+	g, err := gif.DecodeAll(fh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Image) != 5 {
+		t.Errorf("%d frames, want 5", len(g.Image))
+	}
+}
+
+// TestExamples checks that m finds the word in a text beside the book and
+// in other dictionary entries, as 擊發's definition has 扣動, and that a
+// ticked one goes on the card labelled.
+func TestExamples(t *testing.T) {
+	v, s := newTestView(t, "他扣动扳机。\n")
+	os.WriteFile(filepath.Join(filepath.Dir(v.d.src), "other.txt"),
+		[]byte("第一章\n\n她慢慢地扣动了扳机，枪响了。\n"), 0o644)
+	keys(v, "/扣动⏎vl⏎")
+	dr := v.dr
+	if dr == nil || dr.forms(v.conv).wordS != "扣动" {
+		t.Fatalf("no card for 扣动")
+	}
+	book := filepath.Dir(v.d.src)
+	src := findExamples(exWhere{bookDir: book, book: v.d.src,
+		dictDir: filepath.Dir(v.convDir)}, dr.forms(v.conv), v.dict,
+		v.pron, v.conv)
+	labels := map[string]bool{}
+	for _, sr := range src {
+		for _, o := range sr.drafts {
+			labels[o.from] = true
+		}
+	}
+	for _, l := range []string{"other.txt", "兩岸詞典「擊發」"} {
+		if !labels[l] {
+			t.Errorf("no example from %s; have %v", l, labels)
+		}
+	}
+	dr.exs = src
+	dr.showExamples()
+	v.draw()
+	if !onScreen(s, "other.txt") {
+		t.Errorf("examples not shown:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	n := len(dr.others)
+	if n == 0 || dr.osel[n-1] {
+		t.Fatalf("examples: %d, last ticked %v", n, dr.osel)
+	}
+	dr.osel[n-1] = true
+	note := dr.note(dr.forms(v.conv), false, false)
+	if !strings.Contains(note[12], "<span class=src>") {
+		t.Errorf("Contexts %q", note[12])
 	}
 }
