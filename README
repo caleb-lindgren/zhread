@@ -415,25 +415,26 @@ The preview shows:
   Its other script follows, converted again. The ticked ones go on the card
   with its own, and Anki shows them in turn (see below). A card made in a
   definitions pane gets the book's.
-- **More contexts**, after `m`, from outside the book, all of them, ticked,
+- **More contexts**, after `m`, from outside the book, all of them, unticked,
   under the book's, each labelled with where it came from: the other `.txt`
-  files in the book's directory; the examples in other words' entries in
-  兩岸詞典 and MoEDict that have the word (扣動 has none of its own, but
-  連射's 「扣動扳機連射數槍」 has it), or where none of an entry's examples
-  has it, the sentence of its definition that does; and the sentence
-  corpora in dict/corpora, if any (see below). Both scripts of the word are
-  looked for, and a place is kept only where the segmenter takes the word
-  as a word, as in the book. Each source's are shortest first, but a
-  dictionary's examples before its prose and sentences under eight
-  characters last. `M` unticks all that `m` found, or ticks them all again;
-  `a` does the same for every other context, the book's too. PgDn and PgUp
-  move ten at a time through a long list. The bottom line says how many
-  each source gave, marking with (!) any over 500, and how long the search
-  took. It runs in the background, segmenting the places on every CPU: for
-  扣动, with Tatoeba and zho_news (131 MB), under a second; for 问题, which
-  zho_news has 30,325 times, 2.8 s on 8 CPUs and 3.9 s on 4, and so about
-  three times that with all three Leipzig sets. A ticked one goes on the
-  card with its label after it, in small grey type.
+  files in the book's directory; the examples in other words' entries in 兩岸詞典
+  and MoEDict that have the word (扣動 has none of its own, but 連射's 「扣動扳機連射數槍」
+  has it), or where none of an entry's examples has it, the sentence of its
+  definition that does; and the sentence corpora in dict/corpora, if any (see
+  below). Both scripts of the word are looked for, and a place is kept only
+  where the segmenter takes the word as a word, as in the book. Each source's
+  are shortest first, but a dictionary's examples before its prose and
+  sentences under eight characters last. Since a sentence from elsewhere may
+  use the word in another sense than the card's, none is ticked: tick the ones
+  that match with Space. `M` ticks all that `m` found, or unticks them all when
+  they all are; `a` does the same for every other context, the book's too. PgDn
+  and PgUp move ten at a time through a long list. The bottom line says how
+  many each source gave, marking with (!) any over 500, and how long the search
+  took. It runs in the background, segmenting the places on every CPU: for 扣动,
+  with Tatoeba and zho_news (131 MB), under a second; for 问题, which zho_news
+  has 30,325 times, 2.8 s on 8 CPUs and 3.9 s on 4, and so about three times
+  that with all three Leipzig sets. A ticked one goes on the card with its
+  label after it, in small grey type.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
   any, Enter asks again before saving a new card. Cards for the word itself

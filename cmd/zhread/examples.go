@@ -3,8 +3,9 @@ package main
 // More contexts for a card than its book has: m in the card preview looks
 // for the word in the other texts beside the book, in the Chinese
 // dictionaries' entries for other words, and in sentence corpora under
-// dict/corpora, and offers all it finds as further contexts, ticked, each
-// labelled with where it came from.
+// dict/corpora, and offers all it finds as further contexts, unticked,
+// each labelled with where it came from: a corpus sentence may use the
+// word in another sense than the card's, so each is ticked by hand.
 
 import (
 	"bytes"
@@ -415,15 +416,15 @@ func checkChunk(cands []exCand, trad bool, f forms, dict *zhdict.Dict,
 }
 
 // moreExamples looks for the word outside the book, in the background,
-// and adds every place found to the other contexts, ticked. Once they are
-// added, m does nothing more.
+// and adds every place found to the other contexts, unticked. Once they
+// are added, m does nothing more.
 func (v *view) moreExamples() {
 	dr := v.dr
 	if dr.searching {
 		return
 	}
 	if dr.exs != nil {
-		dr.exMsg = "all found are shown; M unticks them"
+		dr.exMsg = "all found are shown; M ticks or unticks them all"
 		return
 	}
 	dr.searching = true
@@ -444,9 +445,9 @@ func (v *view) moreExamples() {
 	}()
 }
 
-// showExamples adds each source's places to the other contexts, ticked,
-// and says how many each had, and how long the search took. A source with
-// more than exMany is called out, since it ticks so many.
+// showExamples adds each source's places to the other contexts,
+// unticked, and says how many each had, and how long the search took. A
+// source with more than exMany is called out, as too many to read through.
 func (dr *draft) showExamples(took time.Duration) {
 	var parts []string
 	total := 0
@@ -454,7 +455,7 @@ func (dr *draft) showExamples(took time.Duration) {
 		for _, o := range s.drafts {
 			o.found = true
 			dr.others = append(dr.others, o)
-			dr.osel = append(dr.osel, true)
+			dr.osel = append(dr.osel, false)
 		}
 		n := len(s.drafts)
 		total += n
@@ -464,8 +465,9 @@ func (dr *draft) showExamples(took time.Duration) {
 		}
 		parts = append(parts, part)
 	}
-	dr.exMsg = fmt.Sprintf("%d more, ticked, in %.1fs: %s; M unticks "+
-		"them", total, took.Seconds(), strings.Join(parts, "  "))
+	dr.exMsg = fmt.Sprintf("%d more, unticked, in %.1fs: %s; space "+
+		"ticks one, M all", total, took.Seconds(),
+		strings.Join(parts, "  "))
 	if total == 0 {
 		dr.exMsg = fmt.Sprintf("no more examples (%.1fs)",
 			took.Seconds())
@@ -474,7 +476,7 @@ func (dr *draft) showExamples(took time.Duration) {
 }
 
 // toggleExamples ticks all the places m added, or unticks them all when
-// they all are.
+// they all are already ticked.
 func (dr *draft) toggleExamples() {
 	if dr.exs == nil {
 		return

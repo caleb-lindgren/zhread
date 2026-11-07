@@ -1584,13 +1584,17 @@ func TestExamples(t *testing.T) {
 			strings.Join(screen(s), "\n"))
 	}
 	n := len(dr.others)
-	if n == 0 || !dr.osel[n-1] {
-		t.Fatalf("examples: %d, last unticked %v", n, dr.osel)
+	if n == 0 || dr.osel[n-1] {
+		t.Fatalf("examples: %d, last ticked %v", n, dr.osel)
 	}
-	// M unticks what m found, and ticks it again
+	// M ticks what m found, and unticks it again
 	keys(v, "M")
-	if slices.Contains(dr.osel, true) {
+	if !dr.osel[n-1] {
 		t.Errorf("M left %v", dr.osel)
+	}
+	keys(v, "M")
+	if dr.osel[n-1] {
+		t.Errorf("second M left %v", dr.osel)
 	}
 	keys(v, "M")
 	note := dr.note(dr.forms(v.conv), false, false)
