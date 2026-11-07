@@ -3,8 +3,8 @@ package main
 // More contexts for a card than its book has: m in the card preview looks
 // for the word in the other texts beside the book, in the Chinese
 // dictionaries' entries for other words, and in sentence corpora under
-// dict/corpora, and offers what it finds as further contexts, unticked,
-// each labelled with where it came from.
+// dict/corpora, and offers all it finds as further contexts, ticked, each
+// labelled with where it came from.
 
 import (
 	"bytes"
@@ -13,8 +13,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/zhdict"
@@ -22,11 +25,10 @@ import (
 )
 
 const (
-	// exKeep bounds the places of one source that are segmented to see
-	// whether they really have the word; the shortest are kept.
-	exKeep = 300
-	// exBatch is how many of each source's m shows at a time.
-	exBatch = 4
+	// exChunk is how many places one worker segments at a time.
+	exChunk = 1000
+	// exMany is how many places of one source the status line warns of.
+	exMany = 500
 	// exShort is the length under which a sentence is too short to
 	// recall a word from, and so comes after the longer ones.
 	exShort = 8
@@ -42,21 +44,21 @@ type exCand struct {
 	text  string
 	label string
 	ex    bool // a dictionary's example rather than its prose
+	trad  bool // the text is traditional
 }
 
-// exSrc is one source's places, as drafts like the book's other places,
-// and how many of them m has shown.
+// exSrc is one source's places, as drafts like the book's other places.
 type exSrc struct {
 	name   string
 	found  int // places found, before segmenting
 	drafts []*draft
-	next   int
 }
 
 // examplesFound is the search's result, posted back from the background.
 type examplesFound struct {
-	dr  *draft
-	src []*exSrc
+	dr   *draft
+	src  []*exSrc
+	took time.Duration
 }
 
 // exWhere is what the search reads: the book's directory and path, and
@@ -80,7 +82,7 @@ func findExamples(w exWhere, f forms, dict *zhdict.Dict, pron string,
 		s.drafts = checkCands(cands, f, dict, pron, conv)
 		out = append(out, s)
 	}
-	add("other texts", siblingCands(w, words))
+	add("other texts", siblingCands(w, words, conv))
 	csld, err := os.ReadFile(filepath.Join(w.dictDir, "csld.tsv"))
 	if err == nil {
 		add("兩岸詞典", dictCands(csld, words, "兩岸詞典", csldEntry))
@@ -99,16 +101,31 @@ func findExamples(w exWhere, f forms, dict *zhdict.Dict, pron string,
 		}
 		name := strings.TrimSuffix(filepath.Base(p), ".txt")
 		var cands []exCand
+		trad := tradSample(b, conv)
 		eachLine(b, words, func(l []byte) {
 			if i := bytes.LastIndexByte(l, '\t'); i >= 0 {
 				l = l[i+1:]
 			}
 			cands = append(cands, exCand{text: string(l),
-				label: name})
+				label: name, trad: trad})
 		})
 		add(name, cands)
 	}
 	return out
+}
+
+// tradSample reports whether a file is in traditional characters, judged
+// as openCard judges a paragraph, from its first few thousand bytes: a
+// file is in one script, and converting each place found in it would take
+// most of the search's time.
+func tradSample(b []byte, conv convs) bool {
+	n := min(len(b), 6000)
+	for n > 0 && n < len(b) && !utf8.RuneStart(b[n]) {
+		n--
+	}
+	t := string(b[:n])
+	return changed(t, conv.t2s.Convert(t)) >
+		changed(t, conv.s2t.Convert(t))
 }
 
 // eachLine calls f once with each line of b that has any of words.
@@ -167,7 +184,7 @@ func firstAt(s string, words []string) (int, int, bool) {
 
 // siblingCands are the sentences with the word in the other .txt files of
 // the book's directory, labelled with the file.
-func siblingCands(w exWhere, words []string) []exCand {
+func siblingCands(w exWhere, words []string, conv convs) []exCand {
 	files, _ := filepath.Glob(filepath.Join(w.bookDir, "*.txt"))
 	var out []exCand
 	for _, p := range files {
@@ -179,6 +196,7 @@ func siblingCands(w exWhere, words []string) []exCand {
 			continue
 		}
 		name := filepath.Base(p)
+		trad := tradSample(b, conv)
 		eachLine(b, words, func(l []byte) {
 			s := string(l)
 			rs := []rune(s)
@@ -192,7 +210,8 @@ func siblingCands(w exWhere, words []string) []exCand {
 					ws := utf8.RuneCountInString(s[:i])
 					we := ws + utf8.RuneCountInString(wd)
 					out = append(out, exCand{label: name,
-						text: sentenceAt(rs, ws, we)})
+						text: sentenceAt(rs, ws, we),
+						trad: trad})
 					at = i + len(wd)
 				}
 			}
@@ -251,7 +270,7 @@ func dictCands(b []byte, words []string, name string,
 		for _, m := range quoted.FindAllStringSubmatch(def, -1) {
 			if has(m[1]) {
 				out = append(out, exCand{text: m[1],
-					label: label, ex: true})
+					label: label, ex: true, trad: true})
 			}
 		}
 		if len(out) > n {
@@ -265,7 +284,8 @@ func dictCands(b []byte, words []string, name string,
 			}
 			if ws, n, ok := firstAt(cell, words); ok {
 				out = append(out, exCand{text: sentenceAt(
-					[]rune(cell), ws, ws+n), label: label})
+					[]rune(cell), ws, ws+n), label: label,
+					trad: true})
 			}
 		}
 	})
@@ -292,99 +312,181 @@ func checkCands(cands []exCand, f forms, dict *zhdict.Dict, pron string,
 	slices.SortStableFunc(cands, func(a, b exCand) int {
 		return cmp.Compare(rank(a), rank(b))
 	})
-	cands = cands[:min(len(cands), exKeep)]
-	// In each script, the places written in it, as one doc of
-	// paragraphs, which findOthers searches as it does the book.
-	var out []*draft
+	// The places in chunks, each in one script, as a doc of paragraphs
+	// that findOthers searches as it does the book, the chunks shared
+	// out among a worker a CPU. A chunk's results go in its slot, so the
+	// order stays the ranked one.
+	type chunk struct {
+		cands []exCand
+		trad  bool
+	}
+	var chunks []chunk
 	for _, trad := range []bool{false, true} {
 		word := f.wordS
 		if trad {
 			word = f.wordT
 		}
-		d := &doc{}
-		var labels []string
+		var cur []exCand
 		for _, c := range cands {
-			t := c.text
-			isTrad := changed(t, conv.t2s.Convert(t)) >
-				changed(t, conv.s2t.Convert(t))
-			if isTrad != trad || !strings.Contains(t, word) {
+			// Where the word's forms differ, the form a place has
+			// says its script, as a file of mixed scripts like
+			// Tatoeba's needs; else its file's script stands.
+			ct := c.trad
+			if f.wordS != f.wordT {
+				ct = strings.Contains(c.text, f.wordT)
+			}
+			if ct != trad || !strings.Contains(c.text, word) {
 				continue
 			}
-			if len(d.lines) > 0 {
-				d.lines = append(d.lines, nil)
+			cur = append(cur, c)
+			if len(cur) == exChunk {
+				chunks = append(chunks, chunk{cur, trad})
+				cur = nil
 			}
-			d.lines = append(d.lines, []rune(t))
-			labels = append(labels, c.label)
 		}
-		if len(labels) == 0 {
-			continue
-		}
-		d.alloc()
-		w := []rune(word)
-		probe := &draft{p: para{text: w, offs: []int{0}}, ws: 0,
-			we: len(w), span: newSpan(w, 0, len(w)), trad: trad}
-		for _, o := range findOthers(d, false, dict, pron, conv,
-			probe) {
-			o.from = labels[o.p.first/2]
-			out = append(out, o)
+		if len(cur) > 0 {
+			chunks = append(chunks, chunk{cur, trad})
 		}
 	}
-	slices.SortStableFunc(out, func(a, b *draft) int {
-		return cmp.Compare(len(a.ctxf.ctxS), len(b.ctxf.ctxS))
+	res := make([][]*draft, len(chunks))
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for range min(runtime.NumCPU(), len(chunks)) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				res[i] = checkChunk(chunks[i].cands,
+					chunks[i].trad, f, dict, pron, conv)
+			}
+		}()
+	}
+	for i := range chunks {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+	// Chunks of the two scripts come one after the other; the ranks
+	// interleave them again.
+	type ranked struct {
+		o    *draft
+		rank int
+	}
+	var all []ranked
+	for i, ds := range res {
+		for _, o := range ds {
+			c := chunks[i].cands[o.p.first/2]
+			all = append(all, ranked{o, rank(c)})
+		}
+	}
+	slices.SortStableFunc(all, func(a, b ranked) int {
+		return cmp.Compare(a.rank, b.rank)
 	})
+	out := make([]*draft, len(all))
+	for i, r := range all {
+		out[i] = r.o
+	}
 	return out
 }
 
-// moreExamples shows the next of each source's places in the preview,
-// searching first, in the background, if it has not yet.
+// checkChunk is checkCands for a chunk of places in one script.
+func checkChunk(cands []exCand, trad bool, f forms, dict *zhdict.Dict,
+	pron string, conv convs) []*draft {
+	word := f.wordS
+	if trad {
+		word = f.wordT
+	}
+	d := &doc{}
+	for _, c := range cands {
+		if len(d.lines) > 0 {
+			d.lines = append(d.lines, nil)
+		}
+		d.lines = append(d.lines, []rune(c.text))
+	}
+	d.alloc()
+	w := []rune(word)
+	probe := &draft{p: para{text: w, offs: []int{0}}, ws: 0,
+		we: len(w), span: newSpan(w, 0, len(w)), trad: trad}
+	out := findOthers(d, false, dict, pron, conv, probe)
+	for _, o := range out {
+		o.from = cands[o.p.first/2].label
+	}
+	return out
+}
+
+// moreExamples looks for the word outside the book, in the background,
+// and adds every place found to the other contexts, ticked. Once they are
+// added, m does nothing more.
 func (v *view) moreExamples() {
 	dr := v.dr
 	if dr.searching {
 		return
 	}
-	if dr.exs == nil {
-		dr.searching = true
-		dr.exMsg = "looking for more examples…"
-		book := v.d
-		if len(v.stack) > 0 {
-			book = v.stack[0].d
-		}
-		w := exWhere{bookDir: filepath.Dir(book.src), book: book.src,
-			dictDir: filepath.Dir(v.convDir)}
-		f := dr.forms(v.conv)
-		dict, pron, conv, s := v.dict, v.pron, v.conv, v.s
-		go func() {
-			src := findExamples(w, f, dict, pron, conv)
-			s.PostEvent(tcell.NewEventInterrupt(
-				examplesFound{dr, src}))
-		}()
+	if dr.exs != nil {
+		dr.exMsg = "all found are shown; M unticks them"
 		return
 	}
-	dr.showExamples()
+	dr.searching = true
+	dr.exMsg = "looking for more examples…"
+	book := v.d
+	if len(v.stack) > 0 {
+		book = v.stack[0].d
+	}
+	w := exWhere{bookDir: filepath.Dir(book.src), book: book.src,
+		dictDir: filepath.Dir(v.convDir)}
+	f := dr.forms(v.conv)
+	dict, pron, conv, s := v.dict, v.pron, v.conv, v.s
+	go func() {
+		start := time.Now()
+		src := findExamples(w, f, dict, pron, conv)
+		s.PostEvent(tcell.NewEventInterrupt(
+			examplesFound{dr, src, time.Since(start)}))
+	}()
 }
 
-// showExamples adds the next exBatch of each source's places to the
-// other contexts, unticked, and says how many each has shown of how many.
-func (dr *draft) showExamples() {
+// showExamples adds each source's places to the other contexts, ticked,
+// and says how many each had, and how long the search took. A source with
+// more than exMany is called out, since it ticks so many.
+func (dr *draft) showExamples(took time.Duration) {
 	var parts []string
-	added := 0
+	total := 0
 	for _, s := range dr.exs {
-		n := min(len(s.drafts)-s.next, exBatch)
-		for _, o := range s.drafts[s.next : s.next+n] {
+		for _, o := range s.drafts {
+			o.found = true
 			dr.others = append(dr.others, o)
-			dr.osel = append(dr.osel, false)
+			dr.osel = append(dr.osel, true)
 		}
-		s.next += n
-		added += n
-		more := ""
-		if s.found > exKeep {
-			more = "+" // only the shortest exKeep were looked at
+		n := len(s.drafts)
+		total += n
+		part := fmt.Sprintf("%s %d", s.name, n)
+		if n > exMany {
+			part = fmt.Sprintf("%s %d(!)", s.name, n)
 		}
-		parts = append(parts, fmt.Sprintf("%s %d/%d%s", s.name,
-			s.next, len(s.drafts), more))
+		parts = append(parts, part)
 	}
-	dr.exMsg = strings.Join(parts, "  ")
-	if added == 0 {
-		dr.exMsg = "no more examples: " + dr.exMsg
+	dr.exMsg = fmt.Sprintf("%d more, ticked, in %.1fs: %s; M unticks "+
+		"them", total, took.Seconds(), strings.Join(parts, "  "))
+	if total == 0 {
+		dr.exMsg = fmt.Sprintf("no more examples (%.1fs)",
+			took.Seconds())
 	}
+	dr.changed = dr.changed || total > 0
+}
+
+// toggleExamples ticks all the places m added, or unticks them all when
+// they all are.
+func (dr *draft) toggleExamples() {
+	if dr.exs == nil {
+		return
+	}
+	all := true
+	for k, o := range dr.others {
+		all = all && (!o.found || dr.osel[k])
+	}
+	for k, o := range dr.others {
+		if o.found {
+			dr.osel[k] = !all
+		}
+	}
+	dr.changed = true
 }

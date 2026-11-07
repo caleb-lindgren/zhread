@@ -304,6 +304,13 @@ type draft struct {
 	exs       []*exSrc
 	searching bool
 	exMsg     string
+	found     bool // this other context is one m found
+	// guid, for a card being edited, is its row of cards.tsv, which saving
+	// overwrites, keeping added, the date it was first made; raws are its
+	// definitions no dictionary has, as opts.
+	guid  string
+	added string
+	raws  []opt
 	// ready, if not nil, is closed once others is found in the
 	// background, for a card queued after the first
 	ready chan struct{}
@@ -373,6 +380,10 @@ type opt struct {
 	s      zhdict.Sense
 	src    string // the dictionary, named for a fallback's definitions
 	row, k int    // its row of the group and its sense in the row
+	// raw, for a definition of a card being edited that no dictionary
+	// shown has, is its HTML as the card has it, kept as it is. Its row is
+	// -1 for a Chinese one, -2 for an English one.
+	raw string
 }
 
 // newOpts splits a word's definitions, those shows lets through, into
@@ -421,7 +432,25 @@ func (dr *draft) setOpts(shows func(zhdict.Group, int) bool) {
 			at = &key{o.row, o.k}
 		}
 	}
-	dr.opts, dr.zh = newOpts(dr.g, shows)
+	for i, o := range dr.opts {
+		if o.raw != "" {
+			dr.raws[o.k] = o
+			ticked[key{o.row, o.k}] = dr.sel[i]
+		}
+	}
+	opts, zh := newOpts(dr.g, shows)
+	// a card's own definitions that no dictionary has, after the rest of
+	// their language
+	var zhRaw, enRaw []opt
+	for _, o := range dr.raws {
+		if o.row == -1 {
+			zhRaw = append(zhRaw, o)
+		} else {
+			enRaw = append(enRaw, o)
+		}
+	}
+	dr.opts = slices.Concat(opts[:zh], zhRaw, opts[zh:], enRaw)
+	dr.zh = zh + len(zhRaw)
 	dr.sel = make([]bool, len(dr.opts))
 	cur := min(dr.cur, len(dr.opts)-1)
 	for i, o := range dr.opts {
@@ -443,6 +472,9 @@ func (dr *draft) setOpts(shows func(zhdict.Group, int) bool) {
 // text, examples and synonym lists on one line, and its quotations on lines
 // after it when cites is set.
 func (o opt) html(cites bool) string {
+	if o.raw != "" {
+		return o.raw
+	}
 	var ps []string
 	parts := append(append([]string{o.s.Pos}, o.s.Heads...), o.s.Text)
 	for _, t := range append(parts,
@@ -686,68 +718,21 @@ func srcLabel(from string) string {
 	return ` <span class=src>` + html.EscapeString(from) + `</span>`
 }
 
-// merge adds to row, an existing card's row of cards.tsv, what the draft
-// would put on a card of its own and the row lacks: its contexts, the
-// card's own and the others ticked, as further contexts, and its ticked
-// definitions. A context is new when neither script's text is already one
-// of the row's, its own or another. Each goes into the fields of the
-// scripts the row has cards in, so a card in one script stays in one.
-// Nothing is taken away, and the GUID, the card's own context, its
-// reading and its source are kept, so Anki updates the note in place. It
-// returns how many contexts and definitions were added.
-func (dr *draft) merge(row []string, f forms, cites bool) (nctx, ndef int) {
-	have := map[string]bool{}
-	for _, i := range []int{6, 8} {
-		if row[i] != "" {
-			have[strip(row[i])] = true
-		}
+// moveOther moves the other context under the cursor a place down, or up,
+// in the order the card shows them, the cursor with it.
+func (dr *draft) moveOther(down bool) {
+	k := dr.cur - len(dr.opts)
+	j := k - 1
+	if down {
+		j = k + 1
 	}
-	for _, i := range []int{12, 13} {
-		for _, m := range divs.FindAllStringSubmatch(row[i], -1) {
-			have[strip(m[1])] = true
-		}
+	if k < 0 || j < 0 || j >= len(dr.others) {
+		return
 	}
-	add := func(o forms, from string) {
-		s, t := string(o.ctxS), string(o.ctxT)
-		if have[s] || have[t] {
-			return
-		}
-		have[s], have[t] = true, true
-		if row[6] != "" {
-			row[12] += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") +
-				srcLabel(from) + "</div>"
-		}
-		if row[8] != "" {
-			row[13] += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") +
-				srcLabel(from) + "</div>"
-		}
-		nctx++
-	}
-	add(f, "")
-	for i, o := range dr.others {
-		if dr.osel[i] {
-			add(o.ctxf, o.from)
-		}
-	}
-	for i, o := range dr.opts {
-		if !dr.sel[i] {
-			continue
-		}
-		col := 4
-		if i >= dr.zh {
-			col = 5
-		}
-		if slices.Contains(strings.Split(row[col], "<br>"),
-			o.html(false)) {
-			continue
-		}
-		if row[col] != "" {
-			row[col] += "<br>"
-		}
-		row[col] += o.html(cites)
-		ndef++
-	}
-	return nctx, ndef
+	dr.others[k], dr.others[j] = dr.others[j], dr.others[k]
+	dr.osel[k], dr.osel[j] = dr.osel[j], dr.osel[k]
+	dr.cur += j - k
+	dr.changed = true
 }
 
 // update rewrites the row of cards.tsv with the GUID guid as change

@@ -259,36 +259,36 @@ The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
 xterm 256-colour palette entries, so st shows them exactly without true
 colour.
 
-| keys           | action                                               |
-| -------------- | ---------------------------------------------------- |
-| `h j k l`      | character left, line down, line up, right            |
-| `w b`          | next word, previous word                             |
-| `0 $`, `g0 g$` | start, end of the line; of the screen row            |
-| `gj gk`        | screen row down, up                                  |
-| ← →, ^← ^→     | character left, right; word back, forward            |
-| ↑ ↓, ^↑ ^↓     | screen row up, down; paragraph back, forward         |
-| Home End       | start, end of the screen row; with Ctrl, of the text |
-| PgUp PgDn      | page up, down                                        |
-| Shift-         | with any of the four above: select as it moves       |
-| `gg G`         | first line, last line (or line N with a count)       |
-| `^D ^U ^F ^B`  | half page down, up; page down, up                    |
-| `/ ?`, `n N`   | search forward, back (a Go regexp); repeat           |
-| `* #`          | search for the word under the cursor                 |
-| `v V`          | select by character, by line                         |
-| Enter          | make a card of the word, or of the selection         |
-| `:>cmd`        | in `v` or `V`: pipe the selection to `cmd`           |
-| `m`, `'`       | bookmark this line, go to the bookmark               |
-| `e`            | show or hide English definitions                     |
-| `x`            | show or hide quotations                              |
-| `c`, `E`       | show or hide MoEDict, Wiktionary as well             |
-| `J K`          | scroll the definitions down, up                      |
-| Tab, Shift-Tab | move into the definitions; back up a level           |
-| `t`            | show or hide the other side's reading                |
-| `gh`, F1       | show the keys                                        |
-| Esc            | hide them; end a selection; back to the book         |
-| `q`            | quit                                                 |
-| click, wheel   | move the cursor there; scroll the text               |
-| drag           | select from where the button was pressed             |
+| keys                | action                                               |
+| ------------------- | ---------------------------------------------------- |
+| `h j k l`           | character left, line down, line up, right            |
+| `w b`, M-f M-b      | next word, previous word                             |
+| `0 $`, `g0 g$`      | start, end of the line; of the screen row            |
+| `gj gk`             | screen row down, up                                  |
+| ← →, ^← ^→, M-← M-→ | character left, right; word back, forward            |
+| ↑ ↓, ^↑ ^↓, M-↑ M-↓ | screen row up, down; paragraph back, forward         |
+| Home End            | start, end of the screen row; with Ctrl, of the text |
+| PgUp PgDn           | page up, down                                        |
+| Shift-              | with any of the four above: select as it moves       |
+| `gg G`              | first line, last line (or line N with a count)       |
+| `^D ^U ^F ^B`       | half page down, up; page down, up                    |
+| `/ ?`, `n N`        | search forward, back (a Go regexp); repeat           |
+| `* #`               | search for the word under the cursor                 |
+| `v V`               | select by character, by line                         |
+| Enter               | make a card of the word, or of the selection         |
+| `:>cmd`             | in `v` or `V`: pipe the selection to `cmd`           |
+| `m`, `'`            | bookmark this line, go to the bookmark               |
+| `e`                 | show or hide English definitions                     |
+| `x`                 | show or hide quotations                              |
+| `c`, `E`            | show or hide MoEDict, Wiktionary as well             |
+| `J K`               | scroll the definitions down, up                      |
+| Tab, Shift-Tab      | move into the definitions; back up a level           |
+| `t`                 | show or hide the other side's reading                |
+| `gh`, F1            | show the keys                                        |
+| Esc                 | hide them; end a selection; back to the book         |
+| `q`                 | quit                                                 |
+| click, wheel        | move the cursor there; scroll the text               |
+| drag                | select from where the button was pressed             |
 
 Tab moves the cursor into the definitions pane, which becomes the text: every
 key above works on it as on the book, making cards and piping included, and a
@@ -318,6 +318,14 @@ does; one begun with `v` or `V` stays until Esc, as in vi. Dragging needs the
 terminal to report the mouse moving with the button held (xterm's mode
 1002), as st and xterm do; in both, Shift with the mouse still selects the
 terminal's own text, for copying.
+
+M- is Alt, Option on a Mac, where Ctrl-arrows belong to Mission Control and
+the terminal keeps Cmd for itself: Option-← and Option-→ move by word and
+Option-↑ and Option-↓ by paragraph, as in a macOS text field, with Shift to
+select. Terminal.app sends them only with "Use Option as Meta key" ticked
+(Settings > Profiles > Keyboard). iTerm2 sends Option-← and Option-→ as
+Esc b and Esc f unless its profile maps them otherwise, and zhread takes
+Esc b and Esc f, and Esc B and Esc F with Shift, as word left and right.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -407,41 +415,53 @@ The preview shows:
   Its other script follows, converted again. The ticked ones go on the card
   with its own, and Anki shows them in turn (see below). A card made in a
   definitions pane gets the book's.
-- **More contexts**, after `m`, from outside the book, unticked, under the
-  book's, each labelled with where it came from: the other `.txt` files in
-  the book's directory; the examples in other words' entries in 兩岸詞典 and
-  MoEDict that have the word (扣動 has none of its own, but 連射's
-  「扣動扳機連射數槍」 has it), or where none of an entry's examples has it,
-  the sentence of its definition that does; and the sentence corpora in
-  dict/corpora, if any (see below). Both scripts of the word are looked for,
-  and a place is kept only where the segmenter takes the word as a word, as
-  in the book. Each `m` adds the next four of each source, shortest first,
-  but a dictionary's examples before its prose and sentences under eight
-  characters last, and the bottom line counts them: `兩岸詞典 4/12` is four
-  shown of twelve, and a `+` after the twelve means there were more places
-  than the 300 shortest looked at. The search reads some 200 MB with both
-  corpora, about a second, in the background. A ticked one goes on the card
-  with its label after it, in small grey type.
+- **More contexts**, after `m`, from outside the book, all of them, ticked,
+  under the book's, each labelled with where it came from: the other `.txt`
+  files in the book's directory; the examples in other words' entries in
+  兩岸詞典 and MoEDict that have the word (扣動 has none of its own, but
+  連射's 「扣動扳機連射數槍」 has it), or where none of an entry's examples
+  has it, the sentence of its definition that does; and the sentence
+  corpora in dict/corpora, if any (see below). Both scripts of the word are
+  looked for, and a place is kept only where the segmenter takes the word
+  as a word, as in the book. Each source's are shortest first, but a
+  dictionary's examples before its prose and sentences under eight
+  characters last. `M` unticks all that `m` found, or ticks them all again;
+  `a` does the same for every other context, the book's too. PgDn and PgUp
+  move ten at a time through a long list. The bottom line says how many
+  each source gave, marking with (!) any over 500, and how long the search
+  took. It runs in the background, segmenting the places on every CPU: for
+  扣动, with Tatoeba and zho_news (131 MB), under a second; for 问题, which
+  zho_news has 30,325 times, 2.8 s on 8 CPUs and 3.9 s on 4, and so about
+  three times that with all three Leipzig sets. A ticked one goes on the
+  card with its label after it, in small grey type.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are
-  any, Enter asks again before saving. Cards for the word itself are
-  numbered, and `u` adds this one to such a card instead of saving a new
-  one, asking which by number when there are several: the contexts, the
-  card's own and the other ones ticked, that the card does not have yet go
-  on as further contexts, and the definitions ticked that it lacks are added
-  after its own. Nothing is taken off, and its GUID, own context, reading and
-  source stay, so the import updates the note in place. For such a word the
-  senses ticked to start with are the ones already on its cards, so `u`
-  adds only contexts unless more are ticked, and a new card for another
-  sense is a matter of unticking those and ticking that one.
+  any, Enter asks again before saving a new card. Cards for the word itself
+  are numbered, and `u` opens such a card in the preview instead, asking
+  which by number when there are several, filled in as the card has it: its
+  definitions ticked (MoEDict's, Wiktionary's or the quotations shown if it
+  has them, and any no dictionary has any more kept as they are, labelled
+  "on the card"), its reading, Taiwan's too if it has that, and its own
+  context, then its other contexts in their order, ticked, then the context
+  `u` was pressed from, ticked, and the word's other places in the book it
+  lacks, not. Everything works as for a new card: tick and untick
+  definitions and contexts, edit them with `i`, move their edges, `m` for
+  more; `<` and `>` move the context under the cursor up and down the
+  card's order. Enter saves it over the card's row of cards.tsv, keeping
+  its GUID, source and date, so the import updates the note in place. For
+  such a word the senses ticked to start with on a new card are the ones
+  already on its cards, so a new card for another sense is a matter of
+  unticking those and ticking that one.
 
 The corpora are fetched by `scripts/get_corpora.sh` into dict/corpora, which
 is not in git: Tatoeba's Mandarin sentences (89,289; CC BY 2.0 FR) and the
-Leipzig Corpora Collection's zho_news_2007-2009_1M (a million sentences
-from news, a 285 MB download and 131 MB after; CC BY). Other corpora of the
-Leipzig collection are named as arguments, `scripts/get_corpora.sh
-zho_wikipedia_2018_1M`; any file of one sentence a line put in dict/corpora
-as NAME.txt is searched too, labelled NAME.
+Leipzig Corpora Collection's three Chinese sets of a million sentences each
+(CC BY): zho_news_2007-2009_1M (a 285 MB download, 131 MB after),
+zho-cn_web_2015_1M (427 MB) and zho_wikipedia_2018_1M (257 MB), about
+970 MB to download in all. Named arguments fetch only those, as
+`scripts/get_corpora.sh tatoeba`, and any other Leipzig corpus by its
+name; any file of one sentence a line put in dict/corpora as NAME.txt is
+searched too, labelled NAME.
 
 Enter saves, Esc cancels. An Esc right after another, as from insert mode out
 past the list, asks first when the card has been changed (a context edited or

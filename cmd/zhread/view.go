@@ -149,7 +149,7 @@ func (v *view) run() error {
 				v.msg = string(d)
 			case examplesFound:
 				d.dr.exs, d.dr.searching = d.src, false
-				d.dr.showExamples()
+				d.dr.showExamples(d.took)
 			}
 		case *tcell.EventKey:
 			v.key(ev)
@@ -900,6 +900,7 @@ var keyHelp = [][2]string{
 	{"Home End", "start, end of the screen row; with ^, of the text"},
 	{"PgUp PgDn", "page up, down"},
 	{"Shift-", "with any of the last four: select as it moves"},
+	{"M-", "Alt (Option) as Ctrl with the arrows; M-f M-b words"},
 	{"click wheel", "move the cursor there; scroll the text"},
 	{"drag", "select from where the button was pressed"},
 }
@@ -907,13 +908,16 @@ var keyHelp = [][2]string{
 // cardKeyHelp is what gh shows below a card.
 var cardKeyHelp = [][2]string{
 	{"j k", "move over the contexts and definitions"},
+	{"PgDn PgUp", "the same, ten at a time"},
 	{"space", "tick the definition or context, or untick it"},
 	{"a", "tick all the other contexts, or none"},
 	{"m", "more contexts: other texts, dictionaries, corpora"},
+	{"M", "tick all the contexts m found, or none"},
 	{"[ ] { }", "move the context's left edge, right edge"},
 	{"i", "edit the context under the cursor"},
 	{"Enter y", "save the card (again if already carded)"},
-	{"u", "add contexts, definitions to the word's card"},
+	{"u", "edit the word's card instead (1-9: which)"},
+	{"< >", "move the context up, down the card's order"},
 	{"n", "skip to the selection's next card"},
 	{"Esc q", "cancel the card and those after it"},
 	{"Esc Esc", "the same, asking first if it is edited"},
@@ -1115,21 +1119,41 @@ func (v *view) key(ev *tcell.EventKey) {
 		v.pend = 0
 		v.navKey(ev, n)
 	case tcell.KeyRune:
-		v.runeKey(ev.Rune())
+		// Esc b and Esc f, which tcell gives as Alt-b and Alt-f, are
+		// word left and right, as iTerm2 sends them for Option-← and
+		// Option-→ unless its profile says otherwise; Esc B and Esc F
+		// select as they go.
+		r := ev.Rune()
+		if ev.Modifiers()&tcell.ModAlt != 0 &&
+			strings.ContainsRune("bfBF", r) {
+			k, mod := tcell.KeyLeft, tcell.ModAlt
+			if r == 'f' || r == 'F' {
+				k = tcell.KeyRight
+			}
+			if r == 'B' || r == 'F' {
+				mod |= tcell.ModShift
+			}
+			v.pend = 0
+			v.navKey(tcell.NewEventKey(k, 0, mod), n)
+			break
+		}
+		v.runeKey(r)
 		return
 	}
 	v.count = 0
 }
 
-// navKey moves the cursor n times as the arrow keys, Home, End, Page Up
-// and Page Down do in an editor: by character, word, screen row,
-// paragraph, to the ends of the row or the text, by page. Shift selects
-// from where the cursor was; a selection so begun, or by dragging the
-// mouse, ends at the next move without Shift, as an editor's does, while
-// one begun with v or V stays, as in vi.
+// navKey moves the cursor n times as the arrow keys, Home, End, Page Up and
+// Page Down do in an editor: by character, word, screen row, paragraph, to the
+// ends of the row or the text, by page; Ctrl or Alt goes further. Shift
+// selects from where the cursor was; a selection so begun, or by dragging the
+// mouse, ends at the next move without Shift, as an editor's does, while one
+// begun with v or V stays, as in vi.
 func (v *view) navKey(ev *tcell.EventKey, n int) {
 	mod := ev.Modifiers()
-	ctrl := mod&tcell.ModCtrl != 0
+	// Alt (Option) as well as Ctrl: macOS's terminals keep Ctrl-arrows
+	// for Mission Control and Cmd for themselves.
+	ctrl := mod&(tcell.ModCtrl|tcell.ModAlt) != 0
 	if mod&tcell.ModShift != 0 {
 		if v.mode == normal {
 			v.al, v.ac, v.mode = v.cl, v.cc, visual
@@ -2239,32 +2263,12 @@ func (v *view) nextCard() {
 	v.mode = card
 }
 
-// update adds the draft to the existing card k: see merge.
-func (v *view) update(k carded, f forms) {
-	dr := v.dr
-	var nctx, ndef int
-	err := v.rec.update(k.guid, func(row []string) {
-		nctx, ndef = dr.merge(row, f, v.expand)
-	})
-	word := headword(f.wordT, f.wordS)
-	switch {
-	case err != nil:
-		v.msg = err.Error()
-	case nctx+ndef == 0:
-		v.msg = "the card for " + word + " already has all this"
-	default:
-		v.msg = fmt.Sprintf("added %s and %s to the card for %s",
-			plural(nctx, "context"), plural(ndef, "definition"),
-			word)
+// edit opens the existing card k in the preview, in place of the new card
+// for its word: see editCard.
+func (v *view) edit(k carded) {
+	if err := v.editCard(v.dr, k); err != nil {
+		v.dr.warn = err.Error()
 	}
-	v.nextCard()
-}
-
-func plural(n int, s string) string {
-	if n == 1 {
-		return "1 " + s
-	}
-	return fmt.Sprintf("%d %ss", n, s)
 }
 
 func changed(a, b string) int {
@@ -2385,14 +2389,14 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	if dr.which {
 		dr.which = false
 		if r >= '1' && int(r-'1') < len(dr.exact) {
-			v.update(dr.exact[r-'1'], f)
+			v.edit(dr.exact[r-'1'])
 		}
 		return
 	}
 	switch {
 	case r == 'u' && len(dr.exact) > 0:
 		if len(dr.exact) == 1 {
-			v.update(dr.exact[0], f)
+			v.edit(dr.exact[0])
 		} else {
 			dr.which = true
 		}
@@ -2412,10 +2416,24 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			dr.saving = true
 			return
 		}
-		err := v.rec.save(dr.note(f, v.showTW, v.expand), v.deck)
-		if err != nil {
-			v.msg = err.Error()
+		note := dr.note(f, v.showTW, v.expand)
+		var err error
+		if dr.guid != "" {
+			// over the card being edited, as it was first made
+			note[0], note[11] = dr.guid, dr.added
+			err = v.rec.update(dr.guid, func(row []string) {
+				copy(row, note)
+			})
 		} else {
+			err = v.rec.save(note, v.deck)
+		}
+		switch {
+		case err != nil:
+			v.msg = err.Error()
+		case dr.guid != "":
+			v.msg = "updated the card for " +
+				headword(f.wordT, f.wordS)
+		default:
 			v.msg = "saved a card for " +
 				headword(f.wordT, f.wordS)
 		}
@@ -2438,14 +2456,22 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		} else {
 			dr.vi.insert = false
 		}
+	case (r == '<' || r == '>') && o != nil:
+		dr.moveOther(r == '>')
 	case r == 'm':
 		v.moreExamples()
+	case r == 'M':
+		dr.toggleExamples()
 	case r == 'a' && len(dr.others) > 0:
 		all := !slices.Contains(dr.osel, false)
 		for k := range dr.osel {
 			dr.osel[k] = !all
 		}
 		dr.changed = true
+	case ev.Key() == tcell.KeyPgDn:
+		dr.cur = max(min(dr.cur+10, dr.rows()-1), dr.cur)
+	case ev.Key() == tcell.KeyPgUp:
+		dr.cur = max(dr.cur-10, -len(lines))
 	case r == 'j' || ev.Key() == tcell.KeyDown:
 		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
@@ -2503,6 +2529,9 @@ func (v *view) drawCard() {
 		maxY -= ph
 	}
 	head := " New card: " + headword(f.wordT, f.wordS)
+	if dr.guid != "" {
+		head = " Edit card: " + headword(f.wordT, f.wordS)
+	}
 	if dr.of > 1 {
 		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
 	}
@@ -2551,20 +2580,30 @@ func (v *view) drawCard() {
 	if len(dr.dups) > 0 {
 		end = max(maxY-len(dr.dups)-2, y+1)
 	}
-	rows := func(a, b int) int {
+	rows := func(i int) int {
 		n := 0
-		for i := a; i <= b; i++ {
-			for _, l := range v.optLines(i) {
-				n += v.height(l.x, l.wx, l.text)
-			}
+		for _, l := range v.optLines(i) {
+			n += v.height(l.x, l.wx, l.text)
 		}
 		return n
 	}
 	cur := max(dr.cur, 0)
 	dr.top = min(dr.top, cur)
-	// a row for the note of options scrolled past, once there are any
-	for dr.top < cur && y+1+rows(dr.top, cur) > end {
-		dr.top++
+	// The first in view is the one furthest up, from the cursor's, that
+	// lets the rows down to the cursor's fit, with a row for the note of
+	// options scrolled past, once there are any. It is worked out back
+	// from the cursor, so that only what fits is measured, however many
+	// contexts m has added.
+	if dr.top < cur {
+		t, n := cur, rows(cur)
+		for t > dr.top {
+			h := rows(t - 1)
+			if y+1+n+h > end {
+				break
+			}
+			t, n = t-1, n+h
+		}
+		dr.top = t
 	}
 	if dr.top > 0 {
 		y = v.put(0, y, end, []rune(fmt.Sprintf("  ↑ %d more",
@@ -2618,7 +2657,7 @@ func (v *view) drawCard() {
 		help, st = fmt.Sprintf("Add to which card? 1-%d  "+
 			"any other key: none", len(dr.exact)), stWarn
 	case dr.saving && len(dr.exact) > 0:
-		help, st = "Already carded. Enter: new card  u: add to it"+
+		help, st = "Already carded. Enter: new card  u: edit it"+
 			"  Esc: cancel", stWarn
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
@@ -2773,7 +2812,10 @@ func (v *view) otherLines(k int) []styled {
 		rs, ws, we = f.ctxT, f.wsT, f.weT
 	}
 	var out []styled
-	if k == 0 && o.from == "" {
+	if k == 0 && dr.guid != "" {
+		out = append(out, line(0), line(0, piece{
+			"Other contexts, in order (< > move one):", stHint}))
+	} else if k == 0 && o.from == "" {
 		n := 0
 		for _, o := range dr.others {
 			if o.from == "" {

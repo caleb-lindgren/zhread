@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/zhdict"
@@ -395,7 +396,7 @@ func TestMakeCard(t *testing.T) {
 	// The same word again is a duplicate: the first Enter warns, offering
 	// to add to the card instead, the second saves.
 	keys(v, "/头发⏎vl⏎⏎")
-	if v.mode != card || !onScreen(s, "u: add to") {
+	if v.mode != card || !onScreen(s, "u: edit") {
 		t.Fatalf("no duplicate warning:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -405,53 +406,68 @@ func TestMakeCard(t *testing.T) {
 	}
 }
 
-// TestUpdateCard checks that u adds a card's context and a definition
-// ticked to the word's existing card, rather than making another.
+// TestUpdateCard checks that u opens the word's existing card in the
+// preview, as the card has it, and that Enter saves it back over its row.
 func TestUpdateCard(t *testing.T) {
-	v, _ := newTestView(t, "他把头发剪短了。\n\n她的头发很长，很好看。\n")
+	v, s := newTestView(t, "他把头发剪短了。\n\n她的头发很长，很好看。\n")
 	// The second paragraph's context would be the first card's other
-	// one; a unticks it, so the second card has something to add.
+	// one; a unticks it, so the edit has something to add.
 	keys(v, "/头发⏎vl⏎a⏎")
 	if len(v.rec.cards) != 1 {
 		t.Fatalf("%d cards", len(v.rec.cards))
 	}
 	guid := v.rec.cards[0].guid
-	keys(v, "gg/头发⏎n⏎")
-	dr := v.dr
-	if len(dr.exact) != 1 {
-		t.Fatalf("exact dups: %d", len(dr.exact))
-	}
-	// the carded senses are ticked to start with
-	for i := range dr.opts {
-		if dr.sel[i] != v.rec.cardedSense("头发", dr.opts[i].s) {
-			t.Errorf("option %d ticked %v", i, dr.sel[i])
-		}
-	}
-	keys(v, "u")
-	if v.mode != normal || len(v.rec.cards) != 1 {
-		t.Fatalf("mode %d, %d cards", v.mode, len(v.rec.cards))
-	}
-	if !strings.HasPrefix(v.msg, "added") {
-		t.Errorf("message %q", v.msg)
-	}
+	row0, _ := v.rec.row(guid)
+	// A definition no dictionary has stays on the card as it is.
 	b, _ := os.ReadFile(v.rec.path)
-	var row []string
-	for _, l := range strings.Split(string(b), "\n") {
-		if strings.HasPrefix(l, guid+"\t") {
-			row = strings.Split(l, "\t")
-		}
-	}
-	if row == nil {
-		t.Fatalf("the card's GUID is gone:\n%s", b)
-	}
-	// the second context was already the first card's other context
-	if !strings.Contains(row[6], "他把<b>头发</b>剪短了") ||
-		strings.Count(row[12], "<div>") != 1 {
-		t.Errorf("contexts %q %q", row[6], row[12])
+	b = []byte(strings.Replace(string(b), row0[5], row0[5]+"<br>my note",
+		1))
+	os.WriteFile(v.rec.path, b, 0o644)
+	if err := v.rec.update(guid, func([]string) {}); err != nil {
+		t.Fatal(err)
 	}
 	keys(v, "gg/头发⏎n⏎u")
-	if v.msg == "" || !strings.Contains(v.msg, "already has") {
-		t.Errorf("again: %q", v.msg)
+	dr := v.dr
+	if v.mode != card || dr.guid != guid ||
+		!onScreen(s, "Edit card: 頭髮") {
+		t.Fatalf("not editing:\n%s", strings.Join(screen(s), "\n"))
+	}
+	if string(dr.p.text) != "他把头发剪短了。" {
+		t.Errorf("own context %q", string(dr.p.text))
+	}
+	if len(dr.others) != 1 || !dr.osel[0] ||
+		string(dr.others[0].ctxf.ctxS) != "她的头发很长，很好看。" {
+		t.Errorf("others: %d %v", len(dr.others), dr.osel)
+	}
+	// the card's definitions are ticked, its own one among them
+	raw := -1
+	for i, o := range dr.opts {
+		if o.raw == "my note" {
+			raw = i
+		}
+	}
+	if raw < 0 || !dr.sel[raw] {
+		t.Fatalf("my note: %d", raw)
+	}
+	// untick the first definition, tick the second, and save
+	keys(v, " j ⏎")
+	if v.mode != normal || len(v.rec.cards) != 1 ||
+		!strings.HasPrefix(v.msg, "updated") {
+		t.Fatalf("mode %d, %d cards, %q", v.mode, len(v.rec.cards),
+			v.msg)
+	}
+	row, err := v.rec.row(guid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row[11] != row0[11] || row[6] != row0[6] {
+		t.Errorf("added %q, context %q", row[11], row[6])
+	}
+	if !strings.Contains(row[12], "她的<b>头发</b>很长") {
+		t.Errorf("contexts %q", row[12])
+	}
+	if !strings.Contains(row[5], "my note") || row[4] == row0[4] {
+		t.Errorf("definitions %q %q, were %q", row[4], row[5], row0[4])
 	}
 }
 
@@ -1561,19 +1577,91 @@ func TestExamples(t *testing.T) {
 		}
 	}
 	dr.exs = src
-	dr.showExamples()
+	dr.showExamples(0)
 	v.draw()
 	if !onScreen(s, "other.txt") {
 		t.Errorf("examples not shown:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
 	n := len(dr.others)
-	if n == 0 || dr.osel[n-1] {
-		t.Fatalf("examples: %d, last ticked %v", n, dr.osel)
+	if n == 0 || !dr.osel[n-1] {
+		t.Fatalf("examples: %d, last unticked %v", n, dr.osel)
 	}
-	dr.osel[n-1] = true
+	// M unticks what m found, and ticks it again
+	keys(v, "M")
+	if slices.Contains(dr.osel, true) {
+		t.Errorf("M left %v", dr.osel)
+	}
+	keys(v, "M")
 	note := dr.note(dr.forms(v.conv), false, false)
 	if !strings.Contains(note[12], "<span class=src>") {
 		t.Errorf("Contexts %q", note[12])
+	}
+}
+
+// TestManyContexts checks that the preview stays quick with thousands of
+// other contexts, as m can add, the cursor at the last of them.
+func TestManyContexts(t *testing.T) {
+	v, s := newTestView(t, "他散发传单给路人。\n\n她身上散发香味。\n")
+	keys(v, "/散发⏎vl⏎")
+	dr := v.dr
+	if len(dr.others) != 1 {
+		t.Fatalf("%d others", len(dr.others))
+	}
+	o := dr.others[0]
+	for range 5000 {
+		dr.others = append(dr.others, o)
+		dr.osel = append(dr.osel, true)
+	}
+	start := time.Now()
+	for range 20 {
+		v.key(tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModNone))
+		v.draw()
+	}
+	keys(v, strings.Repeat("j", 20))
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("40 keys took %v", d)
+	}
+	if dr.cur != 220 || !onScreen(s, "↑") {
+		t.Errorf("cursor at %d:\n%s", dr.cur,
+			strings.Join(screen(s), "\n"))
+	}
+}
+
+func TestMoveOther(t *testing.T) {
+	a, b := &draft{}, &draft{}
+	dr := &draft{opts: make([]opt, 2), others: []*draft{a, b},
+		osel: []bool{true, false}, cur: 2}
+	dr.moveOther(true)
+	if dr.others[0] != b || dr.osel[0] || dr.cur != 3 {
+		t.Errorf("down: %v %v %d", dr.others[0] == b, dr.osel, dr.cur)
+	}
+	dr.moveOther(true) // the last stays
+	dr.moveOther(false)
+	if dr.others[0] != a || dr.cur != 2 {
+		t.Errorf("up: %v %d", dr.others[0] == a, dr.cur)
+	}
+}
+
+// TestAltWords checks Option-arrows and Esc b, Esc f move by word, as
+// macOS terminals send them.
+func TestAltWords(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "jj")
+	special(v, tcell.KeyRight, tcell.ModAlt)
+	if v.cc != 2 {
+		t.Errorf("Alt-→: column %d", v.cc)
+	}
+	v.key(tcell.NewEventKey(tcell.KeyRune, 'f', tcell.ModAlt))
+	if v.cc != 4 {
+		t.Errorf("Esc f: column %d", v.cc)
+	}
+	v.key(tcell.NewEventKey(tcell.KeyRune, 'B', tcell.ModAlt))
+	if v.cc != 2 || v.mode != visual {
+		t.Errorf("Esc B: column %d, mode %d", v.cc, v.mode)
+	}
+	special(v, tcell.KeyUp, tcell.ModAlt)
+	if v.cl != 2 || v.cc != 0 || v.mode != normal {
+		t.Errorf("Alt-↑: at %d:%d, mode %d", v.cl, v.cc, v.mode)
 	}
 }
