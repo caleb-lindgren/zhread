@@ -28,6 +28,10 @@ SENSE=${SENSE:-2}
 OUT=${OUT:-zhread.gif}
 FONT=${FONT:-}
 
+# rep C N is C N times, as a keys action takes a character, its * being
+# the key of that name
+rep() { local i; for ((i = 0; i < $2; i++)); do printf %s "$1"; done; }
+
 root=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/..
 cd "$root"
 
@@ -41,21 +45,24 @@ caption none
 
 # Read along a word at a time; the definitions follow the cursor.
 delay 700
-caption Ctrl+→ moves by word
-keys <C-Right>*$STEPS
+caption → moves by word
+keys <Right>*$STEPS
 pause 800
 
 # Find the word, its next place after them, and select it.
-delay 250
+delay 600
 caption / searches
 keys /$WORD
-delay 700
+pause 800
 keys <Enter>
-caption Shift+→ selects
-keys <S-Right>*$(( ${#WORD} - 1 ))
-pause 600
+pause 1000
+delay 900
+caption Shift+Ctrl+→ selects by character
+keys <C-S-Right>*$(( ${#WORD} - 1 ))
+pause 1200
 
 # Card it, with the sense this context uses rather than the first.
+delay 700
 caption Enter makes a card of the selection
 keys <Enter>
 pause 1500
@@ -63,6 +70,42 @@ caption Space unticks the first sense...
 keys <Space>
 caption ...↓ goes to the one meant...
 keys <Down>*$(( SENSE - 1 ))
+caption ...and Space ticks it
+keys <Space>
+pause 1500
+caption Enter saves the card
+keys <Enter>
+pause 2500
+
+# Take the card back, and make it again with the vi keys.
+caption u undoes the card, after a y
+keys u
+pause 1200
+keys y
+pause 1500
+find $START
+caption The same with vi keys: w moves by word
+keys $(rep w $STEPS)
+pause 800
+delay 600
+caption / searches
+keys /$WORD
+pause 800
+keys <Enter>
+pause 1000
+delay 900
+caption v selects, l by character
+keys v
+keys $(rep l $(( ${#WORD} - 1 )))
+pause 1200
+delay 700
+caption Enter makes the card
+keys <Enter>
+pause 1500
+caption Space unticks the first sense...
+keys <Space>
+caption ...j goes to the one meant...
+keys $(rep j $(( SENSE - 1 )))
 caption ...and Space ticks it
 keys <Space>
 pause 1500

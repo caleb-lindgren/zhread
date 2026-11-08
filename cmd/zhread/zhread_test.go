@@ -488,23 +488,25 @@ func special(v *view, k tcell.Key, mod tcell.ModMask) {
 func TestArrows(t *testing.T) {
 	v, _ := newTestView(t, book)
 	keys(v, "jj")
+	// arrows move by word, and with Ctrl by character
 	special(v, tcell.KeyRight, tcell.ModNone)
-	if v.cc != 1 {
-		t.Errorf("→: column %d", v.cc)
+	if v.cc != 2 {
+		t.Errorf("→: column %d, want 2 (今天)", v.cc)
 	}
 	special(v, tcell.KeyRight, tcell.ModCtrl)
-	if v.cc != 2 {
-		t.Errorf("^→: column %d, want 2 (今天)", v.cc)
+	if v.cc != 3 {
+		t.Errorf("^→: column %d", v.cc)
 	}
 	special(v, tcell.KeyLeft, tcell.ModCtrl)
+	special(v, tcell.KeyLeft, tcell.ModNone)
 	if v.cc != 0 {
-		t.Errorf("^←: column %d, want 0 (我们)", v.cc)
+		t.Errorf("^← ←: column %d, want 0 (我们)", v.cc)
 	}
-	// ← at a line's start goes to the end of the line above
-	special(v, tcell.KeyLeft, tcell.ModNone)
-	special(v, tcell.KeyLeft, tcell.ModNone)
+	// ^← at a line's start goes to the end of the line above
+	special(v, tcell.KeyLeft, tcell.ModCtrl)
+	special(v, tcell.KeyLeft, tcell.ModCtrl)
 	if v.cl != 0 || v.cc != 2 {
-		t.Errorf("←←: at %d:%d, want 0:2", v.cl, v.cc)
+		t.Errorf("^←^←: at %d:%d, want 0:2", v.cl, v.cc)
 	}
 	special(v, tcell.KeyDown, tcell.ModCtrl)
 	if v.cl != 2 || v.cc != 0 {
@@ -534,8 +536,8 @@ func TestArrows(t *testing.T) {
 
 	// Shift selects; a move without it ends the selection.
 	keys(v, "jj")
-	special(v, tcell.KeyRight, tcell.ModShift|tcell.ModCtrl)
 	special(v, tcell.KeyRight, tcell.ModShift)
+	special(v, tcell.KeyRight, tcell.ModShift|tcell.ModCtrl)
 	if v.mode != visual || v.selText() != "我们今天" {
 		t.Errorf("Shift: mode %d, selected %q", v.mode, v.selText())
 	}
@@ -1566,14 +1568,15 @@ func TestMoveOther(t *testing.T) {
 	}
 }
 
-// TestAltWords checks Option-arrows and Esc b, Esc f move by word, as
-// macOS terminals send them.
+// TestAltWords checks Option-arrows move as Ctrl-arrows do, by character,
+// and Esc b, Esc f by word, as macOS terminals send them.
 func TestAltWords(t *testing.T) {
 	v, _ := newTestView(t, book)
 	keys(v, "jj")
 	special(v, tcell.KeyRight, tcell.ModAlt)
+	special(v, tcell.KeyRight, tcell.ModAlt)
 	if v.cc != 2 {
-		t.Errorf("Alt-→: column %d", v.cc)
+		t.Errorf("Alt-→ twice: column %d", v.cc)
 	}
 	v.key(tcell.NewEventKey(tcell.KeyRune, 'f', tcell.ModAlt))
 	if v.cc != 4 {

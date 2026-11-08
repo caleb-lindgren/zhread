@@ -893,7 +893,7 @@ var keyHelp = [][2]string{
 	{"gh F1", "show this help"},
 	{"Esc", "hide it; end a selection; back to the book"},
 	{"q", "quit"},
-	{"← →  ^← ^→", "character left, right; word back, forward"},
+	{"← →  ^← ^→", "word back, forward; character left, right"},
 	{"↑ ↓  ^↑ ^↓", "screen row up, down; paragraph back, forward"},
 	{"Home End", "start, end of the screen row; with ^, of the text"},
 	{"PgUp PgDn", "page up, down"},
@@ -1134,7 +1134,7 @@ func (v *view) key(ev *tcell.EventKey) {
 		r := ev.Rune()
 		if ev.Modifiers()&tcell.ModAlt != 0 &&
 			strings.ContainsRune("bfBF", r) {
-			k, mod := tcell.KeyLeft, tcell.ModAlt
+			k, mod := tcell.KeyLeft, tcell.ModNone // ← by word
 			if r == 'f' || r == 'F' {
 				k = tcell.KeyRight
 			}
@@ -1174,11 +1174,12 @@ func (v *view) navKey(ev *tcell.EventKey, n int) {
 		v.shiftSel = false
 	}
 	switch k := ev.Key(); {
-	case k == tcell.KeyLeft && ctrl:
+	// by word, the unit read in, and with Ctrl by character
+	case k == tcell.KeyLeft && !ctrl:
 		for ; n > 0; n-- {
 			v.wordBack()
 		}
-	case k == tcell.KeyRight && ctrl:
+	case k == tcell.KeyRight && !ctrl:
 		for ; n > 0; n-- {
 			v.wordFwd()
 		}

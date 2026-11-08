@@ -265,7 +265,7 @@ colour.
 | `w b`, M-f M-b      | next word, previous word                             |
 | `0 $`, `g0 g$`      | start, end of the line; of the screen row            |
 | `gj gk`             | screen row down, up                                  |
-| ← →, ^← ^→, M-← M-→ | character left, right; word back, forward            |
+| ← →, ^← ^→, M-← M-→ | word back, forward; character left, right            |
 | ↑ ↓, ^↑ ^↓, M-↑ M-↓ | screen row up, down; paragraph back, forward         |
 | Home End            | start, end of the screen row; with Ctrl, of the text |
 | PgUp PgDn           | page up, down                                        |
@@ -320,13 +320,16 @@ terminal to report the mouse moving with the button held (xterm's mode
 1002), as st and xterm do; in both, Shift with the mouse still selects the
 terminal's own text, for copying.
 
-M- is Alt, Option on a Mac, where Ctrl-arrows belong to Mission Control and
-the terminal keeps Cmd for itself: Option-← and Option-→ move by word and
-Option-↑ and Option-↓ by paragraph, as in a macOS text field, with Shift to
-select. Terminal.app sends them only with "Use Option as Meta key" ticked
-(Settings > Profiles > Keyboard). iTerm2 sends Option-← and Option-→ as
-Esc b and Esc f unless its profile maps them otherwise, and zhread takes
-Esc b and Esc f, and Esc B and Esc F with Shift, as word left and right.
+M- is Alt, Option on a Mac, where Ctrl-arrows belong to Mission Control and the
+terminal keeps Cmd for itself: Option-← and Option-→ move by character and
+Option-↑ and Option-↓ by paragraph, as Ctrl does, with Shift to select. The
+plain arrows ← and → move by word, the unit read in, so Ctrl or Option is for
+the rarer move by character. Terminal.app sends them only with "Use Option as
+Meta key" ticked (Settings > Profiles > Keyboard). iTerm2 sends Option-← and
+Option-→ as Esc b and Esc f unless its profile maps them otherwise, and zhread
+takes Esc b and Esc f, and Esc B and Esc F with Shift, as word left and right,
+as the plain arrows are; Option-arrows then move by word in iTerm2, so for
+characters map them to send Alt-arrows.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
