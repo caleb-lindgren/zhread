@@ -4,6 +4,7 @@ import (
 	"image/gif"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1585,5 +1586,50 @@ func TestAltWords(t *testing.T) {
 	special(v, tcell.KeyUp, tcell.ModAlt)
 	if v.cl != 2 || v.cc != 0 || v.mode != normal {
 		t.Errorf("Alt-↑: at %d:%d, mode %d", v.cl, v.cc, v.mode)
+	}
+}
+
+// TestUndoCard takes back an update, then the card it updated, asking
+// first each time.
+func TestUndoCard(t *testing.T) {
+	v, _ := newTestView(t, "他散发传单给路人。\n\n她身上散发香味。\n")
+	keys(v, "u")
+	if v.undoAsk || !strings.HasPrefix(v.msg, "no card") {
+		t.Fatalf("u with nothing made: %q", v.msg)
+	}
+	keys(v, "lvl⏎⏎")
+	if len(v.rec.cards) != 1 {
+		t.Fatalf("%d cards", len(v.rec.cards))
+	}
+	guid := v.rec.cards[0].guid
+	before, _ := v.rec.row(guid)
+	keys(v, "gg/散发⏎n⏎⏎u⏎")
+	if after, _ := v.rec.row(guid); after[12] == "" {
+		t.Fatalf("the update added no context")
+	}
+	keys(v, "uq")
+	if v.msg != "kept it" || len(v.rec.cards) != 1 {
+		t.Fatalf("q did not keep it: %q", v.msg)
+	}
+	keys(v, "uy")
+	row, err := v.rec.row(guid)
+	if err != nil || !slices.Equal(row, before) {
+		t.Fatalf("not put back: %q %v", row, err)
+	}
+	keys(v, "u")
+	if !strings.HasPrefix(v.msg, "delete the card for 散發") {
+		t.Fatalf("asks %q", v.msg)
+	}
+	keys(v, "y")
+	if len(v.rec.cards) != 0 || !strings.HasPrefix(v.msg, "deleted") {
+		t.Fatalf("%d cards, %q", len(v.rec.cards), v.msg)
+	}
+	b, _ := os.ReadFile(v.rec.path)
+	if strings.Contains(string(b), guid) {
+		t.Errorf("the row is still in the file")
+	}
+	keys(v, "u")
+	if v.undoAsk {
+		t.Errorf("u asks with nothing left to undo")
 	}
 }

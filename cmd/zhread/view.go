@@ -67,19 +67,20 @@ type view struct {
 	deck    string
 	pron    string
 
-	w, h   int
-	ph     int  // rows of the definitions pane, rule included
-	pfrom  int  // the mode the prompt was opened from
-	pchar  rune // the prompt's kind: / to search, : for a command
-	pend   rune // first key of a two-key command (g)
-	count  int
-	showEn bool
-	showTW bool // also show the other reading: TW, or CN with -pron tw
-	help   bool // the pane shows the keys instead of definitions
-	expand bool // show MoEDict's quotations, in the pane and on cards
-	moreZh bool // show MoEDict where 兩岸詞典 defines the word too, c
-	moreEn bool // show Wiktionary where CC-CEDICT defines it too, E
-	msg    string
+	w, h    int
+	ph      int  // rows of the definitions pane, rule included
+	pfrom   int  // the mode the prompt was opened from
+	pchar   rune // the prompt's kind: / to search, : for a command
+	pend    rune // first key of a two-key command (g)
+	undoAsk bool // u asked whether to undo the last card; y does
+	count   int
+	showEn  bool
+	showTW  bool // also show the other reading: TW, or CN with -pron tw
+	help    bool // the pane shows the keys instead of definitions
+	expand  bool // show MoEDict's quotations, in the pane and on cards
+	moreZh  bool // show MoEDict where 兩岸詞典 defines the word too, c
+	moreEn  bool // show Wiktionary where CC-CEDICT defines it too, E
+	msg     string
 	// marks are the toggles, of x c E, that would change what the pane
 	// shows for the word, noted at the right of its rule.
 	marks   string
@@ -879,6 +880,7 @@ var keyHelp = [][2]string{
 	{"* #", "search for the word under the cursor"},
 	{"v V", "select by character, by line"},
 	{"Enter", "make a card of the word, or of the selection"},
+	{"u", "undo the last card made or updated (asks first)"},
 	{":>cmd", "in v or V: pipe the selection to a shell command"},
 	{"m '", "bookmark this line, go to the bookmark"},
 	{"e", "hide or show English definitions"},
@@ -1075,6 +1077,19 @@ func (v *view) key(ev *tcell.EventKey) {
 		return
 	}
 	v.msg = ""
+	if v.undoAsk {
+		v.undoAsk = false
+		if ev.Key() == tcell.KeyRune && ev.Rune() == 'y' {
+			if m, err := v.rec.undoLast(); err != nil {
+				v.msg = err.Error()
+			} else {
+				v.msg = m
+			}
+		} else {
+			v.msg = "kept it"
+		}
+		return
+	}
 	n := max(v.count, 1)
 	switch ev.Key() {
 	case tcell.KeyEscape:
@@ -1512,6 +1527,13 @@ func (v *view) runeKey(r rune) {
 			v.cl, v.cc = l, 0
 		} else {
 			v.msg = "no bookmark in this file"
+		}
+	case 'u':
+		if what := v.rec.lastUndo(); what == "" {
+			v.msg = "no card made this session to undo"
+		} else {
+			v.msg = what + "? y does, any other key keeps it"
+			v.undoAsk = true
 		}
 	case 'e':
 		v.showEn = !v.showEn

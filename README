@@ -276,6 +276,7 @@ colour.
 | `* #`               | search for the word under the cursor                 |
 | `v V`               | select by character, by line                         |
 | Enter               | make a card of the word, or of the selection         |
+| `u`                 | undo this session's last card or update (asks `y`)   |
 | `:>cmd`             | in `v` or `V`: pipe the selection to `cmd`           |
 | `m`, `'`            | bookmark this line, go to the bookmark               |
 | `e`                 | hide or show English definitions (shown at start)    |

@@ -152,6 +152,15 @@ type record struct {
 	// senses holds each carded sense as word + "\x1f" + its html, under
 	// both forms of the word, so the pane can mark which were carded.
 	senses map[string]bool
+	// undo is this session's saves, latest last, for u to take back.
+	undo []undone
+}
+
+// undone is a save u can take back: a card added, or, with prev, the row
+// a card had before an update.
+type undone struct {
+	guid, word string
+	prev       []string
 }
 
 type carded struct {
@@ -712,7 +721,57 @@ func (dr *draft) moveOther(down bool) {
 
 // update rewrites the row of cards.tsv with the GUID guid as change
 // leaves it, padded first to every column, and reads the record again.
+// u can take it back.
 func (rec *record) update(guid string, change func([]string)) error {
+	var prev []string
+	err := rec.rewrite(guid, func(row []string) []string {
+		prev = slices.Clone(row)
+		change(row)
+		return row
+	})
+	if err == nil {
+		rec.undo = append(rec.undo, undone{guid: guid,
+			word: headword(cmp.Or(prev[2], prev[1]), prev[1]),
+			prev: prev})
+	}
+	return err
+}
+
+// undoLast takes back the session's latest save: deletes the card it
+// added, or puts back the row it updated. It says what it did.
+func (rec *record) undoLast() (string, error) {
+	if len(rec.undo) == 0 {
+		return "", errors.New("no card made this session to undo")
+	}
+	u := rec.undo[len(rec.undo)-1]
+	err := rec.rewrite(u.guid, func([]string) []string { return u.prev })
+	if err != nil {
+		return "", err
+	}
+	rec.undo = rec.undo[:len(rec.undo)-1]
+	if u.prev == nil {
+		return "deleted the card for " + u.word, nil
+	}
+	return "put back the card for " + u.word + " as it was", nil
+}
+
+// lastUndo says what u would take back, or "" if nothing.
+func (rec *record) lastUndo() string {
+	if len(rec.undo) == 0 {
+		return ""
+	}
+	u := rec.undo[len(rec.undo)-1]
+	if u.prev == nil {
+		return "delete the card for " + u.word
+	}
+	return "undo the update to the card for " + u.word
+}
+
+// rewrite replaces the row of cards.tsv with the GUID guid by what change
+// returns for it, padded first to every column, or deletes it when that
+// is nil, and reads the record again.
+func (rec *record) rewrite(guid string,
+	change func([]string) []string) error {
 	b, err := os.ReadFile(rec.path)
 	if err != nil {
 		return err
@@ -733,10 +792,12 @@ func (rec *record) update(guid string, change func([]string)) error {
 		for len(row) < 1+len(fields) {
 			row = append(row, "")
 		}
-		change(row)
+		row = change(row)
 		var sb strings.Builder
-		if err := writeRow(&sb, row); err != nil {
-			return err
+		if row != nil {
+			if err := writeRow(&sb, row); err != nil {
+				return err
+			}
 		}
 		lines[i] = sb.String()
 		found = true
@@ -757,6 +818,7 @@ func (rec *record) update(guid string, change func([]string)) error {
 	if err != nil {
 		return err
 	}
+	fresh.undo = rec.undo
 	*rec = *fresh
 	return nil
 }
@@ -806,6 +868,8 @@ func (rec *record) save(note []string, deck string) error {
 		return err
 	}
 	rec.add(cardOf(note))
+	rec.undo = append(rec.undo, undone{guid: note[0],
+		word: headword(cmp.Or(note[2], note[1]), note[1])})
 	return nil
 }
 
