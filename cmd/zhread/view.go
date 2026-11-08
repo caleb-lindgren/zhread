@@ -2621,9 +2621,6 @@ func (v *view) otherLines(k int) []styled {
 		ps = append(ps, piece{string(rs[i:j]), st})
 		i = j
 	}
-	if o.from != "" {
-		ps = append(ps, piece{"  " + o.from, stHint})
-	}
 	l := line(0, ps...)
 	l.wx = 4
 	if len(dr.opts)+k == dr.cur && dr.editing {

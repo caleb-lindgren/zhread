@@ -37,9 +37,6 @@ func (rec *record) row(guid string) ([]string, error) {
 	return out, nil
 }
 
-// srcSpan matches the label of where a context came from, after it.
-var srcSpan = regexp.MustCompile(` <span class=src>(.*?)</span>$`)
-
 // zhuyinPart matches the zhuyin withZhuyin puts after a reading.
 var zhuyinPart = regexp.MustCompile(`　[\p{Bopomofo}ˊˇˋ˙ ]*`)
 
@@ -47,11 +44,6 @@ var zhuyinPart = regexp.MustCompile(`　[\p{Bopomofo}ˊˇˋ˙ ]*`)
 // draft of its own, the whole context its span. The word is the first
 // place in bold that has word, or failing that the first place word is.
 func ctxDraft(h, word string, trad bool) *draft {
-	from := ""
-	if m := srcSpan.FindStringSubmatchIndex(h); m != nil {
-		from = html.UnescapeString(h[m[2]:m[3]])
-		h = h[:m[0]]
-	}
 	text := []rune(strip(h))
 	w := []rune(word)
 	ws := -1
@@ -82,7 +74,7 @@ func ctxDraft(h, word string, trad bool) *draft {
 	sp := spanIn(bounds, sentEnd, ws, we)
 	sp.a, sp.b = 0, sp.n()
 	return &draft{p: para{text: text, offs: []int{0}}, ws: ws, we: we,
-		span: sp, trad: trad, from: from}
+		span: sp, trad: trad}
 }
 
 // editCard opens card k in the preview in place of the draft dr, a new card
@@ -111,7 +103,6 @@ func (v *view) editCard(dr *draft, k carded) error {
 		ctx, more, word = row[8], row[13], cmp.Or(row[2], row[1])
 	}
 	ed := ctxDraft(ctx, word, trad)
-	ed.from = ""
 	ed.g, ed.notice = dr.g, dr.notice
 	ed.src = html.UnescapeString(row[10])
 	ed.guid, ed.added = k.guid, row[11]

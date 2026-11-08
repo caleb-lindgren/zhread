@@ -37,6 +37,3 @@
    smaller to look the same size. */
 .word .simp, .def .simp { font-size: 0.75em; }
 details summary { cursor: pointer; }
-/* Where a context found outside the book came from, after it:
-   兩岸詞典「擊發」, tatoeba. */
-.src { font-size: 0.4em; color: #888; }

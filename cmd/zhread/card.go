@@ -296,9 +296,6 @@ type draft struct {
 	discard bool  // asking whether to throw the changes away
 	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh
-	// from, for another context of a card being edited, is the label of
-	// where it came from that the card has after it, kept as it is.
-	from string
 	// guid, for a card being edited, is its row of cards.tsv, which saving
 	// overwrites, keeping added, the date it was first made; raws are its
 	// definitions no dictionary has, as opts.
@@ -597,10 +594,8 @@ func (dr *draft) note(f forms, both, cites bool) []string {
 			slices.Equal(o.ctxT, f.ctxT) {
 			continue
 		}
-		more += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") +
-			srcLabel(d.from) + "</div>"
-		moreT += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") +
-			srcLabel(d.from) + "</div>"
+		more += "<div>" + mark(o.ctxS, o.wsS, o.weS, "") + "</div>"
+		moreT += "<div>" + mark(o.ctxT, o.wsT, o.weT, "") + "</div>"
 	}
 	var trad, ctxT, clozeT string
 	if f.wordT == f.wordS && !dr.trad {
@@ -695,19 +690,8 @@ func exact(dups []carded, f forms) []carded {
 	return out
 }
 
-// divs matches each context of the Contexts fields, without the label
-// of where it came from.
-var divs = regexp.MustCompile(`<div>(.*?)(?: <span class=src>.*?</span>)?` +
-	`</div>`)
-
-// srcLabel is the label a context found outside the book carries on the
-// card, after it, saying where it came from.
-func srcLabel(from string) string {
-	if from == "" {
-		return ""
-	}
-	return ` <span class=src>` + html.EscapeString(from) + `</span>`
-}
+// divs matches each context of the Contexts fields.
+var divs = regexp.MustCompile(`<div>(.*?)</div>`)
 
 // moveOther moves the other context under the cursor a place down, or up,
 // in the order the card shows them, the cursor with it.
