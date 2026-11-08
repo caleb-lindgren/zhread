@@ -52,6 +52,8 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
   click X Y        press the left button at column X, row Y, and let go
   drag X Y X2 Y2   press at X Y, move to X2 Y2 a column at a time, let go
   pause MS         show the last frame MS longer
+  forget           forget the cards made so far, unseen, so the same
+                   word can be carded again without the warning
 `
 
 // demoKey is a key of a keys action, and how the caption names it.
@@ -321,6 +323,13 @@ func (dm *demo) do(line string) error {
 		if dm.v != nil {
 			dm.snap("")
 		}
+	case "forget":
+		os.Remove(dm.v.rec.path)
+		rec, err := loadRecord(dm.v.rec.path)
+		if err != nil {
+			return err
+		}
+		*dm.v.rec = *rec
 	case "pause":
 		n, err := ints(1)
 		if err != nil {

@@ -56,7 +56,7 @@ caption / searches
 keys /$WORD
 pause 800
 keys <Enter>
-pause 1000
+pause 2500
 
 # Card it, with the sense this context uses rather than the first.
 delay 700
@@ -74,12 +74,8 @@ caption Enter saves the card
 keys <Enter>
 pause 2500
 
-# Take the card back, and make it again with the vi keys.
-caption u undoes the card, after a y
-keys u
-pause 1200
-keys y
-pause 1500
+# Make it again with the vi keys.
+forget
 find $START
 caption The same with vi keys: w moves by word
 keys $(rep w $STEPS)
@@ -89,7 +85,7 @@ caption / searches
 keys /$WORD
 pause 800
 keys <Enter>
-pause 1000
+pause 2500
 delay 700
 caption Enter makes the card
 keys <Enter>
