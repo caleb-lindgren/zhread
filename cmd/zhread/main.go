@@ -115,7 +115,7 @@ func main() {
 	})
 	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec, reqs: reqs,
 		convDir: filepath.Join(dir, "opencc"), deck: o.deck,
-		pron: o.pron}
+		pron: o.pron, showEn: true}
 	if l := d.getMark(); l >= 0 {
 		v.cl = l
 		v.msg = fmt.Sprintf("opened at the bookmark, line %d", l+1)

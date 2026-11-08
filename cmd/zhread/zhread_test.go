@@ -1494,7 +1494,7 @@ func TestDemo(t *testing.T) {
 	if _, err := zhdict.FindDir(""); err != nil {
 		t.Skipf("dictionaries unavailable: %v", err)
 	}
-	if _, err := fontFile(); err != nil {
+	if _, err := fontFile(true); err != nil {
 		t.Skipf("no font: %v", err)
 	}
 	tmp := t.TempDir()

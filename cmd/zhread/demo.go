@@ -40,7 +40,11 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
   find TEXT        put the cursor on TEXT's first place
   line N           put the cursor on line N
   delay MS         how long each frame after it shows (default 500)
-  caption TEXT     shown below the terminal from now on; none clears it
+  caption TEXT     shown from now on in a banner above the terminal, in
+                   a proportional font so it reads as the demo's and not
+                   zhread's; none clears it
+  banner PX [FILE] the banner font's pixel size (default 22), and its
+                   file (default: fc-match's sans-serif for zh-cn)
   keys KEY...      press each key, a frame each: a character as itself,
                    or <Name> with Name one of Enter Esc Tab S-Tab Space
                    BS Left Right Up Down Home End PgUp PgDn F1, after
@@ -172,6 +176,8 @@ type demo struct {
 	rows    int
 	px      float64
 	fontf   string
+	bpx     float64 // the banner's font
+	bfontf  string
 }
 
 func runDemo(dictDir, actions, out string) error {
@@ -204,7 +210,7 @@ func runDemo(dictDir, actions, out string) error {
 	defer os.RemoveAll(tmp)
 	os.Setenv("XDG_STATE_HOME", tmp)
 	dm := &demo{dict: dict, dir: dir, tmp: tmp, delay: 500, cols: 90,
-		rows: 26, px: 20}
+		rows: 26, px: 20, bpx: 22}
 	sc := bufio.NewScanner(in)
 	for n := 1; sc.Scan(); n++ {
 		line := strings.TrimSpace(sc.Text())
@@ -244,7 +250,8 @@ func (dm *demo) do(line string) error {
 		return out, nil
 	}
 	if dm.v == nil && name != "size" && name != "font" &&
-		name != "open" && name != "delay" && name != "caption" {
+		name != "banner" && name != "open" && name != "delay" &&
+		name != "caption" {
 		return fmt.Errorf("%s before open", name)
 	}
 	switch name {
@@ -266,6 +273,19 @@ func (dm *demo) do(line string) error {
 		dm.px = px
 		if len(f) > 1 {
 			dm.fontf = strings.Join(f[1:], " ")
+		}
+	case "banner":
+		f := strings.Fields(args)
+		if len(f) == 0 {
+			return errors.New("banner needs a size")
+		}
+		px, err := strconv.ParseFloat(f[0], 64)
+		if err != nil {
+			return err
+		}
+		dm.bpx = px
+		if len(f) > 1 {
+			dm.bfontf = strings.Join(f[1:], " ")
 		}
 	case "open":
 		return dm.open(args)
@@ -375,7 +395,7 @@ func (dm *demo) open(path string) error {
 	dm.reqs = make(chan segReq, 1)
 	dm.v = &view{s: s, level: &level{d: d}, dict: dm.dict, rec: rec,
 		reqs: dm.reqs, convDir: filepath.Join(dm.dir, "opencc"),
-		deck: "demo", pron: zhdict.PronCN}
+		deck: "demo", pron: zhdict.PronCN, showEn: true}
 	dm.settle()
 	return nil
 }
@@ -415,15 +435,20 @@ func (dm *demo) snap(key string) {
 type demoFont struct {
 	face                font.Face
 	cw, ch, ascent, pad int // pad is the margin round the screen
+	top                 int // the banner's height, above the screen
 }
 
 // fontFile finds a font with Chinese in it: fc-match's choice of a
-// monospace font for Chinese, else of any font for it, else the first
-// fc-list has that this can read.
-func fontFile() (string, error) {
+// monospace font for Chinese (a sans-serif one for the banner, with mono
+// false), else of any font for it, else the first fc-list has that this
+// can read.
+func fontFile(mono bool) (string, error) {
 	var cands []string
-	for _, pat := range []string{"monospace:lang=zh-cn",
-		":lang=zh-cn:spacing=mono", ":lang=zh-cn", ":lang=zh-tw"} {
+	pats := []string{"monospace:lang=zh-cn", ":lang=zh-cn:spacing=mono"}
+	if !mono {
+		pats = []string{"sans-serif:lang=zh-cn"}
+	}
+	for _, pat := range append(pats, ":lang=zh-cn", ":lang=zh-tw") {
 		out, err := exec.Command("fc-match", "-f", "%{file}",
 			pat).Output()
 		if err == nil {
@@ -522,10 +547,10 @@ func standalone(b []byte, off int) ([]byte, error) {
 	return out, nil
 }
 
-func openFont(path string, px float64) (*demoFont, error) {
+func openFont(path string, px float64, mono bool) (*demoFont, error) {
 	if path == "" {
 		var err error
-		if path, err = fontFile(); err != nil {
+		if path, err = fontFile(mono); err != nil {
 			return nil, err
 		}
 	}
@@ -533,12 +558,15 @@ func openFont(path string, px float64) (*demoFont, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", path, err)
 	}
-	// In a collection, the monospace one, as WenQuanYi Zen Hei Mono.
+	// In a collection, the monospace one, as WenQuanYi Zen Hei Mono, or
+	// for the banner the first that is not, nor a bitmap one (Sharp).
 	f := fs[0]
 	for _, g := range fs {
 		var b sfnt.Buffer
 		name, _ := g.Name(&b, sfnt.NameIDFamily)
-		if strings.Contains(name, "Mono") {
+		isMono := strings.Contains(name, "Mono")
+		if mono && isMono || !mono && !isMono &&
+			!strings.Contains(name, "Sharp") {
 			f = g
 			break
 		}
@@ -618,24 +646,29 @@ func colors(st tcell.Style) (fg, bg int32, bold, ul bool) {
 		tcell.UnderlineStyleNone
 }
 
-var (
-	capStyle = stStatus
-	keyStyle = stHead.Background(hex(0x303030))
+// The banner's colours, a light ground under zhread's dark one, and the
+// key just pressed's, so neither looks part of the terminal.
+const (
+	bannerFg, bannerBg int32 = 0x202020, 0xeee8d5
+	keyFg, keyBg       int32 = 0xffffff, 0x4a6fa5
 )
 
 // write renders the frames and writes them as a GIF. Each frame after the
 // first holds only the cells that changed, the rest showing through.
 func (dm *demo) write(out string) error {
-	fnt, err := openFont(dm.fontf, dm.px)
+	fnt, err := openFont(dm.fontf, dm.px, true)
 	if err != nil {
 		return err
 	}
+	bfnt, err := openFont(dm.bfontf, dm.bpx, false)
+	if err != nil {
+		return err
+	}
+	fnt.top = bfnt.ch + 2*bfnt.pad
 	pal := &demoPalette{index: map[[3]int32]uint8{}}
 	pal.colors = color.Palette{color.RGBA{0, 0, 0, 0}} // transparent
-	for _, st := range []tcell.Style{capStyle, keyStyle} {
-		fg, bg, _, _ := colors(st)
-		pal.add(fg, bg)
-	}
+	pal.add(bannerFg, bannerBg)
+	pal.add(keyFg, keyBg)
 	for _, f := range dm.frames {
 		for _, c := range f.cells {
 			fg, bg, _, _ := colors(c.Style)
@@ -648,7 +681,7 @@ func (dm *demo) write(out string) error {
 	g := &gif.GIF{}
 	var prev *image.Paletted
 	for _, f := range dm.frames {
-		img := dm.render(f, fnt, pal)
+		img := dm.render(f, fnt, bfnt, pal)
 		r := img.Bounds()
 		if prev != nil {
 			r = diff(prev, img)
@@ -696,17 +729,43 @@ func diff(a, b *image.Paletted) image.Rectangle {
 	return r
 }
 
-// render draws a frame: the screen, then a row below it with the caption
-// at the left and the key just pressed at the right.
-func (dm *demo) render(f frame, fnt *demoFont,
+// render draws a frame: the banner, with the caption at the left and the
+// key just pressed at the right, then the screen.
+func (dm *demo) render(f frame, fnt, bfnt *demoFont,
 	pal *demoPalette) *image.Paletted {
-	img := image.NewPaletted(image.Rect(0, 0, f.w*fnt.cw+2*fnt.pad,
-		(f.h+1)*fnt.ch+2*fnt.pad), pal.colors)
+	w := f.w*fnt.cw + 2*fnt.pad
+	img := image.NewPaletted(image.Rect(0, 0, w,
+		fnt.top+f.h*fnt.ch+2*fnt.pad), pal.colors)
 	_, bg, _, _ := colors(stDef)
 	bgi := pal.at(bg, bg, 0)
-	for i := range img.Pix {
-		img.Pix[i] = bgi
+	bani := pal.at(bannerFg, bannerBg, 0)
+	for y := 0; y < img.Rect.Dy(); y++ {
+		c := bgi
+		if y < fnt.top {
+			c = bani
+		}
+		for x := 0; x < w; x++ {
+			img.Pix[img.PixOffset(x, y)] = c
+		}
 	}
+	base := bfnt.pad + bfnt.ascent
+	right := w - bfnt.pad
+	if f.keys != "" {
+		kw := textWidth(bfnt, f.keys)
+		kpad := bfnt.pad / 2
+		x0 := right - kw - 2*kpad
+		ki := pal.at(keyFg, keyBg, 0)
+		for y := bfnt.pad / 2; y < fnt.top-bfnt.pad/2; y++ {
+			for x := x0; x < right; x++ {
+				img.Pix[img.PixOffset(x, y)] = ki
+			}
+		}
+		drawText(img, bfnt, pal, x0+kpad, base, right, f.keys, keyFg,
+			keyBg)
+		right = x0 - bfnt.pad
+	}
+	drawText(img, bfnt, pal, fnt.pad, base, right, f.caption, bannerFg,
+		bannerBg)
 	for y := 0; y < f.h; y++ {
 		for x := 0; x < f.w; x++ {
 			c := f.cells[y*f.w+x]
@@ -723,32 +782,70 @@ func (dm *demo) render(f frame, fnt *demoFont,
 			x += w - 1
 		}
 	}
-	for x := 0; x < f.w; x++ {
-		dm.cell(img, fnt, pal, x, f.h, 1, ' ', capStyle)
-	}
-	put := func(x int, text string, st tcell.Style) {
-		for _, r := range text {
-			w := max(zhdict.Width(string(r)), 1)
-			if x+w > f.w {
-				return
-			}
-			dm.cell(img, fnt, pal, x, f.h, w, r, st)
-			x += w
+	return img
+}
+
+// textWidth is how many pixels text takes in fnt's proportional face.
+func textWidth(fnt *demoFont, text string) int {
+	w := 0
+	for _, r := range text {
+		if a, ok := fnt.face.GlyphAdvance(r); ok {
+			w += a.Round()
 		}
 	}
-	put(1, f.caption, capStyle)
-	if f.keys != "" {
-		k := " " + f.keys + " "
-		put(f.w-1-zhdict.Width(k), k, keyStyle)
+	return w
+}
+
+// drawText draws text from x along the baseline at base, stopping before
+// it would pass right.
+func drawText(img *image.Paletted, fnt *demoFont, pal *demoPalette,
+	x, base, right int, text string, fg, bg int32) {
+	for _, r := range text {
+		adv, ok := fnt.face.GlyphAdvance(r)
+		if !ok {
+			continue
+		}
+		if x+adv.Round() > right {
+			return
+		}
+		glyph(img, fnt, pal, fixed.P(x, base), r, fg, bg, nil)
+		x += adv.Round()
 	}
-	return img
+}
+
+// glyph draws r's coverage at dot, as levels between bg and fg. With keep
+// it skips a pixel keep says to leave as it is.
+func glyph(img *image.Paletted, fnt *demoFont, pal *demoPalette,
+	dot fixed.Point26_6, r rune, fg, bg int32, keep func(i, l int) bool) {
+	dr, mask, mp, _, ok := fnt.face.Glyph(dot, r)
+	if !ok {
+		return
+	}
+	for yy := dr.Min.Y; yy < dr.Max.Y; yy++ {
+		for xx := dr.Min.X; xx < dr.Max.X; xx++ {
+			if !(image.Point{xx, yy}.In(img.Rect)) {
+				continue
+			}
+			_, _, _, a := mask.At(mp.X+xx-dr.Min.X,
+				mp.Y+yy-dr.Min.Y).RGBA()
+			l := (int(a)*shades + 0x7fff) / 0xffff
+			if l == 0 {
+				continue
+			}
+			i := img.PixOffset(xx, yy)
+			if keep != nil && keep(i, l) {
+				continue
+			}
+			img.Pix[i] = pal.at(fg, bg, l)
+		}
+	}
 }
 
 // cell draws rune r, w cells wide, at column x, row y.
 func (dm *demo) cell(img *image.Paletted, fnt *demoFont, pal *demoPalette,
 	x, y, w int, r rune, st tcell.Style) {
 	fg, bg, bold, ul := colors(st)
-	px, py := fnt.pad+x*fnt.cw, fnt.pad+y*fnt.ch
+	px, py := fnt.pad+x*fnt.cw, fnt.top+fnt.pad+y*fnt.ch
 	bgi := pal.at(fg, bg, 0)
 	for yy := py; yy < py+fnt.ch; yy++ {
 		for xx := px; xx < px+w*fnt.cw; xx++ {
@@ -776,32 +873,17 @@ func (dm *demo) cell(img *image.Paletted, fnt *demoFont, pal *demoPalette,
 		strokes = []int{0, 1}
 	}
 	for _, sx := range strokes {
-		dot := fixed.P(ox+sx, py+fnt.ascent)
-		dr, mask, mp, _, ok := fnt.face.Glyph(dot, r)
-		if !ok {
-			continue
-		}
-		for yy := dr.Min.Y; yy < dr.Max.Y; yy++ {
-			for xx := dr.Min.X; xx < dr.Max.X; xx++ {
-				if !(image.Point{xx, yy}.In(img.Rect)) {
-					continue
-				}
-				_, _, _, a := mask.At(mp.X+xx-dr.Min.X,
-					mp.Y+yy-dr.Min.Y).RGBA()
-				l := (int(a)*shades + 0x7fff) / 0xffff
-				if l == 0 {
-					continue
-				}
-				i := img.PixOffset(xx, yy)
-				// over a lighter level already drawn, by the
-				// bold stroke, keep the darker
-				if sx > 0 && img.Pix[i] != bgi &&
-					shadeOf(pal, fg, bg, img.Pix[i]) >= l {
-					continue
-				}
-				img.Pix[i] = pal.at(fg, bg, l)
+		// over a lighter level already drawn, by the bold stroke,
+		// keep the darker
+		var keep func(i, l int) bool
+		if sx > 0 {
+			keep = func(i, l int) bool {
+				return img.Pix[i] != bgi &&
+					shadeOf(pal, fg, bg, img.Pix[i]) >= l
 			}
 		}
+		glyph(img, fnt, pal, fixed.P(ox+sx, py+fnt.ascent), r, fg, bg,
+			keep)
 	}
 }
 

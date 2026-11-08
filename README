@@ -278,7 +278,7 @@ colour.
 | Enter               | make a card of the word, or of the selection         |
 | `:>cmd`             | in `v` or `V`: pipe the selection to `cmd`           |
 | `m`, `'`            | bookmark this line, go to the bookmark               |
-| `e`                 | show or hide English definitions                     |
+| `e`                 | hide or show English definitions (shown at start)    |
 | `x`                 | show or hide quotations                              |
 | `c`, `E`            | show or hide MoEDict, Wiktionary as well             |
 | `J K`               | scroll the definitions down, up                      |

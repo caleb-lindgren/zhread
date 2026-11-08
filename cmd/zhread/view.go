@@ -881,7 +881,7 @@ var keyHelp = [][2]string{
 	{"Enter", "make a card of the word, or of the selection"},
 	{":>cmd", "in v or V: pipe the selection to a shell command"},
 	{"m '", "bookmark this line, go to the bookmark"},
-	{"e", "show or hide English definitions"},
+	{"e", "hide or show English definitions"},
 	{"x", "show or hide quotations (on cards too)"},
 	{"c", "show or hide MoEDict beside 兩岸詞典"},
 	{"E", "show or hide Wiktionary beside CC-CEDICT"},
