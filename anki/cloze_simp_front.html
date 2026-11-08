@@ -64,10 +64,11 @@
 })();
 </script>
 <script>
-/* Show the context and the word's others from the book in turn, a
-   different one each time the card comes up: the front moves on to the
-   next and stores which, and the back shows the one stored. Where the
-   storage does not last between sessions, the turn starts at random. */
+/* Show the card's contexts in turn, a different one each time the card
+   comes up: the front moves on to the next and stores which, and the
+   back shows the one stored, with the rest listed under the answer.
+   Where the storage does not last between sessions, the turn starts at
+   random. */
 (function (back, cloze) {
   var key = "zhread:{{Card}}:{{text:Simplified}}:{{text:Traditional}}";
   var ctx = document.getElementById("ctx");
@@ -99,5 +100,15 @@
     });
   }
   ctx.innerHTML = h;
+  var rest = document.getElementById("others");
+  if (back && rest) {
+    all.forEach(function (c, k) {
+      if (k == i) return;
+      var d = document.createElement("div");
+      d.innerHTML = c;
+      rest.appendChild(d);
+    });
+    rest.hidden = false;
+  }
 })(false, true);
 </script>{{/Cloze}}

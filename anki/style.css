@@ -27,6 +27,11 @@
    reader's headwords; one colour, one weight elsewhere. */
 .ctx b, .cloze { color: #ffd7af; font-weight: normal; }
 .word { font-size: 80px; }
+/* The back's other contexts, under the definitions, smaller than the
+   one being asked about. */
+.others { font-size: 32px; }
+.others div { margin: 0.3em 0; }
+.others b { color: #ffd7af; font-weight: normal; }
 /* The serif's characters fill more of the em than the Kai's do, so the
    simplified form, in the word's brackets or a definition, is set
    smaller to look the same size. */
