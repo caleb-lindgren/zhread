@@ -10,15 +10,16 @@
 #
 #   FILE    the text read, from the repository root
 #   START   text the cursor starts on
-#   STEPS   how many words Ctrl-Right moves over from there
-#   WORD    the word carded, searched for after the scanning
+#   STEPS   how many words → and w move over from there
+#   WORD    the word carded, searched for after the scanning; Enter
+#           cards the word the cursor is on, so it must be one word as
+#           zhread splits the text
 #   SENSE   which of its Chinese senses the card takes instead of the first
 #   OUT     the GIF written
 #
 #     WORD=萬物 SENSE=1 scripts/zhread_demo.sh
 
 set -euo pipefail
-export LC_ALL=C.UTF-8 # so that ${#WORD} counts characters
 
 FILE=${FILE:-texts/daodejing.txt}
 START=${START:-道可道}
@@ -49,21 +50,17 @@ caption → moves by word
 keys <Right>*$STEPS
 pause 800
 
-# Find the word, its next place after them, and select it.
+# Find the word, its next place after them.
 delay 600
 caption / searches
 keys /$WORD
 pause 800
 keys <Enter>
 pause 1000
-delay 900
-caption Shift+Ctrl+→ selects by character
-keys <C-S-Right>*$(( ${#WORD} - 1 ))
-pause 1200
 
 # Card it, with the sense this context uses rather than the first.
 delay 700
-caption Enter makes a card of the selection
+caption Enter makes a card of the word under the cursor
 keys <Enter>
 pause 1500
 caption Space unticks the first sense...
@@ -93,11 +90,6 @@ keys /$WORD
 pause 800
 keys <Enter>
 pause 1000
-delay 900
-caption v selects, l by character
-keys v
-keys $(rep l $(( ${#WORD} - 1 )))
-pause 1200
 delay 700
 caption Enter makes the card
 keys <Enter>
