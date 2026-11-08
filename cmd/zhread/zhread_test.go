@@ -4,7 +4,6 @@ import (
 	"image/gif"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -410,9 +409,11 @@ func TestMakeCard(t *testing.T) {
 // preview, as the card has it, and that Enter saves it back over its row.
 func TestUpdateCard(t *testing.T) {
 	v, s := newTestView(t, "他把头发剪短了。\n\n她的头发很长，很好看。\n")
-	// The second paragraph's context would be the first card's other
-	// one; a unticks it, so the edit has something to add.
-	keys(v, "/头发⏎vl⏎a⏎")
+	keys(v, "/头发⏎vl⏎")
+	if len(v.dr.others) != 0 {
+		t.Errorf("a new card has %d other contexts", len(v.dr.others))
+	}
+	keys(v, "⏎")
 	if len(v.rec.cards) != 1 {
 		t.Fatalf("%d cards", len(v.rec.cards))
 	}
@@ -1009,8 +1010,10 @@ func TestEnglishOnly(t *testing.T) {
 	}
 }
 
-// TestOtherContexts checks that a card is offered the word's other
-// contexts in the book, ticked, once each, and carries those still ticked.
+// TestOtherContexts checks that a new card carries only the context it
+// was made from, and that each card made for the same word after it that
+// is added to it with u adds its context, keeping those before, so the
+// card's contexts grow by one each time.
 func TestOtherContexts(t *testing.T) {
 	v, _ := newTestView(t, "他散发传单给路人。\n\n"+
 		"她身上散发香味，又散发热气。\n\n花儿散发着芬芳的香气。\n")
@@ -1019,44 +1022,66 @@ func TestOtherContexts(t *testing.T) {
 		t.Fatalf("mode %d", v.mode)
 	}
 	dr := v.dr
-	var got []string
-	for _, f := range dr.others {
-		got = append(got, string(f.ctxf.ctxS))
-	}
-	want := []string{"她身上散发香味，又散发热气。", "花儿散发着芬芳的香气。"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("other contexts %q, want %q", got, want)
-	}
-	if !dr.osel[0] || !dr.osel[1] {
-		t.Errorf("not all ticked: %v", dr.osel)
-	}
-	keys(v, strings.Repeat("j", dr.rows()-1)+" ")
-	if dr.cur != dr.rows()-1 || dr.osel[1] {
-		t.Fatalf("cursor %d of %d, ticked %v", dr.cur, dr.rows(),
-			dr.osel)
-	}
 	note := dr.note(dr.forms(v.conv), false, false)
-	if c := note[12]; c != "<div>她身上<b>散发</b>香味，又<b>散发</b>热气。</div>" {
-		t.Errorf("Contexts %q", c)
+	if len(dr.others) != 0 || note[12] != "" || note[13] != "" {
+		t.Fatalf("a new card has other contexts: %d %q %q",
+			len(dr.others), note[12], note[13])
 	}
-	if c := note[13]; c != "<div>她身上<b>散發</b>香味，又<b>散發</b>熱氣。</div>" {
-		t.Errorf("ContextsTrad %q", c)
+	keys(v, "⏎")
+	if len(v.rec.cards) != 1 {
+		t.Fatalf("%d cards", len(v.rec.cards))
 	}
-
-	// a ticks them all, and again none.
-	keys(v, "a")
-	if slices.Contains(dr.osel, false) {
-		t.Errorf("a left some unticked: %v", dr.osel)
+	guid := v.rec.cards[0].guid
+	// add makes a card for the word from the n-th place the search finds
+	// it, which warns that it is carded; u adds to the card instead, and
+	// Enter saves it over its row.
+	add := func(n int) []string {
+		t.Helper()
+		keys(v, "gg/散发⏎"+strings.Repeat("n", n)+"⏎⏎")
+		if v.mode != card || !v.dr.saving {
+			t.Fatalf("no duplicate warning at place %d", n)
+		}
+		keys(v, "u")
+		if v.dr.guid != guid {
+			t.Fatalf("u did not open the card")
+		}
+		keys(v, "⏎")
+		if v.mode != normal || len(v.rec.cards) != 1 ||
+			!strings.HasPrefix(v.msg, "updated") {
+			t.Fatalf("mode %d, %d cards, %q", v.mode,
+				len(v.rec.cards), v.msg)
+		}
+		row, err := v.rec.row(guid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row[6] != "他<b>散发</b>传单给路人。" {
+			t.Errorf("own context %q", row[6])
+		}
+		return row
 	}
-	keys(v, "a")
-	if slices.Contains(dr.osel, true) {
-		t.Errorf("a left some ticked: %v", dr.osel)
+	p2 := "<div>她身上<b>散发</b>香味，又<b>散发</b>热气。</div>"
+	p3 := "<div>花儿<b>散发</b>着芬芳的香气。</div>"
+	if row := add(1); row[12] != p2 {
+		t.Errorf("second: Contexts %q", row[12])
 	}
-	keys(v, "a")
+	if row := add(3); row[12] != p2+p3 {
+		t.Errorf("third: Contexts %q", row[12])
+	}
+	// a place whose context the card has adds nothing
+	if row := add(2); row[12] != p2+p3 {
+		t.Errorf("again: Contexts %q", row[12])
+	}
 
 	// The edges and the editor work on the context under the cursor,
 	// and the other script follows an edit of the text's own.
-	keys(v, "k{")
+	keys(v, "gg/散发⏎⏎⏎u")
+	dr = v.dr
+	if len(dr.others) != 2 || !dr.osel[0] || !dr.osel[1] {
+		t.Fatalf("others %d %v", len(dr.others), dr.osel)
+	}
+	dr.cur = len(dr.opts)
+	keys(v, "{")
 	if got := string(dr.others[0].ctxf.ctxS); got != "她身上散发香味" {
 		t.Errorf("after {: %q", got)
 	}
@@ -1070,46 +1095,17 @@ func TestOtherContexts(t *testing.T) {
 	if dr.editing || dr.others[0].vi.insert {
 		t.Errorf("still editing after Esc")
 	}
+	// space unticks one, which leaves the card
+	keys(v, "j ")
+	if dr.osel[1] {
+		t.Errorf("space left %v", dr.osel)
+	}
 	note = dr.note(dr.forms(v.conv), false, false)
-	if !strings.HasPrefix(note[12], "<div>身上<b>散发</b>香味</div>") {
+	if note[12] != "<div>身上<b>散发</b>香味</div>" {
 		t.Errorf("Contexts after the edits %q", note[12])
 	}
 	if !strings.Contains(string(note[6]), "他<b>散发</b>传单给路人。") {
 		t.Errorf("own context changed: %q", note[6])
-	}
-}
-
-// TestOthersInWords checks which of a word's places inside other words
-// are taken as its: those inside a longer word, for a word of two
-// characters or more, and not those split between two words.
-func TestOthersInWords(t *testing.T) {
-	for _, c := range []struct {
-		text, word string
-		want       int
-	}{
-		// 采访 in 采访记者
-		{"我们去采访他。\n\n咱们的采访记者最差的是谁？\n", "采访", 1},
-		// 才能 split as 刚才｜能
-		{"他很有才能。\n\n他刚才能吃饭了。\n", "才能", 0},
-		// 打 in 打算
-		{"他打人了。\n\n他打算明天走。\n", "打", 0},
-	} {
-		v, _ := newTestView(t, c.text)
-		n := utf8.RuneCountInString(c.word)
-		keys(v, "/"+c.word+"⏎v"+strings.Repeat("l", n-1)+"⏎")
-		if v.mode == choose {
-			keys(v, "⏎")
-		}
-		if v.mode != card {
-			t.Fatalf("%q: mode %d", c.text, v.mode)
-		}
-		var got []string
-		for _, o := range v.dr.others {
-			got = append(got, string(o.ctxf.ctxS))
-		}
-		if len(got) != c.want {
-			t.Errorf("%q: other contexts %q", c.text, got)
-		}
 	}
 }
 
@@ -1197,7 +1193,9 @@ func TestDiscard(t *testing.T) {
 func TestCardMode(t *testing.T) {
 	v, s := newTestView(t, "他散发传单给路人。\n\n"+
 		"她身上散发香味，又散发热气。\n")
-	keys(v, "lvl⏎")
+	// the card made from the first, edited from the second with u, has
+	// the second's context below its definitions, for jjjj to reach
+	keys(v, "lvl⏎⏎gg/散发⏎n⏎u")
 	mode := func() string {
 		rows := screen(s)
 		return strings.Fields(rows[len(rows)-1])[1]
@@ -1466,30 +1464,6 @@ func TestCardMarks(t *testing.T) {
 	}
 }
 
-// TestQueuedOthers checks that the cards queued after the first, whose
-// other places are found in the background, have them when shown.
-func TestQueuedOthers(t *testing.T) {
-	v, s := newTestView(t, "我们讨论了企业的问题。\n\n"+
-		"他们也讨论过这家企业，觉得企业不错。\n")
-	keys(v, "/讨论了企业⏎vllll⏎")
-	if v.mode != card || v.dr.of != 3 {
-		t.Fatalf("mode %d, %d cards:\n%s", v.mode, v.dr.of,
-			strings.Join(screen(s), "\n"))
-	}
-	if n := len(v.dr.others); n != 1 {
-		t.Errorf("讨论: %d other places, want 1", n)
-	}
-	keys(v, "nn")
-	if n := len(v.dr.others); v.dr.n != 3 || n != 1 {
-		t.Errorf("card %d: %d other places, want card 3 with 1",
-			v.dr.n, n)
-	}
-	if !onScreen(s, "觉得企业不错") {
-		t.Errorf("企业's other place not shown:\n%s",
-			strings.Join(screen(s), "\n"))
-	}
-}
-
 func TestParseKeys(t *testing.T) {
 	ks, err := parseKeys("w<C-S-Right>*3 <Space><S-Tab>")
 	if err != nil {
@@ -1549,71 +1523,15 @@ func TestDemo(t *testing.T) {
 	}
 }
 
-// TestExamples checks that m finds the word in a text beside the book and
-// in other dictionary entries, as 擊發's definition has 扣動, and that a
-// ticked one goes on the card labelled.
-func TestExamples(t *testing.T) {
-	v, s := newTestView(t, "他扣动扳机。\n")
-	os.WriteFile(filepath.Join(filepath.Dir(v.d.src), "other.txt"),
-		[]byte("第一章\n\n她慢慢地扣动了扳机，枪响了。\n"), 0o644)
-	keys(v, "/扣动⏎vl⏎")
-	dr := v.dr
-	if dr == nil || dr.forms(v.conv).wordS != "扣动" {
-		t.Fatalf("no card for 扣动")
-	}
-	book := filepath.Dir(v.d.src)
-	src := findExamples(exWhere{bookDir: book, book: v.d.src,
-		dictDir: filepath.Dir(v.convDir)}, dr.forms(v.conv), v.dict,
-		v.pron, v.conv)
-	labels := map[string]bool{}
-	for _, sr := range src {
-		for _, o := range sr.drafts {
-			labels[o.from] = true
-		}
-	}
-	for _, l := range []string{"other.txt", "兩岸詞典「擊發」"} {
-		if !labels[l] {
-			t.Errorf("no example from %s; have %v", l, labels)
-		}
-	}
-	dr.exs = src
-	dr.showExamples(0)
-	v.draw()
-	if !onScreen(s, "other.txt") {
-		t.Errorf("examples not shown:\n%s",
-			strings.Join(screen(s), "\n"))
-	}
-	n := len(dr.others)
-	if n == 0 || dr.osel[n-1] {
-		t.Fatalf("examples: %d, last ticked %v", n, dr.osel)
-	}
-	// M ticks what m found, and unticks it again
-	keys(v, "M")
-	if !dr.osel[n-1] {
-		t.Errorf("M left %v", dr.osel)
-	}
-	keys(v, "M")
-	if dr.osel[n-1] {
-		t.Errorf("second M left %v", dr.osel)
-	}
-	keys(v, "M")
-	note := dr.note(dr.forms(v.conv), false, false)
-	if !strings.Contains(note[12], "<span class=src>") {
-		t.Errorf("Contexts %q", note[12])
-	}
-}
-
 // TestManyContexts checks that the preview stays quick with thousands of
-// other contexts, as m can add, the cursor at the last of them.
+// other contexts on a card, the cursor at the last of them.
 func TestManyContexts(t *testing.T) {
-	v, s := newTestView(t, "他散发传单给路人。\n\n她身上散发香味。\n")
+	v, s := newTestView(t, "他散发传单给路人。\n")
 	keys(v, "/散发⏎vl⏎")
 	dr := v.dr
-	if len(dr.others) != 1 {
-		t.Fatalf("%d others", len(dr.others))
-	}
-	o := dr.others[0]
-	for range 5000 {
+	o := ctxDraft("她身上<b>散发</b>香味。", "散发", false)
+	o.refresh(v.conv)
+	for range 5001 {
 		dr.others = append(dr.others, o)
 		dr.osel = append(dr.osel, true)
 	}

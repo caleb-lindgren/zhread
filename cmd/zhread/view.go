@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/ankitools/internal/opencc"
@@ -147,9 +146,6 @@ func (v *view) run() error {
 				d.doc.apply(d)
 			case pipeDone:
 				v.msg = string(d)
-			case examplesFound:
-				d.dr.exs, d.dr.searching = d.src, false
-				d.dr.showExamples(d.took)
 			}
 		case *tcell.EventKey:
 			v.key(ev)
@@ -910,9 +906,6 @@ var cardKeyHelp = [][2]string{
 	{"j k", "move over the contexts and definitions"},
 	{"PgDn PgUp", "the same, ten at a time"},
 	{"space", "tick the definition or context, or untick it"},
-	{"a", "tick all the other contexts, or none"},
-	{"m", "more contexts: other texts, dictionaries, corpora"},
-	{"M", "tick all the contexts m found, or none"},
 	{"[ ] { }", "move the context's left edge, right edge"},
 	{"i", "edit the context under the cursor"},
 	{"Enter y", "save the card (again if already carded)"},
@@ -1996,197 +1989,7 @@ func (v *view) startCards(pk *picker, words [][2]int) {
 		}
 		v.queue = append(v.queue, dr)
 	}
-	// The first card's other places are found now; the rest's in the
-	// background while it is shown, in turn, each draft's ready closed
-	// once they are. Nothing else touches a draft still queued, and
-	// what findOthers reads of the book and the dictionaries is not
-	// written after they are loaded.
-	others := v.othersFn()
-	setOthers(v.queue[0], others)
-	if rest := v.queue[1:]; len(rest) > 0 {
-		for _, dr := range rest {
-			dr.ready = make(chan struct{})
-		}
-		go func() {
-			for _, dr := range rest {
-				setOthers(dr, others)
-				close(dr.ready)
-			}
-		}()
-	}
 	v.nextCard()
-}
-
-// setOthers finds dr's other places with others, all ticked.
-func setOthers(dr *draft, others func(*draft) []*draft) {
-	dr.others = others(dr)
-	dr.osel = make([]bool, len(dr.others))
-	for k := range dr.osel {
-		dr.osel[k] = true
-	}
-}
-
-// othersFn finds a word's other places in the book, for a card made from
-// a draft to show in turn with its own. A card made in a pane gets the
-// book's too. It takes what it needs of v now, so it can run in the
-// background.
-func (v *view) othersFn() func(*draft) []*draft {
-	book := v.d
-	if len(v.stack) > 0 {
-		book = v.stack[0].d
-	}
-	home, dict, pron, conv := book == v.d, v.dict, v.pron, v.conv
-	return func(dr *draft) []*draft {
-		return findOthers(book, home, dict, pron, conv, dr)
-	}
-}
-
-// findOthers finds the word of dr in book, in book order: wherever the text
-// has it, unless the segmenter splits it between two words, as 才能 in 刚才｜能吃, or
-// for a word of one character, makes it part of a longer one, as 打 of 打算. A
-// word of more inside a longer one, as 采访 in 采访记者, is nearly always that word
-// compounded. A doubled form of the word, as doubled finds it, is segmented
-// whole, and its context taken around it.
-// Each is a draft of its own, for its context, which starts as the one newSpan
-// picks. A context that shares text with one before it is left out, as is one
-// the same as another: a sentence using the word twice would otherwise give it
-// twice, and a long one cut to sixty characters around each, twice nearly.
-// With home set, dr is in book, and the card's own context counts as one
-// before them all.
-func findOthers(book *doc, home bool, dict *zhdict.Dict, pron string,
-	conv convs, dr *draft) []*draft {
-	word := dr.p.text[dr.ws:dr.we]
-	type hit struct {
-		p  para
-		at []int // where the word starts in p.text
-		// the paragraph's clauses, split once it has a place kept
-		bounds  []int
-		sentEnd []bool
-	}
-	var hits []hit
-	for l := 0; l < len(book.lines); l++ {
-		if blank(book.lines[l]) {
-			continue
-		}
-		p := book.paragraph(l)
-		l = p.first + len(p.offs) - 1
-		var at []int
-		for i := 0; i+len(word) <= len(p.text); i++ {
-			if slices.Equal(p.text[i:i+len(word)], word) {
-				at = append(at, i)
-			}
-		}
-		if len(at) > 0 {
-			hits = append(hits, hit{p: p, at: at})
-		}
-	}
-	if len(hits) == 0 {
-		return nil
-	}
-	// Each place is segmented in a window around it, from the token
-	// boundary before it to the one after, as tokWindow finds them, not
-	// in its whole paragraph, which in a book without blank lines is the
-	// whole book. Places in one window share it, and all the windows
-	// one probe, as the reader segments a batch.
-	type window struct{ h, a, b int }
-	wins := map[window]int{} // into rq.text
-	rq := segReq{toksOnly: true}
-	for h, ht := range hits {
-		for _, at := range ht.at {
-			ws, we := doubled(ht.p.text, at, at+len(word))
-			a, b := tokWindow(ht.p.text, ws, we)
-			if _, ok := wins[window{h, a, b}]; !ok {
-				wins[window{h, a, b}] = len(rq.text)
-				rq.text = append(rq.text, ht.p.text[a:b])
-			}
-		}
-	}
-	toks := segment(dict, pron, rq).toks
-	own := func(f forms) string {
-		if dr.trad {
-			return string(f.ctxT)
-		}
-		return string(f.ctxS)
-	}
-	seen := map[string]bool{own(dr.forms(conv)): true}
-	// the stretches of text taken, by paragraph
-	type taken struct{ first, a, b int }
-	var took []taken
-	take := func(o *draft) {
-		a, b := o.span.ends()
-		took = append(took, taken{o.p.first, a, b})
-	}
-	if home {
-		take(dr)
-	}
-	var out []*draft
-	for h := range hits {
-		ht := &hits[h]
-		for _, at := range ht.at {
-			ws, we := doubled(ht.p.text, at, at+len(word))
-			end := at + len(word)
-			wa, wb := tokWindow(ht.p.text, ws, we)
-			ts := toks[wins[window{h, wa, wb}]]
-			// the tokens' offsets are into the window
-			cut := func(t tok) bool {
-				return t.start < ws-wa && ws-wa < t.end ||
-					t.start < we-wa && we-wa < t.end
-			}
-			in := func(t tok) bool {
-				return t.start <= ws-wa && we-wa <= t.end
-			}
-			if slices.ContainsFunc(ts, cut) && (len(word) == 1 ||
-				!slices.ContainsFunc(ts, in)) {
-				continue
-			}
-			if ht.bounds == nil {
-				ht.bounds, ht.sentEnd = clauses(ht.p.text)
-			}
-			o := &draft{p: ht.p, ws: at, we: end, trad: dr.trad,
-				span: spanIn(ht.bounds, ht.sentEnd, ws, we)}
-			a, b := o.span.ends()
-			if slices.ContainsFunc(took, func(t taken) bool {
-				return t.first == ht.p.first &&
-					a < t.b && t.a < b
-			}) {
-				continue
-			}
-			o.refresh(conv)
-			if !seen[own(o.ctxf)] {
-				seen[own(o.ctxf)] = true
-				take(o)
-				out = append(out, o)
-			}
-		}
-	}
-	return out
-}
-
-// tokWindow widens [ws, we) of t to boundaries that tokenize's tokens
-// cannot cross: tokenize makes a token of each run of other word
-// characters and of punctuation, divides each run of Han characters by
-// segmenting that run alone, and skips spaces, so a change of kind is
-// always a boundary, and the window's tokens are the same as the text's.
-func tokWindow(t []rune, ws, we int) (int, int) {
-	kind := func(r rune) int {
-		switch {
-		case unicode.IsSpace(r):
-			return 0
-		case isHan(r):
-			return 1
-		case isWord(r):
-			return 2
-		}
-		return 3
-	}
-	a, b := ws, we
-	for a > 0 && kind(t[a]) != 0 && kind(t[a-1]) == kind(t[a]) {
-		a--
-	}
-	for b < len(t) && kind(t[b-1]) != 0 && kind(t[b]) == kind(t[b-1]) {
-		b++
-	}
-	return a, b
 }
 
 func (v *view) chooseKey(ev *tcell.EventKey) {
@@ -2239,9 +2042,6 @@ func (v *view) nextCard() {
 		return
 	}
 	v.dr, v.queue = v.queue[0], v.queue[1:]
-	if v.dr.ready != nil {
-		<-v.dr.ready // its other places, found in the background
-	}
 	dr := v.dr
 	f := dr.forms(v.conv)
 	dr.dups = v.rec.dups(f.wordS, f.wordT)
@@ -2458,16 +2258,6 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 	case (r == '<' || r == '>') && o != nil:
 		dr.moveOther(r == '>')
-	case r == 'm':
-		v.moreExamples()
-	case r == 'M':
-		dr.toggleExamples()
-	case r == 'a' && len(dr.others) > 0:
-		all := !slices.Contains(dr.osel, false)
-		for k := range dr.osel {
-			dr.osel[k] = !all
-		}
-		dr.changed = true
 	case ev.Key() == tcell.KeyPgDn:
 		dr.cur = max(min(dr.cur+10, dr.rows()-1), dr.cur)
 	case ev.Key() == tcell.KeyPgUp:
@@ -2593,7 +2383,7 @@ func (v *view) drawCard() {
 	// lets the rows down to the cursor's fit, with a row for the note of
 	// options scrolled past, once there are any. It is worked out back
 	// from the cursor, so that only what fits is measured, however many
-	// contexts m has added.
+	// contexts the card has.
 	if dr.top < cur {
 		t, n := cur, rows(cur)
 		for t > dr.top {
@@ -2662,9 +2452,6 @@ func (v *view) drawCard() {
 	case dr.saving:
 		help, st = "Already carded. Enter: save anyway  Esc: cancel",
 			stWarn
-	}
-	if help == "" {
-		help = dr.exMsg
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
@@ -2812,22 +2599,9 @@ func (v *view) otherLines(k int) []styled {
 		rs, ws, we = f.ctxT, f.wsT, f.weT
 	}
 	var out []styled
-	if k == 0 && dr.guid != "" {
+	if k == 0 {
 		out = append(out, line(0), line(0, piece{
 			"Other contexts, in order (< > move one):", stHint}))
-	} else if k == 0 && o.from == "" {
-		n := 0
-		for _, o := range dr.others {
-			if o.from == "" {
-				n++
-			}
-		}
-		out = append(out, line(0), line(0, piece{fmt.Sprintf(
-			"Elsewhere in the book (%d):", n), stHint}))
-	}
-	if o.from != "" && (k == 0 || dr.others[k-1].from == "") {
-		out = append(out, line(0), line(0, piece{
-			"From other texts, dictionaries, corpora:", stHint}))
 	}
 	box := "[ ] "
 	if dr.osel[k] {

@@ -367,8 +367,13 @@ The preview shows:
   paragraph; one over 60 is cut to the clauses nearest the word, at ，；：、. `[`
   and `]` move the left edge a clause left or right, `{` and `}` the right
   edge. A context that stops short of its sentence's end leaves out the comma
-  or other clause mark it stops at. Lines not separated by a blank line are
-  one paragraph, so a sentence hard-wrapped across lines is found whole.
+  or other clause mark it stops at. Lines not separated by a blank line are one
+  paragraph, so a sentence hard-wrapped across lines is found whole. A doubled
+  form of the word, AABB or ABAB for a word AB (松松垮垮, 研究研究) and AA, A一A or A了A
+  for a word A (看看, 看一看, 看了看), is marked and blanked whole rather than the word
+  in its middle, though the card's word stays the one selected. A new card has
+  this context alone; a card gets more only from later cards for the same word
+  added to it (see "Cards already made" below).
 
   `k` from the first definition goes up onto the context, in the list like the
   definitions. `i` starts vi's editor on it, in normal mode: `h l w b e 0 ^ $`
@@ -389,80 +394,35 @@ The preview shows:
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
   sense the context uses rather than all of 打's. The list scrolls to keep the
-  cursor in view. `j`/`k` move and Space ticks the ones that fit the context;
-  the first Chinese and first English are ticked to start with. `c` and `E`
-  show or hide MoEDict's and Wiktionary's definitions here too, keeping what
-  is ticked. A ticked
-  sense's quotations go on the card if `x` is showing them when it is saved,
-  and are shown under it in the preview. The reading comes from the first
-  ticked one.
-- **The word's other contexts**: every other place in the book that has the
-  word, unless the segmenter splits it between two words there, as 才能 in 刚才｜能吃,
-  or, for a word of one character, makes it part of a longer one, as 打 of 打算 (a
-  word of more inside a longer one, as 采访 in 采访记者, is nearly always that word
-  compounded, and is kept). A doubled form of the word, AABB or ABAB for a word
-  AB (松松垮垮, 研究研究) and AA, A一A or A了A for a word A (看看, 看一看, 看了看), is taken
-  whole, so the card marks and blanks all of it rather than the word in its
-  middle; so is one in the card's own context, though the card's word stays the
-  one selected. Each comes with the context the card's own would start as, in
-  the text's script. A context that shares text with the card's or with one
-  before it is left out, as is one the same as another, so a sentence using the
-  word twice is offered once, or not at all when it is the card's. All are
-  ticked to start with; `j` goes on down to them from the definitions and Space
-  unticks. `a` ticks them all, or unticks them all when they all are, so that
-  from many the few wanted can be picked out. `[ ] { }` move the edges of the
-  one under the cursor, and `i` edits it as the card's own context is edited.
-  Its other script follows, converted again. The ticked ones go on the card
-  with its own, and Anki shows them in turn (see below). A card made in a
-  definitions pane gets the book's.
-- **More contexts**, after `m`, from outside the book, all of them, unticked,
-  under the book's, each labelled with where it came from: the other `.txt`
-  files in the book's directory; the examples in other words' entries in 兩岸詞典
-  and MoEDict that have the word (扣動 has none of its own, but 連射's 「扣動扳機連射數槍」
-  has it), or where none of an entry's examples has it, the sentence of its
-  definition that does; and the sentence corpora in dict/corpora, if any (see
-  below). Both scripts of the word are looked for, and a place is kept only
-  where the segmenter takes the word as a word, as in the book. Each source's
-  are shortest first, but a dictionary's examples before its prose and
-  sentences under eight characters last. Since a sentence from elsewhere may
-  use the word in another sense than the card's, none is ticked: tick the ones
-  that match with Space. `M` ticks all that `m` found, or unticks them all when
-  they all are; `a` does the same for every other context, the book's too. PgDn
-  and PgUp move ten at a time through a long list. The bottom line says how
-  many each source gave, marking with (!) any over 500, and how long the search
-  took. It runs in the background, segmenting the places on every CPU: for 扣动,
-  with Tatoeba and zho_news (131 MB), under a second; for 问题, which zho_news
-  has 30,325 times, 2.8 s on 8 CPUs and 3.9 s on 4, and so about three times
-  that with all three Leipzig sets. A ticked one goes on the card with its
-  label after it, in small grey type.
+  cursor in view, and PgDn and PgUp move ten at a time. `j`/`k` move and Space
+  ticks the ones that fit the context; the first Chinese and first English are
+  ticked to start with. `c` and `E` show or hide MoEDict's and Wiktionary's
+  definitions here too, keeping what is ticked. A ticked sense's quotations go
+  on the card if `x` is showing them when it is saved, and are shown under it
+  in the preview. The reading comes from the first ticked one.
 - **Cards already made** for the same word, or for a word containing it or
-  contained in it, in either script, with their context. When there are
-  any, Enter asks again before saving a new card. Cards for the word itself
-  are numbered, and `u` opens such a card in the preview instead, asking
-  which by number when there are several, filled in as the card has it: its
-  definitions ticked (MoEDict's, Wiktionary's or the quotations shown if it
-  has them, and any no dictionary has any more kept as they are, labelled
+  contained in it, in either script, with their context. When there are any,
+  the first Enter does not save but asks again. For a card for the word itself,
+  it offers the choice: a second Enter makes a new card, as for a sense the
+  cards so far do not have, and `u` adds this context to the existing card
+  instead. Cards for the word itself are numbered, and `u` (which works before
+  that first Enter too) asks which by number when there are several. It opens
+  that card in the preview in place of the new one, filled in as the card has
+  it: its definitions ticked (MoEDict's, Wiktionary's or the quotations shown
+  if it has them, and any no dictionary has any more kept as they are, labelled
   "on the card"), its reading, Taiwan's too if it has that, and its own
-  context, then its other contexts in their order, ticked, then the context
-  `u` was pressed from, ticked, and the word's other places in the book it
-  lacks, not. Everything works as for a new card: tick and untick
-  definitions and contexts, edit them with `i`, move their edges, `m` for
-  more; `<` and `>` move the context under the cursor up and down the
-  card's order. Enter saves it over the card's row of cards.tsv, keeping
-  its GUID, source and date, so the import updates the note in place. For
-  such a word the senses ticked to start with on a new card are the ones
-  already on its cards, so a new card for another sense is a matter of
+  context, then its other contexts in their order, then last the context `u`
+  was pressed from, all ticked; a context the card has already is not added
+  again. Everything works as for a new card: tick and untick definitions and
+  contexts (an unticked context leaves the card), edit them with `i`, move
+  their edges; `<` and `>` move the context under the cursor up and down the
+  card's order. Enter saves it over the card's row of cards.tsv, keeping its
+  GUID, source and date, so the import updates the note in place. So each new
+  card for the word that is added to its card this way adds one context to it,
+  keeping those before, and Anki shows them all in turn (see "Into Anki"
+  below). For such a word the senses ticked to start with on a new card are the
+  ones already on its cards, so a new card for another sense is a matter of
   unticking those and ticking that one.
-
-The corpora are fetched by `scripts/get_corpora.sh` into dict/corpora, which
-is not in git: Tatoeba's Mandarin sentences (89,289; CC BY 2.0 FR) and the
-Leipzig Corpora Collection's three Chinese sets of a million sentences each
-(CC BY): zho_news_2007-2009_1M (a 285 MB download, 131 MB after),
-zho-cn_web_2015_1M (427 MB) and zho_wikipedia_2018_1M (257 MB), about
-970 MB to download in all. Named arguments fetch only those, as
-`scripts/get_corpora.sh tatoeba`, and any other Leipzig corpus by its
-name; any file of one sentence a line put in dict/corpora as NAME.txt is
-searched too, labelled NAME.
 
 Enter saves, Esc cancels. An Esc right after another, as from insert mode out
 past the list, asks first when the card has been changed (a context edited or
@@ -508,13 +468,13 @@ ticked in the import dialog. Contexts and ContextsTrad were such a change,
 added as the last two fields after the first cards were made: the cards
 from before them have the two columns of cards.tsv empty.
 
-Each time a card comes up, it shows the next of its contexts: the one made
-with it, then the others ticked in the preview, in the order of the book,
-held in the Contexts and ContextsTrad fields as one div each. The front
-stores which it showed in the webview's localStorage, keyed by card type and
-word, and the back shows the same one. Where that storage does not last
-from one session to the next, the turn starts at a random context. A cloze
-card blanks the other contexts as its own is blanked, in the card's script.
+Each time a card comes up, it shows the next of its contexts: the one made with
+it, then those added to it by later cards for the word, in the card's order,
+held in the Contexts and ContextsTrad fields as one div each. The front stores
+which it showed in the webview's localStorage, keyed by card type and word, and
+the back shows the same one. Where that storage does not last from one session
+to the next, the turn starts at a random context. A cloze card blanks the other
+contexts as its own is blanked, in the card's script.
 
 The recognition card shows the context with the word in bold, wherever it
 has it, and asks for the reading and meaning. The cloze card shows the

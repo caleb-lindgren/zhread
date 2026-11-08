@@ -88,10 +88,10 @@ func ctxDraft(h, word string, trad bool) *draft {
 // editCard opens card k in the preview in place of the draft dr, a new card
 // for the same word: its definitions ticked as the card has them, any no
 // dictionary shown has kept as they are, its own context, then its other
-// contexts in their order, ticked, then dr's context and dr's other places
-// in the book that the card does not have, the first ticked, as the place
-// u was pressed from, and the rest not. Every key of the preview works on
-// it as on a new card.
+// contexts in their order, ticked, then last dr's context, ticked, unless
+// the card has it already. So each new card for a word that u adds to its
+// card instead adds one context to it, keeping those before. Every key of
+// the preview works on it as on a new card.
 func (v *view) editCard(dr *draft, k carded) error {
 	row, err := v.rec.row(k.guid)
 	if err != nil {
@@ -222,9 +222,6 @@ func (v *view) editCard(dr *draft, k carded) error {
 	}
 	add(&draft{p: dr.p, ws: dr.ws, we: dr.we, span: dr.span,
 		trad: dr.trad, ed: dr.ed}, true)
-	for _, o := range dr.others {
-		add(o, false)
-	}
 	v.dr = ed
 	return nil
 }

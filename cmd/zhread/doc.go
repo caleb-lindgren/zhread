@@ -241,9 +241,6 @@ type segReq struct {
 	doc   *doc
 	lines []int
 	text  [][]rune
-	// toksOnly asks for the tokens alone, without the probe being made
-	// ready for lookups: no guess at the script, no variant targets.
-	toksOnly bool
 }
 
 type segRes struct {
@@ -286,9 +283,6 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	res := segRes{doc: rq.doc, lines: rq.lines, probe: p}
 	for _, l := range rq.text {
 		res.toks = append(res.toks, tokenize(l, seg))
-	}
-	if rq.toksOnly {
-		return res
 	}
 	p.Trad = tradText(p, rq.text, res.toks)
 	if len(runs) > 0 {

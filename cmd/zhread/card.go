@@ -283,11 +283,11 @@ type draft struct {
 	ed   [2]*edited
 	vi   vi     // the editor on the context under the cursor
 	warn string // why Enter did not save
-	// others are the word's other places in the book, drafts of their
-	// own for their contexts, which the card shows in turn with its own,
-	// and osel which of them go on it. The cursor goes onto them after
-	// the options: others[k] is at len(opts)+k. Tab edits the one under
-	// it, which editing says.
+	// others are the other contexts of a card being edited, drafts of
+	// their own, which the card shows in turn with its own, and osel
+	// which of them stay on it; a new card has none. The cursor goes
+	// onto them after the options: others[k] is at len(opts)+k. i edits
+	// the one under it, which editing says.
 	others  []*draft
 	osel    []bool
 	editing bool
@@ -296,24 +296,15 @@ type draft struct {
 	discard bool  // asking whether to throw the changes away
 	changed bool  // an edge has moved or a tick changed
 	ctxf    forms // of another context: its forms, kept by refresh
-	// from, for another context found outside the book by m, says where:
-	// "兩岸詞典「擊發」", "tatoeba".
+	// from, for another context of a card being edited, is the label of
+	// where it came from that the card has after it, kept as it is.
 	from string
-	// exs are the places m found outside the book, once it has looked;
-	// searching while it looks; exMsg what it found.
-	exs       []*exSrc
-	searching bool
-	exMsg     string
-	found     bool // this other context is one m found
 	// guid, for a card being edited, is its row of cards.tsv, which saving
 	// overwrites, keeping added, the date it was first made; raws are its
 	// definitions no dictionary has, as opts.
 	guid  string
 	added string
 	raws  []opt
-	// ready, if not nil, is closed once others is found in the
-	// background, for a card queued after the first
-	ready chan struct{}
 }
 
 // refresh works out again the forms of another context, after it changes.
