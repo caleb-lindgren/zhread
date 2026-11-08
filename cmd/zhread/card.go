@@ -652,10 +652,11 @@ func withZhuyin(py string) string {
 	return one(py)
 }
 
-// The blanks of a cloze card: the word, or when the note has cards in both
-// scripts, the script asked for.
+// The blanks of a cloze card: the word, a ～ for each of its characters,
+// 天地 as [～～], or when the note has cards in both scripts, the script
+// asked for. gap stands for the first; mark writes out its ～s.
 const (
-	gap  = "[…]"
+	gap  = "～"
 	gapS = "[简体]"
 	gapT = "[繁體]"
 )
@@ -664,11 +665,20 @@ const (
 // card, with cloze set, blanked as it says. Any other occurrence of the
 // word is bolded or blanked the same way: the cloze would otherwise give
 // the word away, and the answer should show every place the cloze
-// blanked. A doubled form of the word is marked whole, 松松垮垮 for 松垮.
+// blanked. A doubled form of the word is marked whole, 松松垮垮 for 松垮,
+// and blanked with a ～ for each of its characters.
 func mark(ctx []rune, ws, we int, cloze string) string {
 	word := html.EscapeString(string(ctx[ws:we]))
+	n := we - ws
 	ws, we = doubled(ctx, ws, we)
-	blank := `<span class=cloze>` + cloze + `</span>`
+	span := func(n int) string {
+		if cloze == gap {
+			return `<span class=cloze>[` + strings.Repeat(gap, n) +
+				`]</span>`
+		}
+		return `<span class=cloze>` + cloze + `</span>`
+	}
+	blank := span(n)
 	if cloze == "" {
 		blank = `<b>` + word + `</b>`
 	}
@@ -681,7 +691,7 @@ func mark(ctx []rune, ws, we int, cloze string) string {
 	}
 	mid := `<b>` + html.EscapeString(string(ctx[ws:we])) + `</b>`
 	if cloze != "" {
-		mid = blank
+		mid = span(we - ws)
 	}
 	return esc(ctx[:ws]) + mid + esc(ctx[we:])
 }
