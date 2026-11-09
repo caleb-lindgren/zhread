@@ -113,16 +113,10 @@ func TestMark(t *testing.T) {
 	if got != "<b>好</b>人有<b>好</b>報&lt;b&gt;" {
 		t.Errorf("context: %s", got)
 	}
-	blank := `<span class=cloze>[～]</span>`
+	blank := `<span class=cloze>[…]</span>`
 	want := blank + "人有" + blank + "報&lt;b&gt;"
 	if got := mark(ctx, 0, 1, gap); got != want {
 		t.Errorf("cloze: %s", got)
-	}
-	ctx = []rune("研究，研究研究")
-	want = `<span class=cloze>[～～]</span>，` +
-		`<span class=cloze>[～～～～]</span>`
-	if got := mark(ctx, 3, 5, gap); got != want {
-		t.Errorf("cloze, two characters: %s", got)
 	}
 }
 

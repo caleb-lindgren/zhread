@@ -29,20 +29,11 @@
   var h = all[i];
   if (cloze && i > 0) {
     /* As the cloze field does, blank the word and every other
-       occurrence of it, with the blank the field has: the script it
-       asks for, or a ～ for each character blanked, which for a
-       doubled form, 松松垮垮 for 松垮, is more than the word has. */
-    var c = ctx.querySelector(".cloze");
-    var blank = function (w) {
-      if (!/^\[～+\]$/.test(c.textContent)) return c.outerHTML;
-      return '<span class="cloze">[' +
-        "～".repeat(Array.from(w).length) + "]</span>";
-    };
-    h = h.replace(/<b>([^<]*)<\/b>/g, function (m, w) {
-      return blank(w);
-    });
+       occurrence of it, with the blank the field has. */
+    var blank = ctx.querySelector(".cloze").outerHTML;
+    h = h.replace(/<b>[^<]*<\/b>/g, blank);
     ["{{text:Simplified}}", "{{text:Traditional}}"].forEach(function (w) {
-      if (w) h = h.split(w).join(blank(w));
+      if (w) h = h.split(w).join(blank);
     });
   }
   ctx.innerHTML = h;
