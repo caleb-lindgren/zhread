@@ -463,6 +463,25 @@ without duplicates and keeping review history. An update overwrites the note's
 fields, so fix a card in cards.tsv rather than in Anki, or the next import
 undoes the fix.
 
+The exception is a field left empty in cards.tsv: the import keeps what
+Anki has there rather than clearing it (seen 2026-11-09, when clearing the
+mined contexts from cards.tsv left them in Anki). Before importing a
+cards.tsv that empties fields Anki has filled, clear those fields in Anki,
+which keeps review history, as it is held by the cards rather than the
+fields:
+
+1. In Browse, search `note:zhread` and select every row (Ctrl+A). Select
+   them before the next step: the In list of the dialog offers the fields
+   of the notes selected when it opens, and only All Fields and Tags when
+   none are.
+2. Notes > Find and Replace. Find `(?s).+`, Replace With empty, In the
+   field to clear, with "Treat input as regular expression" and "Selected
+   notes only" ticked. Not In All Fields, which would empty every field.
+3. Repeat for each field to clear: for contexts, both Contexts and
+   ContextsTrad.
+4. Check that a search for `note:zhread Contexts:_*`, or the field
+   cleared, finds no notes, then import cards.tsv.
+
 After changing a template in anki/, run `make apkg` (the first run makes a
 Python venv in .venv with genanki) and import anki/zhread.apkg again: the
 note type keeps a fixed ID, so Anki updates it in place. A change to the
