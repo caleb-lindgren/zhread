@@ -366,12 +366,12 @@ var menuItems = []struct {
 	label, key string
 	ev         *tcell.EventKey
 }{
-	{"undo the last card", "u", runeKey('u')},
-	{"bookmark this line", "m", runeKey('m')},
-	{"go to the bookmark", "'", runeKey('\'')},
-	{"list every key", "F1", tcell.NewEventKey(tcell.KeyF1, 0,
+	{"Undo the last card", "u", runeKey('u')},
+	{"Bookmark this line", "m", runeKey('m')},
+	{"Go to the bookmark", "'", runeKey('\'')},
+	{"Show keyboard shortcuts", "F1", tcell.NewEventKey(tcell.KeyF1, 0,
 		tcell.ModNone)},
-	{"quit", "q", runeKey('q')},
+	{"Quit", "q", runeKey('q')},
 }
 
 // undoButton follows the message that a card was saved.
@@ -379,7 +379,7 @@ const undoButton = " undo "
 
 // menuButton is the status line's button that opens the menu, at its
 // right end.
-const menuButton = " menu "
+const menuButton = " ? "
 
 // drawMenu draws the open menu in a box above the status line, its right
 // edge under the menu button's. While it is open, a click does only what

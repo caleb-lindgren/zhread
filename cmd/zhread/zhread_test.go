@@ -1845,18 +1845,18 @@ func TestMenu(t *testing.T) {
 			strings.Join(screen(s), "\n"))
 	}
 
-	clickOn(t, v, s, "menu")
+	clickOn(t, v, s, " ? ")
 	if !v.menu {
 		t.Fatal("a click on menu did not open the menu")
 	}
-	clickOn(t, v, s, "bookmark this line")
+	clickOn(t, v, s, "Bookmark this line")
 	if v.menu || !strings.HasPrefix(v.msg, "bookmarked") {
 		t.Errorf("the menu's bookmark: menu %v, %q", v.menu, v.msg)
 	}
 
 	// Off the menu, a click only closes it.
 	l, c := v.cl, v.cc
-	clickOn(t, v, s, "menu")
+	clickOn(t, v, s, " ? ")
 	click(v, 2, 2)
 	v.draw()
 	if v.menu || v.cl != l || v.cc != c {
@@ -1867,7 +1867,7 @@ func TestMenu(t *testing.T) {
 	// Keys: ↓ twice and Enter go to the bookmark; an item's own key
 	// works with the menu open.
 	keys(v, "G")
-	clickOn(t, v, s, "menu")
+	clickOn(t, v, s, " ? ")
 	for _, k := range []tcell.Key{tcell.KeyDown, tcell.KeyDown,
 		tcell.KeyEnter} {
 		v.key(tcell.NewEventKey(k, 0, tcell.ModNone))
@@ -1877,7 +1877,7 @@ func TestMenu(t *testing.T) {
 		t.Errorf("↓ ↓ Enter in the menu: menu %v, line %d; want "+
 			"closed, %d", v.menu, v.cl, l)
 	}
-	clickOn(t, v, s, "menu")
+	clickOn(t, v, s, " ? ")
 	keys(v, "q")
 	if !v.quit {
 		t.Errorf("q with the menu open did not quit")

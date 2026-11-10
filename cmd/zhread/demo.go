@@ -59,6 +59,7 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
   wheel N [AT]     turn the wheel N notches, down, or up when N is
                    negative, at AT or where the pointer is
   The pointer is drawn from a mouse action on, and hidden by a keys one.
+  It moves to a click's place and rests there a moment before clicking.
   pause MS         show the last frame MS longer
   forget           forget the cards made so far, unseen, so the same
                    word can be carded again without the warning
@@ -518,7 +519,8 @@ func (dm *demo) at(args string) (int, int, error) {
 }
 
 // glide shows the pointer moving to cell x, y, a frame at a time, from
-// where it was, or from the screen's middle when it was hidden.
+// where it was, or from the screen's middle when it was hidden, and
+// resting there for hover.
 func (dm *demo) glide(x, y int) {
 	tx, ty := float64(x)+0.5, float64(y)+0.5
 	if !dm.ptr {
@@ -533,10 +535,19 @@ func (dm *demo) glide(x, y int) {
 		t := float64(i) / steps
 		t = t * t * (3 - 2*t)
 		dm.mx, dm.my = fx+(tx-fx)*t, fy+(ty-fy)*t
+		if i == steps {
+			// a pause on the place, so the viewer sees what is
+			// about to be clicked
+			dm.delay = hover
+		}
 		dm.snap("")
 	}
 	dm.delay = delay
 }
+
+// hover is how long, in milliseconds, the pointer rests on a place before
+// clicking it.
+const hover = 900
 
 func sign(n int) int {
 	switch {

@@ -102,19 +102,19 @@ up a longer word.
 | `gh`, F1                   | list every key                                      |
 | `q`                        | quit                                                |
 
-| Mouse                                              | Action                               |
-| -------------------------------------------------- | ------------------------------------ |
-| click                                              | move the cursor there                |
-| double-click a word                                | make a card of it                    |
-| drag                                               | select                               |
-| wheel                                              | scroll the text                      |
-| wheel over the definitions                         | scroll them                          |
-| click in a definition                              | look up words inside it, as Tab does |
-| click a key on the definitions' rule (`x c e E t`) | that key                             |
-| click 詞 or 字 in the status line                  | words or single characters, as `s`   |
-| click a hint, as "Enter: make a card"              | that key                             |
-| click undo, after saving a card                    | undo the card, as `u`                |
-| click menu, at the right of the status line        | undo, bookmarks, the key list, quit  |
+| Mouse                                              | Action                                    |
+| -------------------------------------------------- | ----------------------------------------- |
+| click                                              | move the cursor there                     |
+| double-click a word                                | make a card of it                         |
+| drag                                               | select                                    |
+| wheel                                              | scroll the text                           |
+| wheel over the definitions                         | scroll them                               |
+| click in a definition                              | look up words inside it, as Tab does      |
+| click a key on the definitions' rule (`x c e E t`) | that key                                  |
+| click 詞 or 字 in the status line                    | words or single characters, as `s`        |
+| click a hint, as "Enter: make a card"              | that key                                  |
+| click undo, after saving a card                    | undo the card, as `u`                     |
+| click ?, at the right of the status line           | undo, bookmarks, keyboard shortcuts, quit |
 
 In macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
 Keyboard) so that Option-arrows work.
