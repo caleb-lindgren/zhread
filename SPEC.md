@@ -165,15 +165,31 @@ takes Esc b and Esc f, and Esc B and Esc F with Shift, as word left and right,
 as the plain arrows are; Option-arrows then move by word in iTerm2, so for
 characters map them to send Alt-arrows.
 
-The status line's right end is a menu button, `?`. A click on it opens a menu
-of the actions with nowhere else to click: undo the last card (`u`), bookmark
-this line (`m`), go to the bookmark (`'`), show the keyboard shortcuts (`gh`, F1) and
-quit (`q`), each shown with its key. In the menu, ↑ ↓ `j k` move, Enter or
-Space does the item, and Esc or a click off the menu closes it; any other key
-closes it and does what it does outside, so an item's own key works there too.
-After a card is saved, the message saying so is followed by an undo button, a
-click on which is `u`, and the question `u` asks has clickable answers, shown
-on the whole status line.
+The status line's right end is a menu button. A click on it opens a menu of
+the actions with nowhere else to click: undo the last card (`u`), bookmark
+this line (`m`), go to the bookmark (`'`), show the keyboard shortcuts (`gh`,
+F1) and quit (`q`), each shown with its key. In the menu, ↑ ↓ `j k` move,
+Enter or Space does the item, and Esc or a click off the menu closes it; any
+other key closes it and does what it does outside, so an item's own key works
+there too. After a card is saved, the message saying so is followed by an undo
+button, a click on which is `u`, and the question `u` asks has clickable
+answers, shown on the whole status line.
+
+Everything a click does something on, other than the text, the definitions and
+the card maker's lines, is a button with a green background: the menu and undo
+buttons, 詞 or 字, the keys on the definitions' rule, hints such as "Enter:
+make a card", and in the card maker its buttons and toggles.
+
+`-controls` chooses the ways of working zhread, any of `arrows`, `vi` and
+`mouse`, comma-separated; all three by default. `arrows` are the arrows, Home,
+End, Page Up, Page Down and F1, with their modifiers, and Esc b and Esc f.
+`vi` are vi's motions and counts, `v V`, `J K`, `g` and the commands it
+begins, and in the card maker `j k`, `[ ] { }` and the editor's normal mode:
+without `vi`, `i` starts the editor typing and Esc leaves it. Keys in neither,
+such as Enter, Space, Esc, `/`, `n` and the letters that toggle what is shown,
+always work, as do the arrows and vi's keys in the search prompt and the
+editor, where they edit text. Without `mouse`, zhread leaves the mouse to the
+terminal, which selects its text as usual, and shows no buttons.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -490,8 +506,7 @@ them.
 demo/reader.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then
 carding 禁不住 with its second sense, 控制不住 "can't help", rather than its first,
 承受不住 "can't bear": once with the keys, each caption naming the arrow key
-and then vi's, and once with the mouse. It ends by switching to single
-characters and back.
+and then vi's, and once with the mouse.
 `scripts/zhread_demo.sh` makes it, and is rerun to make it again after zhread
 changes: it plays a list of actions (keys, clicks, double clicks, drags, the
 wheel, captions, pauses) on a simulated screen with `gozhread -demo` and draws

@@ -77,7 +77,12 @@ up a longer word.
 
 ## Keys and mouse
 
-`gh` or F1 lists every key, in the reader and in the card maker.
+`gh` or F1 lists every key, in the reader and in the card maker. Buttons, and
+anything else a click works on, have a green background.
+
+The arrows, vi's keys and the mouse all work by default. To use only some,
+start zhread with `-controls`: `-controls arrows,vi`, for one, leaves the mouse
+to the terminal, to select text as usual.
 
 ### Reading
 
@@ -114,7 +119,7 @@ up a longer word.
 | click 詞 or 字 in the status line                    | words or single characters, as `s`        |
 | click a hint, as "Enter: make a card"              | that key                                  |
 | click undo, after saving a card                    | undo the card, as `u`                     |
-| click ?, at the right of the status line           | undo, bookmarks, keyboard shortcuts, quit |
+| click menu, at the right of the status line        | undo, bookmarks, keyboard shortcuts, quit |
 
 In macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
 Keyboard) so that Option-arrows work.
@@ -153,14 +158,15 @@ End, Backspace and Delete work as in any editor, and vi's keys work too.
 zhread [options] FILE
 ```
 
-| Option           | Meaning                                                                         |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `-cards FILE`    | the card file (default: `~/.local/share/zhread/cards.tsv`)                      |
-| `-dict DIR`      | the dictionary directory (default: `$ZHREAD_DICT`, else the checkout's `dict/`) |
-| `-chars`         | look up single characters instead of words, as for classical Chinese            |
-| `-pron cn`, `tw` | show Mainland readings first (the default), or Taiwan ones                      |
-| `-deck NAME`     | the Anki deck a new card file imports into (default: `main`)                    |
-| `-demo`, `-gif`  | for making the demo GIF; see [SPEC.md](SPEC.md#the-demo)                        |
+| Option           | Meaning                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `-cards FILE`    | the card file (default: `~/.local/share/zhread/cards.tsv`)                              |
+| `-dict DIR`      | the dictionary directory (default: `$ZHREAD_DICT`, else the checkout's `dict/`)         |
+| `-chars`         | look up single characters instead of words, as for classical Chinese                    |
+| `-controls LIST` | the ways to work zhread: any of `arrows`, `vi`, `mouse`, comma-separated (default: all) |
+| `-pron cn`, `tw` | show Mainland readings first (the default), or Taiwan ones                              |
+| `-deck NAME`     | the Anki deck a new card file imports into (default: `main`)                            |
+| `-demo`, `-gif`  | for making the demo GIF; see [SPEC.md](SPEC.md#the-demo)                                |
 
 | Variable         | Meaning                                                               |
 | ---------------- | --------------------------------------------------------------------- |

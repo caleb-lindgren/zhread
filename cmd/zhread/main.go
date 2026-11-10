@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/caleb-lindgren/zhread/internal/opencc"
 	"github.com/caleb-lindgren/zhread/zhdict"
@@ -42,6 +43,7 @@ type convs struct{ s2t, t2s *opencc.Converter }
 func main() {
 	var o struct{ dict, cards, pron, deck, demo, gif string }
 	var chars bool
+	ctl := "arrows,vi,mouse"
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default:\n"+
 			"$ZHREAD_DICT, else the nearest dict/ at or\n"+
@@ -56,6 +58,11 @@ func main() {
 	flag.BoolVar(&chars, "chars", false,
 		"look up single characters rather than words, as for\n"+
 			"classical Chinese (s switches while reading)")
+	flag.StringVar(&ctl, "controls", ctl,
+		"the ways to work zhread, any of arrows (the arrows,\n"+
+			"Home, End, PgUp, PgDn and F1), vi (vi's keys) and\n"+
+			"mouse, comma-separated; without mouse, the\n"+
+			"terminal keeps the mouse, to select text as usual")
 	flag.StringVar(&o.deck, "deck", "main",
 		"Anki deck named in a new card file's header")
 	flag.StringVar(&o.demo, "demo", "",
@@ -84,6 +91,10 @@ func main() {
 	}
 	if o.pron != zhdict.PronCN && o.pron != zhdict.PronTW {
 		fail(fmt.Errorf("unknown -pron %q", o.pron))
+	}
+	cs, err := parseControls(ctl)
+	if err != nil {
+		fail(err)
 	}
 
 	dir, err := zhdict.FindDir(o.dict)
@@ -119,14 +130,16 @@ func main() {
 		fail(err)
 	}
 	s.SetStyle(stDef)
-	s.EnableMouse(tcell.MouseDragEvents)
+	if !cs.noMouse {
+		s.EnableMouse(tcell.MouseDragEvents)
+	}
 	reqs := make(chan segReq, 1)
 	go segWorker(dict, o.pron, reqs, func(r segRes) {
 		s.PostEvent(tcell.NewEventInterrupt(r))
 	})
 	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec, reqs: reqs,
 		convDir: filepath.Join(dir, "opencc"), deck: o.deck,
-		pron: o.pron, showEn: true, chars: chars}
+		pron: o.pron, showEn: true, chars: chars, controls: cs}
 	if l := d.getMark(); l >= 0 {
 		v.cl = l
 		v.msg = fmt.Sprintf("opened at the bookmark, line %d", l+1)
@@ -136,6 +149,33 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+}
+
+// controls are the ways of working zhread that -controls leaves out, so
+// that the zero value has them all. Keys that belong to neither the
+// arrows nor vi, such as Enter, Space, Esc, / and the letters that toggle
+// what is shown, always work, as do the arrows and vi's keys inside text
+// being typed: the search prompt, and the card maker's editor.
+type controls struct{ noArrows, noVi, noMouse bool }
+
+// parseControls reads -controls: a comma-separated list of arrows, vi and
+// mouse.
+func parseControls(list string) (controls, error) {
+	c := controls{true, true, true}
+	for _, f := range strings.Split(list, ",") {
+		switch strings.TrimSpace(f) {
+		case "arrows":
+			c.noArrows = false
+		case "vi":
+			c.noVi = false
+		case "mouse":
+			c.noMouse = false
+		default:
+			return c, fmt.Errorf("-controls: %q is not "+
+				"arrows, vi or mouse", f)
+		}
+	}
+	return c, nil
 }
 
 func fail(err error) {

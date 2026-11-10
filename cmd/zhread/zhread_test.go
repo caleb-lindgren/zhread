@@ -1845,7 +1845,7 @@ func TestMenu(t *testing.T) {
 			strings.Join(screen(s), "\n"))
 	}
 
-	clickOn(t, v, s, " ? ")
+	clickOn(t, v, s, "menu")
 	if !v.menu {
 		t.Fatal("a click on menu did not open the menu")
 	}
@@ -1856,7 +1856,7 @@ func TestMenu(t *testing.T) {
 
 	// Off the menu, a click only closes it.
 	l, c := v.cl, v.cc
-	clickOn(t, v, s, " ? ")
+	clickOn(t, v, s, "menu")
 	click(v, 2, 2)
 	v.draw()
 	if v.menu || v.cl != l || v.cc != c {
@@ -1867,7 +1867,7 @@ func TestMenu(t *testing.T) {
 	// Keys: ↓ twice and Enter go to the bookmark; an item's own key
 	// works with the menu open.
 	keys(v, "G")
-	clickOn(t, v, s, " ? ")
+	clickOn(t, v, s, "menu")
 	for _, k := range []tcell.Key{tcell.KeyDown, tcell.KeyDown,
 		tcell.KeyEnter} {
 		v.key(tcell.NewEventKey(k, 0, tcell.ModNone))
@@ -1877,10 +1877,86 @@ func TestMenu(t *testing.T) {
 		t.Errorf("↓ ↓ Enter in the menu: menu %v, line %d; want "+
 			"closed, %d", v.menu, v.cl, l)
 	}
-	clickOn(t, v, s, " ? ")
+	clickOn(t, v, s, "menu")
 	keys(v, "q")
 	if !v.quit {
 		t.Errorf("q with the menu open did not quit")
+	}
+}
+
+// TestControls checks -controls: each way of working left out does
+// nothing, and without the mouse no buttons are shown or green.
+func TestControls(t *testing.T) {
+	if _, err := parseControls("vi,mouse"); err != nil {
+		t.Errorf("vi,mouse: %v", err)
+	}
+	if _, err := parseControls("vi,keys"); err == nil {
+		t.Errorf("no error for keys")
+	}
+	key := func(v *view, k tcell.Key) {
+		v.key(tcell.NewEventKey(k, 0, tcell.ModNone))
+		v.draw()
+	}
+
+	v, s := newTestView(t, book)
+	v.noVi = true
+	keys(v, "/企业⏎")
+	c := v.cc
+	keys(v, "w")
+	if v.cc != c {
+		t.Errorf("w moved without vi's keys")
+	}
+	key(v, tcell.KeyRight)
+	if v.cc == c {
+		t.Errorf("→ did not move without vi's keys")
+	}
+	// The editor is a plain one: i types at once, and Esc leaves it.
+	keys(v, "/精神⏎⏎")
+	key(v, tcell.KeyUp)
+	keys(v, "i他")
+	key(v, tcell.KeyEscape)
+	if f := v.dr.forms(v.conv); v.dr.editing ||
+		!strings.HasPrefix(string(f.ctxS), "他") {
+		t.Errorf("editing without vi: editing %v, context %q",
+			v.dr.editing, f.ctxS)
+	}
+
+	v, s = newTestView(t, book)
+	v.noArrows = true
+	keys(v, "/企业⏎")
+	c = v.cc
+	key(v, tcell.KeyRight)
+	if v.cc != c {
+		t.Errorf("→ moved without the arrows")
+	}
+	keys(v, "w")
+	if v.cc == c {
+		t.Errorf("w did not move without the arrows")
+	}
+	x, y := find(s, "詞")
+	if _, _, st, _ := s.GetContent(x, y); st != stSel {
+		t.Errorf("詞 is not green as a button")
+	}
+
+	v, s = newTestView(t, book)
+	v.noMouse = true
+	keys(v, "/企业⏎⏎⏎")
+	if x, _ := find(s, "menu"); x >= 0 {
+		t.Errorf("a menu button without the mouse")
+	}
+	if x, _ := find(s, "undo"); x >= 0 {
+		t.Errorf("an undo button without the mouse")
+	}
+	x, y = find(s, "詞")
+	if _, _, st, _ := s.GetContent(x, y); st == stSel {
+		t.Errorf("詞 is green without the mouse")
+	}
+	if len(v.hits) > 0 {
+		t.Errorf("%d clickable places without the mouse", len(v.hits))
+	}
+	keys(v, "⏎")
+	if x, _ := find(s, "Save"); x >= 0 {
+		t.Errorf("card buttons without the mouse")
 	}
 }
 

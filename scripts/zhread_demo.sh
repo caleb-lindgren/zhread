@@ -91,21 +91,11 @@ pause 1500
 caption Save saves the card
 click Save
 pause 2500
-caption ? has the rest: undo, bookmarks, the keyboard shortcuts, quit
-click #-1 ?
+caption menu has the rest: undo, bookmarks, the keyboard shortcuts, quit
+click #-1 menu
 move 60 8
 pause 2500
 click #1 故鄉
 pause 800
-
-# Single characters.
-caption s looks up single characters instead of words
-keys s
-pause 1500
-keys <Right>
-pause 1500
-caption A click on 字 goes back to words
-click #-1 字
-pause 2500
 EOF
 echo "wrote $OUT"

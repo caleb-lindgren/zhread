@@ -68,6 +68,7 @@ type view struct {
 	deck    string
 	pron    string
 	chars   bool // single characters, not words: -chars, s
+	controls
 	// cardHits are where drawCard put each line of the card a click can
 	// go to, and hits the other things a click does something on: key
 	// hints, buttons, the divide screen's lines.
@@ -379,16 +380,21 @@ const undoButton = " undo "
 
 // menuButton is the status line's button that opens the menu, at its
 // right end.
-const menuButton = " ? "
+const menuButton = " menu "
 
 // drawMenu draws the open menu in a box above the status line, its right
 // edge under the menu button's. While it is open, a click does only what
 // the menu has: one on an item is that item, one elsewhere closes it.
 func (v *view) drawMenu() {
 	v.hits = v.hits[:0]
+	keys := make([]string, len(menuItems))
 	in := 0
-	for _, it := range menuItems {
-		in = max(in, zhdict.Width(it.label)+2+zhdict.Width(it.key))
+	for i, it := range menuItems {
+		keys[i] = it.key
+		if it.key == "gh, F1" {
+			keys[i] = v.helpKeys()
+		}
+		in = max(in, zhdict.Width(it.label)+2+zhdict.Width(keys[i]))
 	}
 	w, h := in+4, len(menuItems)+2
 	x0, y0 := max(v.w-w, 0), max(v.h-1-h, 0)
@@ -423,8 +429,8 @@ func (v *view) drawMenu() {
 		if i == v.menuCur {
 			st = stSel.Bold(true)
 		}
-		pad := in - zhdict.Width(it.label) - zhdict.Width(it.key)
-		line := " " + it.label + strings.Repeat(" ", pad) + it.key +
+		pad := in - zhdict.Width(it.label) - zhdict.Width(keys[i])
+		line := " " + it.label + strings.Repeat(" ", pad) + keys[i] +
 			" "
 		v.put(x0+1, y, y+1, []rune(line), plain(st))
 		v.hits = append(v.hits, hit{y, x0 + 1, x0 + w - 1,
@@ -436,6 +442,18 @@ func (v *view) drawMenu() {
 }
 
 func (v *view) closeMenu() { v.menu = false }
+
+// helpKeys are the keys that show the keys, of those -controls leaves.
+func (v *view) helpKeys() string {
+	var ks []string
+	if !v.noVi {
+		ks = append(ks, "gh")
+	}
+	if !v.noArrows {
+		ks = append(ks, "F1")
+	}
+	return strings.Join(ks, ", ")
+}
 
 func (v *view) openMenu() {
 	if v.mode == prompt {
@@ -454,16 +472,67 @@ func (v *view) menuDo(i int) {
 // move through it, Enter or Space does the item the cursor is on, and Esc
 // closes it. Any other key closes it and is pressed as usual, so the
 // items' own keys work in it too.
+// isArrowKey reports whether ev is one of the keys -controls calls the
+// arrows: the arrows, Home, End, Page Up, Page Down and F1, with any
+// modifier, and Esc b and Esc f, which iTerm2 sends for Option-arrows.
+func isArrowKey(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyLeft, tcell.KeyRight, tcell.KeyUp, tcell.KeyDown,
+		tcell.KeyHome, tcell.KeyEnd, tcell.KeyPgUp, tcell.KeyPgDn,
+		tcell.KeyF1:
+		return true
+	case tcell.KeyRune:
+		return ev.Modifiers()&tcell.ModAlt != 0 &&
+			strings.ContainsRune("bfBF", ev.Rune())
+	}
+	return false
+}
+
+// isViKey reports whether ev is one of vi's keys in the reader: its
+// motions, counts, v and V, J and K, and g, which begins gg, gh and the
+// rest.
+func isViKey(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyCtrlB, tcell.KeyCtrlF, tcell.KeyCtrlU, tcell.KeyCtrlD:
+		return true
+	case tcell.KeyRune:
+		const vi = "hjklwb0$GgJKvV*#123456789"
+		return ev.Modifiers()&tcell.ModAlt == 0 &&
+			strings.ContainsRune(vi, ev.Rune())
+	}
+	return false
+}
+
+// isCardViKey is isViKey in the card maker's list: j k, the edges' [ ] { },
+// g for gh, and J K, which scroll its keys.
+func isCardViKey(ev *tcell.EventKey) bool {
+	return ev.Key() == tcell.KeyRune &&
+		strings.ContainsRune("jk[]{}gJK", ev.Rune())
+}
+
+// downUp reads ev as a move down or up a list, the menu's or the divide
+// screen's: ↓ or j, ↑ or k, of those -controls leaves.
+func (v *view) downUp(ev *tcell.EventKey) (down, up bool) {
+	k, r := ev.Key(), ev.Rune()
+	if k != tcell.KeyRune {
+		r = 0
+	}
+	down = k == tcell.KeyDown && !v.noArrows || r == 'j' && !v.noVi
+	up = k == tcell.KeyUp && !v.noArrows || r == 'k' && !v.noVi
+	return
+}
+
 func (v *view) menuKey(ev *tcell.EventKey) bool {
 	n := len(menuItems)
 	r := ev.Rune()
 	if ev.Key() != tcell.KeyRune {
 		r = 0
 	}
+	down, up := v.downUp(ev)
 	switch {
-	case ev.Key() == tcell.KeyDown || r == 'j':
+	case down:
 		v.menuCur = (v.menuCur + 1) % n
-	case ev.Key() == tcell.KeyUp || r == 'k':
+	case up:
 		v.menuCur = (v.menuCur + n - 1) % n
 	case ev.Key() == tcell.KeyEnter || r == ' ':
 		v.menuDo(v.menuCur)
@@ -1164,7 +1233,7 @@ func (v *view) rule(y int, marks string, above, below int) {
 		// on one is that key.
 		for i, r := range marks {
 			if r != ' ' {
-				v.keyHit(y, x+1+i, x+2+i, runeKey(r))
+				v.button(y, x+1+i, x+2+i, runeKey(r))
 			}
 		}
 	}
@@ -1187,10 +1256,19 @@ func (v *view) drawStatus() {
 	if v.chars {
 		mode = " 字"
 	}
-	right := mode + fmt.Sprintf(" %d/%d  %s ", v.cl+1, len(v.d.lines),
-		v.d.name) + menuButton
-	// A card just saved can be undone with a click, as u does.
-	if v.undoBtn && v.mode == normal {
+	right := mode + fmt.Sprintf("  %d/%d  %s ", v.cl+1, len(v.d.lines),
+		v.d.name)
+	if !v.noMouse {
+		right += menuButton
+	}
+	// A card just saved can be undone with a click, as u does; the
+	// message is shortened to keep the button clear of the right side.
+	if v.undoBtn && v.mode == normal && !v.noMouse {
+		room := v.w - zhdict.Width(right) - 3 -
+			zhdict.Width(undoButton)
+		if zhdict.Width(left) > room && room > 1 {
+			left = string(clip([]rune(left), room))
+		}
 		left += "  " + undoButton
 	}
 	for x := 0; x < v.w; x++ {
@@ -1200,11 +1278,9 @@ func (v *view) drawStatus() {
 	if v.mode == visual || v.mode == vline || v.undoAsk {
 		v.keyLabels(0, y, left)
 	}
-	// The buttons look like the card maker's.
-	if v.undoBtn && v.mode == normal {
+	if v.undoBtn && v.mode == normal && !v.noMouse {
 		x := zhdict.Width(left) - zhdict.Width(undoButton)
-		v.put(x, y, y+1, []rune(undoButton), plain(stSel))
-		v.keyHit(y, x, x+zhdict.Width(undoButton), runeKey('u'))
+		v.button(y, x, x+zhdict.Width(undoButton), runeKey('u'))
 	}
 	// A question takes the whole line, so that its answers show.
 	if v.undoAsk {
@@ -1213,10 +1289,12 @@ func (v *view) drawStatus() {
 	rx := v.w - zhdict.Width(right)
 	v.put(max(rx, 0), y, y+1, []rune(right), plain(stStatus))
 	if rx >= 0 && right != "" {
-		v.keyHit(y, rx+1, rx+3, runeKey('s'))
-		bx := v.w - zhdict.Width(menuButton)
-		v.put(bx, y, y+1, []rune(menuButton), plain(stSel))
-		v.hits = append(v.hits, hit{y, bx, v.w, v.openMenu})
+		v.button(y, rx, rx+4, runeKey('s')) // " 詞 "
+		if !v.noMouse {
+			bx := v.w - zhdict.Width(menuButton)
+			v.paint(y, bx, v.w)
+			v.hits = append(v.hits, hit{y, bx, v.w, v.openMenu})
+		}
 	}
 	if v.mode == prompt {
 		v.s.ShowCursor(zhdict.Width(left), y)
@@ -1293,6 +1371,9 @@ func (v *view) key(ev *tcell.EventKey) {
 		} else {
 			v.msg = "kept it"
 		}
+		return
+	}
+	if v.noArrows && isArrowKey(ev) || v.noVi && isViKey(ev) {
 		return
 	}
 	n := max(v.count, 1)
@@ -1511,6 +1592,27 @@ func (v *view) keyHit(y, x0, x1 int, ev *tcell.EventKey) {
 	v.hits = append(v.hits, hit{y, x0, x1, func() { v.key(ev) }})
 }
 
+// button makes columns x0 to x1-1 of row y a button for the key ev: green,
+// as every button is, and clicked as that key. Without the mouse it is
+// neither.
+func (v *view) button(y, x0, x1 int, ev *tcell.EventKey) {
+	if v.noMouse {
+		return
+	}
+	v.paint(y, x0, x1)
+	v.keyHit(y, x0, x1, ev)
+}
+
+// paint colors columns x0 to x1-1 of row y as a button, keeping what they
+// show.
+func (v *view) paint(y, x0, x1 int) {
+	for x := x0; x < min(x1, v.w); {
+		r, comb, _, w := v.s.GetContent(x, y)
+		v.s.SetContent(x, y, r, comb, stSel)
+		x += max(w, 1)
+	}
+}
+
 func runeKey(r rune) *tcell.EventKey {
 	return tcell.NewEventKey(tcell.KeyRune, r, tcell.ModNone)
 }
@@ -1541,7 +1643,7 @@ func (v *view) keyLabels(x, y int, text string) {
 		}
 		if ok && hintKeys[k] != nil {
 			x0 := x + zhdict.Width(seg[:at])
-			v.keyHit(y, x0, x+w, hintKeys[k])
+			v.button(y, x0, x+w, hintKeys[k])
 		}
 		x += w + 2
 	}
@@ -2383,6 +2485,7 @@ func (v *view) startCards(pk *picker, words [][2]int) {
 func (v *view) chooseKey(ev *tcell.EventKey) {
 	pk := v.pick
 	r := ev.Rune()
+	down, up := v.downUp(ev)
 	switch {
 	case ev.Key() == tcell.KeyEscape || r == 'q':
 		v.mode, v.pick = normal, nil
@@ -2390,9 +2493,9 @@ func (v *view) chooseKey(ev *tcell.EventKey) {
 		v.startCards(pk, pk.opts[pk.cur])
 	case r >= '1' && r <= '9' && int(r-'1') < len(pk.opts):
 		v.startCards(pk, pk.opts[r-'1'])
-	case r == 'j' || ev.Key() == tcell.KeyDown:
+	case down:
 		pk.cur = min(pk.cur+1, len(pk.opts)-1)
-	case r == 'k' || ev.Key() == tcell.KeyUp:
+	case up:
 		pk.cur = max(pk.cur-1, 0)
 	}
 }
@@ -2515,6 +2618,10 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	if ev.Key() != tcell.KeyRune {
 		r = 0
 	}
+	if !dr.editing && !dr.discard && !dr.which &&
+		(v.noArrows && isArrowKey(ev) || v.noVi && isCardViKey(ev)) {
+		return
+	}
 	// In the list, Shift with ← → moves the context's start as [ ] do,
 	// and Alt (Option) or Ctrl with them its end, as { } do.
 	if k, m := ev.Key(), ev.Modifiers(); !dr.editing &&
@@ -2579,7 +2686,10 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		} else {
 			ed, ef, k = o, o.ctxf, o.own()
 		}
-		if ev.Key() == tcell.KeyEscape && !ed.vi.insert {
+		// Without vi's keys the editor is a plain one, always typing,
+		// and Esc leaves it.
+		if ev.Key() == tcell.KeyEscape && (!ed.vi.insert || v.noVi) {
+			ed.vi.insert = false
 			dr.editing = false
 			return
 		}
@@ -2663,9 +2773,9 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	case r == 'i' && (dr.cur < 0 || o != nil):
 		dr.editing = true
 		if o != nil {
-			o.vi.insert = false
+			o.vi.insert = v.noVi
 		} else {
-			dr.vi.insert = false
+			dr.vi.insert = v.noVi
 		}
 	case (r == '<' || r == '>') && o != nil:
 		dr.moveOther(r == '>')
@@ -2893,7 +3003,7 @@ func (v *view) drawCard() {
 	// change the card, as on the reader's rule. A question or warning
 	// takes the buttons' room: its answers are clickable instead.
 	var buttons []button
-	if help == "" {
+	if help == "" && !v.noMouse {
 		buttons = v.cardButtons()
 	}
 	right := ""
@@ -2930,7 +3040,7 @@ func (v *view) drawCard() {
 	}
 	for i, r := range m {
 		if r != ' ' {
-			v.keyHit(v.h-1, x+1+i, x+2+i, runeKey(r))
+			v.button(v.h-1, x+1+i, x+2+i, runeKey(r))
 		}
 	}
 }
