@@ -50,8 +50,15 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
                    or <Name> with Name one of Enter Esc Tab S-Tab Space
                    BS Left Right Up Down Home End PgUp PgDn F1, after
                    any of C- S- M- (<C-S-Right>); KEY*N presses it N times
-  click X Y        press the left button at column X, row Y, and let go
+  click AT         move the pointer to AT and click there, AT being
+                   X Y, a column and row, or [#N] TEXT, the middle of
+                   TEXT's first place on the screen (its Nth with #N,
+                   counting from the end when N is negative)
+  dclick AT        the same, a double click
   drag X Y X2 Y2   press at X Y, move to X2 Y2 a column at a time, let go
+  wheel N [AT]     turn the wheel N notches, down, or up when N is
+                   negative, at AT or where the pointer is
+  The pointer is drawn from a mouse action on, and hidden by a keys one.
   pause MS         show the last frame MS longer
   forget           forget the cards made so far, unseen, so the same
                    word can be carded again without the warning
@@ -162,6 +169,8 @@ type frame struct {
 	caption string
 	keys    string // the key just pressed
 	ms      int
+	ptr     bool    // the mouse pointer is shown
+	px, py  float64 // where, in cells
 }
 
 // demo plays the actions on a simulated screen.
@@ -181,6 +190,8 @@ type demo struct {
 	fontf   string
 	bpx     float64 // the banner's font
 	bfontf  string
+	ptr     bool    // the pointer is shown
+	mx, my  float64 // the pointer's place, in cells
 }
 
 // runDemo plays the actions and writes the GIF to out. A cardsOut that is
@@ -375,36 +386,156 @@ func (dm *demo) do(line string) error {
 		if err != nil {
 			return err
 		}
+		dm.ptr = false
 		for _, k := range ks {
 			dm.v.key(k.ev)
 			dm.snap(k.label)
 		}
-	case "click", "drag":
-		n, err := ints(map[string]int{"click": 2, "drag": 4}[name])
+	case "click", "dclick":
+		x, y, err := dm.at(args)
 		if err != nil {
 			return err
 		}
-		mouse := func(x, y int, b tcell.ButtonMask) {
-			dm.v.mouse(tcell.NewEventMouse(x, y, b, tcell.ModNone))
+		dm.glide(x, y)
+		n := 1
+		if name == "dclick" {
+			n = 2
 		}
-		mouse(n[0], n[1], tcell.Button1)
-		dm.snap("click")
-		if name == "drag" {
-			x, y := n[0], n[1]
-			for x != n[2] || y != n[3] {
-				x += sign(n[2] - x)
-				if x == n[2] {
-					y += sign(n[3] - y)
-				}
-				mouse(x, y, tcell.Button1)
-				dm.snap("drag")
+		for i := 0; i < n; i++ {
+			dm.mouse(x, y, tcell.Button1)
+			dm.mouse(x, y, tcell.ButtonNone)
+		}
+		dm.snap(map[string]string{"click": "click",
+			"dclick": "double-click"}[name])
+	case "drag":
+		n, err := ints(4)
+		if err != nil {
+			return err
+		}
+		dm.glide(n[0], n[1])
+		dm.mouse(n[0], n[1], tcell.Button1)
+		dm.snap("drag")
+		x, y := n[0], n[1]
+		for x != n[2] || y != n[3] {
+			x += sign(n[2] - x)
+			if x == n[2] {
+				y += sign(n[3] - y)
 			}
+			dm.mx, dm.my = float64(x)+0.5, float64(y)+0.5
+			dm.mouse(x, y, tcell.Button1)
+			dm.snap("drag")
 		}
-		mouse(n[len(n)-2], n[len(n)-1], tcell.ButtonNone)
+		dm.mouse(x, y, tcell.ButtonNone)
+	case "wheel":
+		num, at, _ := strings.Cut(args, " ")
+		n, err := strconv.Atoi(num)
+		if err != nil {
+			return fmt.Errorf("wheel needs a number of notches")
+		}
+		x, y := int(dm.mx), int(dm.my)
+		if strings.TrimSpace(at) != "" {
+			if x, y, err = dm.at(at); err != nil {
+				return err
+			}
+			dm.glide(x, y)
+		}
+		b, label := tcell.WheelDown, "wheel ↓"
+		if n < 0 {
+			b, label, n = tcell.WheelUp, "wheel ↑", -n
+		}
+		for i := 0; i < n; i++ {
+			dm.mouse(x, y, b)
+			dm.snap(label)
+		}
 	default:
 		return fmt.Errorf("unknown action %q", name)
 	}
 	return nil
+}
+
+func (dm *demo) mouse(x, y int, b tcell.ButtonMask) {
+	dm.v.mouse(tcell.NewEventMouse(x, y, b, tcell.ModNone))
+}
+
+// at reads a mouse action's place: X Y, or [#N] TEXT, found on the
+// screen as it is now.
+func (dm *demo) at(args string) (int, int, error) {
+	if f := strings.Fields(args); len(f) == 2 {
+		x, err1 := strconv.Atoi(f[0])
+		y, err2 := strconv.Atoi(f[1])
+		if err1 == nil && err2 == nil {
+			return x, y, nil
+		}
+	}
+	nth, text := 1, args
+	if rest, ok := strings.CutPrefix(args, "#"); ok {
+		num, t, _ := strings.Cut(rest, " ")
+		n, err := strconv.Atoi(num)
+		if err != nil || n == 0 {
+			return 0, 0, fmt.Errorf("bad #N in %q", args)
+		}
+		nth, text = n, t
+	}
+	want := []rune(text)
+	if len(want) == 0 {
+		return 0, 0, errors.New("no place given")
+	}
+	dm.settle()
+	cells, w, h := dm.s.GetContents()
+	var found [][2]int
+	for y := 0; y < h; y++ {
+		// the row's characters and the column each starts at; a wide
+		// one's second cell is skipped
+		var rs []rune
+		var xs []int
+		for x := 0; x < w; x++ {
+			r := ' '
+			if c := cells[y*w+x]; len(c.Runes) > 0 {
+				r = c.Runes[0]
+			}
+			rs, xs = append(rs, r), append(xs, x)
+			x += max(zhdict.Width(string(r)), 1) - 1
+		}
+		xs = append(xs, w)
+	next:
+		for i := 0; i+len(want) <= len(rs); i++ {
+			for j, r := range want {
+				if rs[i+j] != r {
+					continue next
+				}
+			}
+			found = append(found,
+				[2]int{(xs[i] + xs[i+len(want)]) / 2, y})
+		}
+	}
+	if nth < 0 {
+		nth += len(found) + 1
+	}
+	if nth < 1 || nth > len(found) {
+		return 0, 0, fmt.Errorf("%q is not on the screen", args)
+	}
+	return found[nth-1][0], found[nth-1][1], nil
+}
+
+// glide shows the pointer moving to cell x, y, a frame at a time, from
+// where it was, or from the screen's middle when it was hidden.
+func (dm *demo) glide(x, y int) {
+	tx, ty := float64(x)+0.5, float64(y)+0.5
+	if !dm.ptr {
+		dm.mx, dm.my = float64(dm.cols)/2, float64(dm.rows)/2
+		dm.ptr = true
+	}
+	const steps = 8
+	fx, fy, delay := dm.mx, dm.my, dm.delay
+	dm.delay = 40
+	for i := 1; i <= steps; i++ {
+		// eased, quick in the middle and slow at the ends
+		t := float64(i) / steps
+		t = t * t * (3 - 2*t)
+		dm.mx, dm.my = fx+(tx-fx)*t, fy+(ty-fy)*t
+		dm.snap("")
+	}
+	dm.delay = delay
 }
 
 func sign(n int) int {
@@ -464,7 +595,7 @@ func (dm *demo) snap(key string) {
 	cx, cy, vis := dm.s.GetCursor()
 	f := frame{cells: append([]tcell.SimCell(nil), cells...), w: w,
 		h: h, cx: cx, cy: cy, cursor: vis, caption: dm.caption,
-		keys: key, ms: dm.delay}
+		keys: key, ms: dm.delay, ptr: dm.ptr, px: dm.mx, py: dm.my}
 	for i := range f.cells {
 		f.cells[i].Bytes = nil
 		f.cells[i].Runes = append([]rune(nil), f.cells[i].Runes...)
@@ -713,6 +844,7 @@ func (dm *demo) write(out string) error {
 	pal.colors = color.Palette{color.RGBA{0, 0, 0, 0}} // transparent
 	pal.add(bannerFg, bannerBg)
 	pal.add(keyFg, keyBg)
+	pal.add(0xffffff, 0x000000) // the pointer
 	for _, f := range dm.frames {
 		for _, c := range f.cells {
 			fg, bg, _, _ := colors(c.Style)
@@ -826,7 +958,62 @@ func (dm *demo) render(f frame, fnt, bfnt *demoFont,
 			x += w - 1
 		}
 	}
+	if f.ptr {
+		drawPointer(img, pal, fnt.pad+int(f.px*float64(fnt.cw)),
+			fnt.top+fnt.pad+int(f.py*float64(fnt.ch)),
+			max(1, (fnt.ch+8)/16))
+	}
 	return img
+}
+
+// pointerShape is the mouse pointer, its tip at the top left: X its
+// outline, . its fill.
+var pointerShape = []string{
+	"X",
+	"XX",
+	"X.X",
+	"X..X",
+	"X...X",
+	"X....X",
+	"X.....X",
+	"X......X",
+	"X.......X",
+	"X........X",
+	"X.....XXXXX",
+	"X..X..X",
+	"X.X X..X",
+	"XX  X..X",
+	"X    X..X",
+	"     X..X",
+	"      XX",
+}
+
+// drawPointer draws the pointer with its tip at x, y, each of its pixels
+// scale pixels square.
+func drawPointer(img *image.Paletted, pal *demoPalette, x, y, scale int) {
+	black := pal.at(0xffffff, 0x000000, 0)
+	white := pal.at(0xffffff, 0x000000, shades)
+	for row, line := range pointerShape {
+		for col, c := range line {
+			i := black
+			switch c {
+			case '.':
+				i = white
+			case ' ':
+				continue
+			}
+			for dy := 0; dy < scale; dy++ {
+				for dx := 0; dx < scale; dx++ {
+					p := image.Pt(x+col*scale+dx,
+						y+row*scale+dy)
+					if p.In(img.Rect) {
+						img.Pix[img.PixOffset(p.X,
+							p.Y)] = i
+					}
+				}
+			}
+		}
+	}
 }
 
 // textWidth is how many pixels text takes in fnt's proportional face.

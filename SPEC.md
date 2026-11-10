@@ -479,14 +479,19 @@ them.
 
 demo/reader.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then
 carding 禁不住 with its second sense, 控制不住 "can't help", rather than its first,
-承受不住 "can't bear". `scripts/zhread_demo.sh` makes it, and is rerun to make it
-again after zhread changes: it plays a list of actions (keys, mouse drags,
-captions, pauses) on a simulated screen with `gozhread -demo` and draws each
-screen as a frame, so it needs only Go and a font with Chinese in it, found
-with fc-match (FONT=/path/to/font otherwise). The actions are in the script;
-`gozhread -demo help` lists them. The text, where it starts, how many words it
-moves over, the word carded and the sense taken are variables at its top, which
-the environment overrides; they default to what demo/reader.gif was made with:
+承受不住 "can't bear": once with the arrow keys, once with vi's keys and once
+with the mouse. It ends by switching to single characters and back.
+`scripts/zhread_demo.sh` makes it, and is rerun to make it again after zhread
+changes: it plays a list of actions (keys, clicks, double clicks, drags, the
+wheel, captions, pauses) on a simulated screen with `gozhread -demo` and draws
+each screen as a frame, with the mouse pointer from a mouse action until the
+next keys, so it needs only Go and a font with Chinese in it, found with
+fc-match (FONT=/path/to/font otherwise). A click names its place by the text
+there, as `click Save`, so the actions don't depend on where the text falls.
+The actions are in the script; `gozhread -demo help` lists them. The text,
+where it starts, how many words it moves over, the word carded and the sense
+taken are variables at its top, which the environment overrides; they default
+to what demo/reader.gif was made with:
 
 ```sh
 scripts/zhread_demo.sh

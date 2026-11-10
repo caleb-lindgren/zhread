@@ -104,5 +104,32 @@ pause 1500
 caption Enter saves the card
 keys <Enter>
 pause 2500
+
+# Make it again with the mouse.
+forget
+find $START
+delay 700
+caption The same with the mouse: a double-click makes a card
+pause 800
+dclick $WORD
+pause 1500
+caption A click on a box unticks the first sense...
+click [x]
+caption ...and ticks the one meant
+click #$SENSE [ ]
+pause 1500
+caption Save saves the card
+click Save
+pause 2500
+
+# Single characters.
+caption s looks up single characters instead of words
+keys s
+pause 1500
+keys <Right>
+pause 1500
+caption A click on 字 goes back to words
+click #-1 字
+pause 2500
 EOF
 echo "wrote $OUT"

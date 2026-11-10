@@ -1657,6 +1657,39 @@ func TestDemoCards(t *testing.T) {
 	}
 }
 
+// TestDemoMouse checks the demo's mouse actions: a double click on a word
+// found by its text makes a card of it, Save clicked saves it, and text not
+// on the screen is an error.
+func TestDemoMouse(t *testing.T) {
+	if _, err := zhdict.FindDir(""); err != nil {
+		t.Skipf("dictionaries unavailable: %v", err)
+	}
+	if _, err := fontFile(true); err != nil {
+		t.Skipf("no font: %v", err)
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp)
+	text := filepath.Join(tmp, "book.txt")
+	os.WriteFile(text, []byte(book), 0o644)
+	acts := filepath.Join(tmp, "acts")
+	out := filepath.Join(tmp, "out.gif")
+	os.WriteFile(acts, []byte("size 60 16\nopen "+text+
+		"\ndclick 企业\nclick #-1 Save\nwheel 2\n"), 0o644)
+	cards := filepath.Join(tmp, "cards.tsv")
+	if err := runDemo("", acts, out, cards); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(cards); !strings.Contains(string(b),
+		"\t企业\t企業\t") {
+		t.Errorf("no card of 企业 saved:\n%s", b)
+	}
+	os.WriteFile(acts, []byte("open "+text+"\nclick 不在\n"), 0o644)
+	if err := runDemo("", acts, out, ""); err == nil ||
+		!strings.Contains(err.Error(), "not on the screen") {
+		t.Errorf("clicking text not on the screen: %v", err)
+	}
+}
+
 // TestManyContexts checks that the preview stays quick with thousands of
 // other contexts on a card, the cursor at the last of them.
 func TestManyContexts(t *testing.T) {
