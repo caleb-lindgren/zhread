@@ -10,7 +10,7 @@
 #
 #   FILE    the text read, relative to the repository root
 #   START   text the cursor starts on
-#   STEPS   how many words → and w move over from there
+#   STEPS   how many words → moves over from there
 #   WORD    the word carded, searched for after the scanning; Enter
 #           cards the word the cursor is on, so it must be one word as
 #           zhread splits the text
@@ -33,10 +33,6 @@ OUT=${OUT:-demo/reader.gif}
 CARDS=${CARDS:-}
 FONT=${FONT:-}
 
-# rep C N is C N times, as a keys action takes a character, its * being
-# the key of that name
-rep() { local i; for ((i = 0; i < $2; i++)); do printf %s "$1"; done; }
-
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 
@@ -48,9 +44,10 @@ find $START
 delay 1200
 caption none
 
-# Read along a word at a time; the definitions follow the cursor.
+# Read along a word at a time; the definitions follow the cursor. Each
+# caption names the arrow key and then vi's, and the arrow key is pressed.
 delay 700
-caption → moves by word
+caption → or w moves by word
 keys <Right>*$STEPS
 pause 800
 
@@ -69,35 +66,8 @@ keys <Enter>
 pause 1500
 caption Space unticks the first sense...
 keys <Space>
-caption ...↓ goes to the one meant...
+caption ...↓ or j goes to the next one...
 keys <Down>*$(( SENSE - 1 ))
-caption ...and Space ticks it
-keys <Space>
-pause 1500
-caption Enter saves the card
-keys <Enter>
-pause 2500
-
-# Make it again with the vi keys.
-forget
-find $START
-caption The same with vi keys: w moves by word
-keys $(rep w $STEPS)
-pause 800
-delay 600
-caption / searches
-keys /$WORD
-pause 800
-keys <Enter>
-pause 2500
-delay 700
-caption Enter makes the card
-keys <Enter>
-pause 1500
-caption Space unticks the first sense...
-keys <Space>
-caption ...j goes to the one meant...
-keys $(rep j $(( SENSE - 1 )))
 caption ...and Space ticks it
 keys <Space>
 pause 1500
@@ -115,7 +85,7 @@ dclick $WORD
 pause 1500
 caption A click on a box unticks the first sense...
 click [x]
-caption ...and ticks the one meant
+caption ...and ticks the next one
 click #$SENSE [ ]
 pause 1500
 caption Save saves the card

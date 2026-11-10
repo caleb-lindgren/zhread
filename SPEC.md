@@ -489,8 +489,9 @@ them.
 
 demo/reader.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then
 carding 禁不住 with its second sense, 控制不住 "can't help", rather than its first,
-承受不住 "can't bear": once with the arrow keys, once with vi's keys and once
-with the mouse. It ends by switching to single characters and back.
+承受不住 "can't bear": once with the keys, each caption naming the arrow key
+and then vi's, and once with the mouse. It ends by switching to single
+characters and back.
 `scripts/zhread_demo.sh` makes it, and is rerun to make it again after zhread
 changes: it plays a list of actions (keys, clicks, double clicks, drags, the
 wheel, captions, pauses) on a simulated screen with `gozhread -demo` and draws
