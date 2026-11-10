@@ -23,16 +23,22 @@
     "Noto Serif CJK SC", serif;
 }
 .ctx { font-size: 60px; margin: 0.3em 0; }
-/* The word in the context, and the cloze blank, in the orange of the
-   reader's headwords (Zenburn's, as vis gives it; see the README); one
-   color, one weight elsewhere. */
-.ctx b, .cloze { color: #ffd7af; font-weight: normal; }
+/* The word in the context, and the cloze blank, in orange; one color,
+   one weight elsewhere. In Anki's dark mode (.nightMode on the body, or
+   .night_mode in older clients and AnkiDroid) it
+   is the reader's headwords' orange, Zenburn's as vis gives it (see the
+   README), made for a dark ground; on Anki's white, a darker orange
+   (xterm 130), 4.7:1 against white where #ffd7af is 1.35:1. */
+.ctx b, .cloze, .others b { color: #af5f00; font-weight: normal; }
+.nightMode .ctx b, .nightMode .cloze, .nightMode .others b,
+.night_mode .ctx b, .night_mode .cloze, .night_mode .others b {
+  color: #ffd7af;
+}
 .word { font-size: 80px; }
 /* The back's other contexts, under the definitions, smaller than the
    one being asked about. */
 .others { font-size: 32px; }
 .others div { margin: 0.3em 0; }
-.others b { color: #ffd7af; font-weight: normal; }
 /* The serif's characters fill more of the em than the Kai's do, so the
    simplified form, in the word's brackets or a definition, is set
    smaller to look the same size. */

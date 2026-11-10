@@ -125,9 +125,10 @@ written and checked against; a fresh download will differ a little.
 # Fallback exclusions (fallback_exclude.tsv)
 
 - Words for which zhread does not take MoEDict's reading for Taiwan's and
-  CC-CEDICT's for the Mainland's (see "Taiwan and Mainland readings" in the
-  top-level [README](../README.md)), because the two entries are two senses
-  read differently: 下咽 xià yàn "to swallow" against xià yān "hypopharynx".
+  CC-CEDICT's for the Mainland's (see [Taiwan and Mainland
+  readings](../SPEC.md#taiwan-and-mainland-readings)), because the two entries
+  are two senses read differently: 下咽 xià yàn "to swallow" against xià yān
+  "hypopharynx".
 - Written by hand on 4 Nov 2026, from a review of all 748 words the
   fallback then applied to, with each pair's MoEDict and CC-CEDICT
   definitions side by side: 28 are listed. Columns: trad, MoEDict's
