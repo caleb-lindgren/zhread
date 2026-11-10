@@ -1984,6 +1984,49 @@ func TestControls(t *testing.T) {
 	}
 }
 
+// TestCardMenu checks the card maker's menu, a double click on a context,
+// which edits it, and { } in the reader, which move by paragraph.
+func TestCardMenu(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "}")
+	if v.cl != 2 {
+		t.Errorf("} went to line %d, want 2", v.cl)
+	}
+	keys(v, "{")
+	if v.cl != 0 {
+		t.Errorf("{ went to line %d, want 0", v.cl)
+	}
+
+	s.SetSize(90, 24)
+	keys(v, "/精神⏎⏎k")
+	clickOn(t, v, s, "menu")
+	if !v.menu || !onScreen(s, "Edit this context") {
+		t.Fatalf("no menu in the card maker:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	clickOn(t, v, s, "Show keyboard shortcuts")
+	if v.menu || !v.chelp {
+		t.Errorf("the menu's keys: menu %v, chelp %v", v.menu, v.chelp)
+	}
+	keys(v, "⎋")
+
+	x, y := find(s, "看起来很精神")
+	if y < 0 {
+		t.Fatalf("no context on the screen:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	click(v, x, y)
+	v.draw()
+	if v.dr.editing {
+		t.Fatalf("one click started editing")
+	}
+	click(v, x, y)
+	v.draw()
+	if !v.dr.editing {
+		t.Errorf("a double click on the context did not edit it")
+	}
+}
+
 // TestEditorTypes checks that in the editor's normal mode a key that is
 // no vi command types itself, and Backspace and Delete delete.
 func TestEditorTypes(t *testing.T) {

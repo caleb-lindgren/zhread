@@ -144,15 +144,15 @@ words looked up as its source, as `/home/me/book.txt:12 › 讨论 › 交換`.
 Bookmarks are for the book only.
 
 The arrows, Home, End, Page Up and Page Down move as in an editor that wraps
-its lines: ← and → go on past the end of a line to the next, ↑ ↓ Home and
-End work on screen rows, and Ctrl-↑ and Ctrl-↓ go to the start of a
+its lines: ← and → go on past the end of a line to the next, ↑ ↓ Home and End
+work on screen rows, and Ctrl-↑ and Ctrl-↓, as vi's `{ }`, go to the start of a
 paragraph, a line after a blank one (in a pane, any line). With Shift they
 select from where the cursor was. A selection begun so, or by dragging the
 mouse, ends at the next move without Shift, and at a click, as an editor's
 does; one begun with `v` or `V` stays until Esc, as in vi. Dragging needs the
-terminal to report the mouse moving with the button held (xterm's mode
-1002), as st and xterm do; in both, Shift with the mouse still selects the
-terminal's own text, for copying.
+terminal to report the mouse moving with the button held (xterm's mode 1002),
+as st and xterm do; in both, Shift with the mouse still selects the terminal's
+own text, for copying.
 
 M- is Alt, Option on a Mac, where Ctrl-arrows belong to Mission Control and the
 terminal keeps Cmd for itself: Option-← and Option-→ move by character and
@@ -291,25 +291,30 @@ The preview shows:
   unticking those and ticking that one.
 
 A click on a line of the card moves the cursor to it, out of the editor if it
-was in one, and a click on a `[ ]` box ticks or unticks it, as Space does; the
-button held or dragged ticks it once. The bottom line has buttons for the
-mouse: `<start` `start>` and `<end` `end>` move the context's edges as `[ ]`
-and `{ }` do (and Shift-← Shift-→, and Alt or Ctrl with them, from the
-keyboard), Save saves, and Cancel cancels, asking first when the card has been
-changed; a question or warning takes their room, and its answers, as "y: yes",
-are clicked instead. In the reader, the keys the rule names (x c e E t), 詞 or 字
-on the status line (s), and its hints in visual mode are clicked as those keys.
-Enter saves, Esc cancels. An Esc right after another, as from insert mode out
-past the list, asks first when the card has been changed (a context edited or
-its edges moved, or a tick changed), and only `y` then throws the card away.
-The other script's context comes from OpenCC's s2tw or tw2s, chosen by which
-changes the paragraph more (see [dict/README.md](dict/README.md) for why
-OpenCC). When the word is the same in both scripts, the traditional fields are
-left empty and only the simplified cards are made; for a traditional text it is
-the simplified contexts that are left empty, and only the traditional cards are
-made. The source is the text's full path and the line, so a card can be traced
-back to its book from anywhere; it is kept in the card file but not shown on
-the card. The reading is followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
+was in one, a click on a `[ ]` box ticks or unticks it, as Space does, and a
+double click on a context edits it, as `i` does; the button held or dragged
+ticks it once. The bottom line has buttons for the mouse: `<start` `start>` and
+`<end` `end>` move the context's edges as `[ ]` and `{ }` do (and Shift-←
+Shift-→, and Alt or Ctrl with them, from the keyboard), Save saves, and Cancel
+cancels, asking first when the card has been changed; a question or warning
+takes their room, and its answers, as "y: yes", are clicked instead. Last,
+where there is room, a menu button opens a menu of the actions that apply where
+the cursor is and have no button: edit this context (`i`), move it up or down
+(`< >`), edit the word's card instead (`u`), skip to the next word (`n`), and
+show the keyboard shortcuts. In the reader, the keys the rule names (x c e E
+t), 詞 or 字 on the status line (s), and its hints in visual mode are clicked as
+those keys. Enter saves, Esc cancels. An Esc right after another, as from
+insert mode out past the list, asks first when the card has been changed (a
+context edited or its edges moved, or a tick changed), and only `y` then throws
+the card away. The other script's context comes from OpenCC's s2tw or tw2s,
+chosen by which changes the paragraph more (see
+[dict/README.md](dict/README.md) for why OpenCC). When the word is the same in
+both scripts, the traditional fields are left empty and only the simplified
+cards are made; for a traditional text it is the simplified contexts that are
+left empty, and only the traditional cards are made. The source is the text's
+full path and the line, so a card can be traced back to its book from anywhere;
+it is kept in the card file but not shown on the card. The reading is followed
+by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
 
 ## The card file
 

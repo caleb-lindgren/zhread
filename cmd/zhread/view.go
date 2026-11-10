@@ -304,6 +304,9 @@ func (v *view) draw() {
 	switch v.mode {
 	case card:
 		v.drawCard()
+		if v.menu {
+			v.drawMenu()
+		}
 		v.s.Show()
 		return
 	case choose:
@@ -361,18 +364,50 @@ func (v *view) draw() {
 	v.s.Show()
 }
 
-// menuItems are the menu's actions: those with no other place to click,
-// each with its key, which the menu shows to teach it.
-var menuItems = []struct {
+// menuItem is an action of the menu, with its key, which the menu shows
+// to teach it.
+type menuItem struct {
 	label, key string
-	ev         *tcell.EventKey
-}{
-	{"Undo the last card", "u", runeKey('u')},
-	{"Bookmark this line", "m", runeKey('m')},
-	{"Go to the bookmark", "'", runeKey('\'')},
-	{"Show keyboard shortcuts", "gh, F1", tcell.NewEventKey(tcell.KeyF1, 0,
-		tcell.ModNone)},
-	{"Quit", "q", runeKey('q')},
+	do         func()
+}
+
+// menuItems are the menu's actions: those with no other place to click.
+// In the card maker they are those that apply where the cursor is.
+func (v *view) menuItems() []menuItem {
+	press := func(r rune) func() {
+		return func() { v.key(runeKey(r)) }
+	}
+	if v.mode == card && v.dr != nil {
+		dr := v.dr
+		var its []menuItem
+		add := func(label, key string) {
+			its = append(its,
+				menuItem{label, key, press([]rune(key)[0])})
+		}
+		if o := dr.other(); dr.cur < 0 || o != nil {
+			add("Edit this context", "i")
+			if o != nil {
+				add("Move it up", "<")
+				add("Move it down", ">")
+			}
+		}
+		if len(dr.exact) > 0 {
+			add("Edit the word's card instead", "u")
+		}
+		if len(v.queue) > 0 {
+			add("Skip to the next word", "n")
+		}
+		help := func() { v.chelp, v.cscroll = !v.chelp, 0 }
+		keys := menuItem{"Show keyboard shortcuts", v.helpKeys(), help}
+		return append(its, keys)
+	}
+	return []menuItem{
+		{"Undo the last card", "u", press('u')},
+		{"Bookmark this line", "m", press('m')},
+		{"Go to the bookmark", "'", press('\'')},
+		{"Show keyboard shortcuts", v.helpKeys(), v.toggleHelp},
+		{"Quit", "q", press('q')},
+	}
 }
 
 // undoButton follows the message that a card was saved.
@@ -387,16 +422,13 @@ const menuButton = " menu "
 // the menu has: one on an item is that item, one elsewhere closes it.
 func (v *view) drawMenu() {
 	v.hits = v.hits[:0]
-	keys := make([]string, len(menuItems))
+	items := v.menuItems()
+	v.menuCur = min(v.menuCur, len(items)-1)
 	in := 0
-	for i, it := range menuItems {
-		keys[i] = it.key
-		if it.key == "gh, F1" {
-			keys[i] = v.helpKeys()
-		}
-		in = max(in, zhdict.Width(it.label)+2+zhdict.Width(keys[i]))
+	for _, it := range items {
+		in = max(in, zhdict.Width(it.label)+2+zhdict.Width(it.key))
 	}
-	w, h := in+4, len(menuItems)+2
+	w, h := in+4, len(items)+2
 	x0, y0 := max(v.w-w, 0), max(v.h-1-h, 0)
 	box := func(x, y int, r rune) {
 		v.s.SetContent(x, y, r, nil, stStatus)
@@ -423,14 +455,14 @@ func (v *view) drawMenu() {
 	box(x0+w-1, y0, '┐')
 	box(x0, y0+h-1, '└')
 	box(x0+w-1, y0+h-1, '┘')
-	for i, it := range menuItems {
+	for i, it := range items {
 		y := y0 + 1 + i
 		st := stStatus
 		if i == v.menuCur {
 			st = stSel.Bold(true)
 		}
-		pad := in - zhdict.Width(it.label) - zhdict.Width(keys[i])
-		line := " " + it.label + strings.Repeat(" ", pad) + keys[i] +
+		pad := in - zhdict.Width(it.label) - zhdict.Width(it.key)
+		line := " " + it.label + strings.Repeat(" ", pad) + it.key +
 			" "
 		v.put(x0+1, y, y+1, []rune(line), plain(st))
 		v.hits = append(v.hits, hit{y, x0 + 1, x0 + w - 1,
@@ -464,14 +496,11 @@ func (v *view) openMenu() {
 
 // menuDo closes the menu and does item i, as its key would.
 func (v *view) menuDo(i int) {
+	do := v.menuItems()[i].do
 	v.menu = false
-	v.key(menuItems[i].ev)
+	do()
 }
 
-// menuKey is a key pressed while the menu is open: the arrows, j and k
-// move through it, Enter or Space does the item the cursor is on, and Esc
-// closes it. Any other key closes it and is pressed as usual, so the
-// items' own keys work in it too.
 // isArrowKey reports whether ev is one of the keys -controls calls the
 // arrows: the arrows, Home, End, Page Up, Page Down and F1, with any
 // modifier, and Esc b and Esc f, which iTerm2 sends for Option-arrows.
@@ -496,7 +525,7 @@ func isViKey(ev *tcell.EventKey) bool {
 	case tcell.KeyCtrlB, tcell.KeyCtrlF, tcell.KeyCtrlU, tcell.KeyCtrlD:
 		return true
 	case tcell.KeyRune:
-		const vi = "hjklwb0$GgJKvV*#123456789"
+		const vi = "hjklwb{}0$GgJKvV*#123456789"
 		return ev.Modifiers()&tcell.ModAlt == 0 &&
 			strings.ContainsRune(vi, ev.Rune())
 	}
@@ -522,8 +551,12 @@ func (v *view) downUp(ev *tcell.EventKey) (down, up bool) {
 	return
 }
 
+// menuKey is a key pressed while the menu is open: the arrows, j and k
+// move through it, Enter or Space does the item the cursor is on, and Esc
+// closes it. Any other key closes it and is pressed as usual, so the
+// items' own keys work in it too.
 func (v *view) menuKey(ev *tcell.EventKey) bool {
-	n := len(menuItems)
+	n := len(v.menuItems())
 	r := ev.Rune()
 	if ev.Key() != tcell.KeyRune {
 		r = 0
@@ -1105,6 +1138,7 @@ type helpKey struct{ keys, does, ways string }
 var keyHelp = []helpKey{
 	{"h j k l", "character left, line down, line up, right", "v"},
 	{"w b", "next word, previous word", "v"},
+	{"{ }", "paragraph back, forward", "v"},
 	{"0 $  g0 g$", "start, end of the line; of the screen row", "v"},
 	{"gj gk", "screen row down, up", "v"},
 	{"gg G", "first line, last line (or line N with a count)", "v"},
@@ -1166,6 +1200,7 @@ var cardKeyHelp = []helpKey{
 	{"J K", "scroll these keys down, up", "v"},
 	{"gh|F1", "show or hide these keys; Esc hides them", "va"},
 	{"click", "go to the line; on its [ ], tick or untick it", "m"},
+	{"double-click", "on a context: edit it", "m"},
 	{"green", "a button: a click is its key", "m"},
 	{"", "In the editor on a context:", ""},
 	{"h l w b e", "move by character, by word", "v"},
@@ -1395,6 +1430,9 @@ func (v *view) key(ev *tcell.EventKey) {
 			v.settle(l0, c0)
 		}
 	}()
+	if v.menu && v.menuKey(ev) {
+		return
+	}
 	switch v.mode {
 	case prompt:
 		v.promptKey(ev)
@@ -1404,9 +1442,6 @@ func (v *view) key(ev *tcell.EventKey) {
 		return
 	case choose:
 		v.chooseKey(ev)
-		return
-	}
-	if v.menu && v.menuKey(ev) {
 		return
 	}
 	v.msg, v.undoBtn = "", false
@@ -1713,14 +1748,19 @@ type cardHit struct {
 	y0, y1, cur, by, bx int
 }
 
-// cardMouse moves the card's cursor to the line clicked, and a click on a
-// tick box ticks or unticks it, as Space does.
+// cardMouse moves the card's cursor to the line clicked, a click on a
+// tick box ticks or unticks it, as Space does, and a double click on a
+// context starts editing it, as i does.
 func (v *view) cardMouse(ev *tcell.EventMouse, press bool) {
 	dr := v.dr
 	if !press || dr == nil || dr.discard || dr.which {
 		return
 	}
 	x, y := ev.Position()
+	// a second press at the same place soon after: a double click
+	dbl := x == v.lastX && y == v.lastY &&
+		ev.When().Sub(v.lastPress) < doubleClick
+	v.lastPress, v.lastX, v.lastY = ev.When(), x, y
 	for _, h := range v.cardHits {
 		if y < h.y0 || y >= h.y1 {
 			continue
@@ -1732,6 +1772,11 @@ func (v *view) cardMouse(ev *tcell.EventMouse, press bool) {
 		if y == h.by && x >= h.bx && x < h.bx+3 {
 			dr.tick(h.cur)
 			dr.changed = true
+		} else if dbl && !dr.editing {
+			// on a context, edit it, as i does; i does nothing
+			// on a definition
+			v.lastPress = time.Time{}
+			v.cardKey(runeKey('i'))
 		}
 		return
 	}
@@ -1986,6 +2031,16 @@ func (v *view) runeKey(r rune) {
 		if v.selecting() {
 			v.openPrompt(':')
 		}
+	case '{':
+		for ; n > 0; n-- {
+			v.paraBack()
+		}
+		v.want = v.vcol()
+	case '}':
+		for ; n > 0; n-- {
+			v.paraFwd()
+		}
+		v.want = v.vcol()
 	case 'J':
 		v.pscroll += n
 	case 'K':
@@ -3060,9 +3115,18 @@ func (v *view) drawCard() {
 	for _, b := range buttons {
 		right += " " + b.label + " "
 	}
+	nb := len([]rune(right)) // the buttons, green
 	m := v.cardToggles()
 	if m != "" {
 		right += " " + m + " "
+	}
+	nt := len([]rune(right)) // and the toggles, not
+	// the menu button last, at the right end, as in the reader, if
+	// there is room for it
+	menu := len(buttons) > 0 && zhdict.Width(mode)+2+
+		zhdict.Width(right+menuButton) <= v.w
+	if menu {
+		right += menuButton
 	}
 	text := clip([]rune(mode+"  "+help), v.w-zhdict.Width(right))
 	n := len([]rune(mode))
@@ -3078,11 +3142,15 @@ func (v *view) drawCard() {
 		return // no room: the keys still work
 	}
 	v.put(x, v.h-1, v.h, []rune(right), func(i int) tcell.Style {
-		if i < len([]rune(right))-len([]rune(m))-2 || m == "" {
-			return stSel
+		if i >= nb && i < nt {
+			return stHint
 		}
-		return stHint
+		return stSel
 	})
+	if menu {
+		bx := v.w - zhdict.Width(menuButton)
+		v.hits = append(v.hits, hit{v.h - 1, bx, v.w, v.openMenu})
+	}
 	for _, b := range buttons {
 		w := zhdict.Width(b.label) + 2
 		v.hits = append(v.hits, hit{v.h - 1, x, x + w, b.do})

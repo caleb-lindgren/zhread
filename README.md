@@ -94,7 +94,7 @@ means there is none.
 | move by word                                        | ← →                | `w b`                          | click                                           |
 | move by character                                   | Ctrl-← Ctrl-→      | `h l`                          | click                                           |
 | move by line                                        | ↑ ↓                | `j k`                          | click                                           |
-| move by paragraph                                   | Ctrl-↑ Ctrl-↓      | —                              | click                                           |
+| move by paragraph                                   | Ctrl-↑ Ctrl-↓      | `{ }`                          | click                                           |
 | page down, up                                       | PgDn PgUp          | `^F ^B` (`^D ^U`: half a page) | wheel                                           |
 | start, end of the text                              | Ctrl-Home Ctrl-End | `gg G`                         | —                                               |
 | search forward, back; repeat                        | `/ ?`, `n N`       | `/ ?`, `n N`                   | —                                               |
@@ -119,23 +119,25 @@ Keyboard) so that Option-arrows work.
 ### Making a card
 
 The card maker lists the context, then the definitions; tick the ones the card
-should have. To edit the context, press `i` on it and type: the arrows, Home,
-End, Backspace and Delete work as in any editor, and vi's keys work too.
+should have. To edit the context, press `i` on it or double-click it, and type:
+the arrows, Home, End, Backspace and Delete work as in any editor, and vi's
+keys work too.
 
-| Action                                        | Arrows                          | vi                              | Mouse                                               |
-| --------------------------------------------- | ------------------------------- | ------------------------------- | --------------------------------------------------- |
-| move through the context and definitions      | ↑ ↓ (PgUp PgDn: ten)            | `j k`                           | click a line                                        |
-| tick or untick a definition or context        | Space                           | Space                           | click its `[ ]`                                     |
-| move the context's start a clause left, right | Shift-← Shift-→                 | `[ ]`                           | click `<start` `start>`                             |
-| move the context's end a clause left, right   | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |
-| edit the context                              | `i`; Esc until back in the list | `i`; Esc until back in the list | —                                                   |
-| save the card                                 | Enter                           | Enter                           | click Save                                          |
-| edit the word's existing card instead         | `u`                             | `u`                             | click "u: edit it" when shown                       |
-| skip to the next word of a selected phrase    | `n`                             | `n`                             | —                                                   |
-| show or hide quotations, MoEDict, Wiktionary  | `x`, `c`, `E`                   | `x`, `c`, `E`                   | click `x c E` at the bottom right                   |
-| cancel                                        | Esc                             | Esc                             | click Cancel; it asks first if you changed the card |
-| answer a question                             | its key                         | its key                         | click the answer, as "y: yes"                       |
-| list every key                                | F1                              | `gh`                            | —                                                   |
+| Action                                         | Arrows                          | vi                              | Mouse                                               |
+| ---------------------------------------------- | ------------------------------- | ------------------------------- | --------------------------------------------------- |
+| move through the context and definitions       | ↑ ↓ (PgUp PgDn: ten)            | `j k`                           | click a line                                        |
+| tick or untick a definition or context         | Space                           | Space                           | click its `[ ]`                                     |
+| move the context's start a clause left, right  | Shift-← Shift-→                 | `[ ]`                           | click `<start` `start>`                             |
+| move the context's end a clause left, right    | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |
+| edit the context                               | `i`; Esc until back in the list | `i`; Esc until back in the list | double-click it; or menu                            |
+| move another context up, down the card's order | `< >`                           | `< >`                           | menu                                                |
+| save the card                                  | Enter                           | Enter                           | click Save                                          |
+| edit the word's existing card instead          | `u`                             | `u`                             | click "u: edit it" when shown; or menu              |
+| skip to the next word of a selected phrase     | `n`                             | `n`                             | menu                                                |
+| show or hide quotations, MoEDict, Wiktionary   | `x`, `c`, `E`                   | `x`, `c`, `E`                   | click `x c E` at the bottom right                   |
+| cancel                                         | Esc                             | Esc                             | click Cancel; it asks first if you changed the card |
+| answer a question                              | its key                         | its key                         | click the answer, as "y: yes"                       |
+| list every key                                 | F1                              | `gh`                            | menu                                                |
 
 ## Reader options
 
