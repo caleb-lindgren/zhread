@@ -22,7 +22,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/zhdict"
 	"github.com/gdamore/tcell/v2"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"

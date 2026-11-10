@@ -3,8 +3,8 @@ wikt_pron.tsv, which zhread and multizhdict consult after csld_pron.tsv:
 
     python3 parse_wikt_pron.py > wikt_pron.tsv
 
-Run it after parse_wikt.py and parse_csld.py, since it reads both
-outputs. The columns are those of csld_pron.tsv: trad, simp, tw, cn,
+Run it after parse_wikt.py and, if csld_pron.tsv is wanted, after
+parse_csld.py, since it reads both outputs. The columns are those of csld_pron.tsv: trad, simp, tw, cn,
 lower case, one space between syllables.
 
 A word csld_pron.tsv already has is left out, so the cross-strait
@@ -27,9 +27,11 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     syl = inventory(f"{here}/cedict_parsed.tsv")
     csld = set()
-    with open(f"{here}/csld_pron.tsv", encoding="utf-8") as f:
-        for line in f:
-            csld.add(line.split("\t", 1)[0])
+    # Without csld_pron.tsv (an optional extra), every pair is kept.
+    if os.path.exists(f"{here}/csld_pron.tsv"):
+        with open(f"{here}/csld_pron.tsv", encoding="utf-8") as f:
+            for line in f:
+                csld.add(line.split("\t", 1)[0])
     seen = set()
     rows = []
     unsplit = 0

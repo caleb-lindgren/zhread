@@ -107,6 +107,16 @@ func TestPickBidi(t *testing.T) {
 // newTestProbe builds a probe over the real dictionaries, skipping the test
 // where they are not present.
 // testDict opens the dictionaries once for every test that needs them.
+// needOptional skips a test whose expectations come from the optional
+// files, when one is missing.
+func needOptional(t *testing.T, d *Dict) {
+	t.Helper()
+	if m := d.MissingOptional(); len(m) > 0 {
+		t.Skipf("optional files unavailable (make dict ARGS=\"--csld "+
+			"--wikt\"): %s", strings.Join(m, ", "))
+	}
+}
+
 func testDict(t *testing.T) *Dict {
 	t.Helper()
 	testDictOnce.Do(func() {
@@ -421,6 +431,7 @@ func TestFreqLookup(t *testing.T) {
 
 func TestReadings(t *testing.T) {
 	p := newTestProbe(t, "企業和模認識垃圾導播")
+	needOptional(t, testDict(t))
 	if err := p.LoadPron(testDict(t)); err != nil {
 		t.Skipf("reading table unavailable: %v", err)
 	}
@@ -488,6 +499,7 @@ func TestReadings(t *testing.T) {
 // Mainland's.
 func TestReadingFallback(t *testing.T) {
 	d := testDict(t)
+	needOptional(t, d)
 	p := newTestProbe(t, "一字不识溜冰場閩語羧下咽薄伽丘標致")
 	if err := p.LoadExtra(d); err != nil {
 		t.Skipf("extra sources unavailable: %v", err)

@@ -1,1 +1,6 @@
+# make apkg: the Anki note type package
 genanki==0.13.1
+# make dict: scripts/fetch_dict.sh and the parsers in dict/
+dragonmapper==0.3.0
+pandas==3.1.1
+py7zr==1.1.4

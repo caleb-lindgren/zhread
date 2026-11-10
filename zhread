@@ -1,6 +1,6 @@
 #!/bin/bash
-# Read a Chinese text file with gozhread, in its own st window in the font
-# multizhdict is opened with, and return to this shell at once.
+# Read a Chinese text file with gozhread, in its own st window, and return
+# to this shell at once.
 #
 #     zhread [options] FILE
 #

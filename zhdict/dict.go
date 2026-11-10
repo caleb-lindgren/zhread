@@ -1,6 +1,8 @@
 package zhdict
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -47,13 +49,46 @@ func Open(dir string) (*Dict, error) {
 	return d, nil
 }
 
-// CheckExtra maps the extra sources, reporting one that cannot be.
+// CheckExtra maps the extra sources, reporting one that cannot be. A
+// missing one is not an error: the extras are built separately (see
+// dict/README), and a lookup without one has its other sources' entries.
 func (d *Dict) CheckExtra() error {
 	_, err := d.extraBufs()
 	return err
 }
 
-// extraBufs maps the extra sources, on first use.
+// MissingOptional lists the optional files absent from the directory: the
+// extra sources, the reading tables and the fallback exclusions. A lookup
+// works without them, with fewer definitions and readings.
+func (d *Dict) MissingOptional() []string {
+	var paths []string
+	for _, s := range sources {
+		if s.extra {
+			paths = append(paths, s.path)
+		}
+	}
+	paths = append(append(paths, pronPaths...), excludePath)
+	var missing []string
+	for _, p := range paths {
+		_, err := os.Stat(filepath.Join(d.dir, p))
+		if errors.Is(err, fs.ErrNotExist) {
+			missing = append(missing, p)
+		}
+	}
+	return missing
+}
+
+// mapOptional is mapFile for a file that may be absent: a missing file
+// maps to nil, which every reader treats as empty.
+func mapOptional(path string) ([]byte, error) {
+	buf, err := mapFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return buf, err
+}
+
+// extraBufs maps the extra sources, on first use. A missing one is nil.
 func (d *Dict) extraBufs() ([][]byte, error) {
 	d.extraOnce.Do(func() {
 		d.extra = make([][]byte, len(sources))
@@ -61,7 +96,7 @@ func (d *Dict) extraBufs() ([][]byte, error) {
 			if !s.extra {
 				continue
 			}
-			buf, err := mapFile(filepath.Join(d.dir, s.path))
+			buf, err := mapOptional(filepath.Join(d.dir, s.path))
 			if err != nil {
 				d.extraErr = err
 				return
@@ -79,17 +114,21 @@ func (d *Dict) freqBuf() ([]byte, error) {
 	return d.freq, d.freqErr
 }
 
+// pronBufs maps the reading tables and the fallback exclusions, on first
+// use. Each is optional: a missing table is nil, and a missing
+// exclusion list excludes nothing.
 func (d *Dict) pronBufs() ([][]byte, error) {
 	d.pronOnce.Do(func() {
 		for _, path := range pronPaths {
-			buf, err := mapFile(filepath.Join(d.dir, path))
+			buf, err := mapOptional(filepath.Join(d.dir, path))
 			if err != nil {
 				d.pron, d.pronErr = nil, err
 				return
 			}
 			d.pron = append(d.pron, buf)
 		}
-		d.exclude, d.pronErr = mapFile(filepath.Join(d.dir, excludePath))
+		d.exclude, d.pronErr = mapOptional(
+			filepath.Join(d.dir, excludePath))
 		if d.pronErr != nil {
 			d.pron = nil
 		}

@@ -17,7 +17,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/zhdict"
 )
 
 // Context length bounds, in characters. A sentence shorter than minCtx

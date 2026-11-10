@@ -62,7 +62,7 @@ type source struct {
 	// zhread shows only on request.
 	tier int
 	// extra sources are read only by probes that ask for them
-	// (LoadExtra): multizhdict prints what it always has.
+	// (LoadExtra): a plain lookup prints what it always has.
 	extra bool
 }
 

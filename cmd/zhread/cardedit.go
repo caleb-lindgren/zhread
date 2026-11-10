@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/zhdict"
 )
 
 // row is the row of cards.tsv with the GUID guid, padded to every column.

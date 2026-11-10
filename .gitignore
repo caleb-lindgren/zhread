@@ -1,0 +1,11 @@
+bin/
+.venv/
+__pycache__/
+# Built by scripts/fetch_dict.sh (make dict); see dict/README.
+/dict/cedict_1_0_ts_utf-8_mdbg.txt
+/dict/cedict_parsed.tsv
+/dict/MoEDICT/
+/dict/csld.tsv
+/dict/csld_pron.tsv
+/dict/wikt.tsv
+/dict/wikt_pron.tsv

@@ -1,0 +1,29 @@
+zhread
+Copyright 2023-2026 Caleb Lindgren
+
+The code in this repository, and the tables in dict/ written by hand for
+it, are licensed under the Apache License, Version 2.0 (LICENSE).
+
+Vendored data, in the repository:
+
+- dict/opencc/: dictionary tables of OpenCC 1.4.2
+  (https://github.com/BYVoid/OpenCC), Apache License 2.0; see
+  dict/opencc/LICENSE.
+- dict/jieba/dict.txt: the word-frequency table of jieba 0.42.1
+  (https://github.com/fxsjy/jieba), MIT License; see dict/jieba/LICENSE.
+
+Data downloaded and built by scripts/fetch_dict.sh, not in the repository:
+
+- CC-CEDICT (https://www.mdbg.net/chinese/dictionary?page=cc-cedict),
+  CC BY-SA 4.0.
+- 教育部重編國語辭典修訂本 (Ministry of Education, Taiwan), CC BY-ND 3.0
+  TW, through alexhk90's Pleco export
+  (https://github.com/alexhk90/Pleco-User-Dictionaries).
+- With --csld: 中華語文知識庫's 兩岸詞典 (© 中華文化總會), CC BY-NC-ND 4.0,
+  through https://github.com/g0v/moedict-data-csld. For personal use; what
+  is built from it may not be shared.
+- With --wikt: English Wiktionary (https://en.wiktionary.org), CC BY-SA
+  4.0, through wiktextract's extract at https://kaikki.org.
+
+dict/README describes each source, the date it was taken, and what its
+parser does to it.

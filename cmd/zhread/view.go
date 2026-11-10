@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/caleb-lindgren/ankitools/internal/opencc"
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/internal/opencc"
+	"github.com/caleb-lindgren/zhread/zhdict"
 	"github.com/gdamore/tcell/v2"
 )
 

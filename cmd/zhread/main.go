@@ -1,13 +1,14 @@
 // zhread is a reader for Chinese text files that makes Anki cards of the
 // words selected in it, each with the sentence it was found in.
 //
-// Navigation and search follow vi. The words of the text come from the
-// same segmenter as multizhdict, and the definitions of the word under the
-// cursor are shown below the text. Press Enter on a word, or on a selection
-// made with v or V, to make a card: the preview picks the sentence around
-// it as context, which [ ] { } adjust a clause at a time and vi's keys
-// edit, and lists the definitions to choose from. Cards are appended to cards.tsv, which is
-// also the record checked for words already carded.
+// Navigation and search follow vi. The text is divided into words by the
+// zhdict package's segmenter, and the definitions of the word under the
+// cursor are shown below the text. Press Enter on a word, or on a
+// selection made with v or V, to make a card: the preview picks the
+// sentence around it as context, which [ ] { } adjust a clause at a time
+// and vi's keys edit, and lists the definitions to choose from. Cards are
+// appended to a card file, -cards, which is also the record checked for
+// words already carded.
 package main
 
 import (
@@ -16,8 +17,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/caleb-lindgren/ankitools/internal/opencc"
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/internal/opencc"
+	"github.com/caleb-lindgren/zhread/zhdict"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -40,10 +41,13 @@ type convs struct{ s2t, t2s *opencc.Converter }
 func main() {
 	var o struct{ dict, cards, pron, deck, demo, gif string }
 	flag.StringVar(&o.dict, "dict", "",
-		"path to the dict directory (default: found as\n"+
-			"multizhdict finds it)")
+		"path to the dict directory (default:\n"+
+			"$MULTIZHDICT_DICT, else the nearest dict/ at or\n"+
+			"above the executable, then the working directory)")
 	flag.StringVar(&o.cards, "cards", "",
-		"card file to append to (default: cards.tsv beside dict/)")
+		"card file to append to (default:\n"+
+			"$XDG_DATA_HOME/zhread/cards.tsv, or\n"+
+			"~/.local/share/zhread/cards.tsv)")
 	flag.StringVar(&o.pron, "pron", zhdict.PronCN,
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
 	flag.StringVar(&o.deck, "deck", "main",
@@ -80,9 +84,10 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	repo := filepath.Dir(filepath.Clean(dir))
 	if o.cards == "" {
-		o.cards = filepath.Join(repo, "cards.tsv")
+		if o.cards, err = defaultCards(); err != nil {
+			fail(err)
+		}
 	}
 	dict, err := zhdict.Open(dir)
 	if err != nil {
@@ -130,4 +135,23 @@ func main() {
 func fail(err error) {
 	fmt.Fprintf(os.Stderr, "zhread: %v\n", err)
 	os.Exit(1)
+}
+
+// defaultCards is the card file used without -cards, in the XDG data
+// directory, which it creates.
+func defaultCards() (string, error) {
+	data := os.Getenv("XDG_DATA_HOME")
+	if !filepath.IsAbs(data) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("no -cards and no home directory: %w",
+				err)
+		}
+		data = filepath.Join(home, ".local", "share")
+	}
+	dir := filepath.Join(data, "zhread")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "cards.tsv"), nil
 }

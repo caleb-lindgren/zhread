@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/caleb-lindgren/ankitools/internal/zhdict"
+	"github.com/caleb-lindgren/zhread/zhdict"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -132,6 +132,11 @@ func newTestView(t *testing.T, text string) (*view,
 	dict, err := zhdict.Open(dir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The expected screens are those of the full set of dictionaries.
+	if m := dict.MissingOptional(); len(m) > 0 {
+		t.Skipf("optional dictionaries unavailable (make dict "+
+			"ARGS=\"--csld --wikt\"): %s", strings.Join(m, ", "))
 	}
 	tmp := t.TempDir()
 	file := filepath.Join(tmp, "book.txt")
