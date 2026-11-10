@@ -2,10 +2,12 @@
 
 An integrated reader and dictionary for Chinese text files that makes Anki
 cards of the words you select, each with the context of the sentence it came
-from. Two types of cards are made: cloze cards for word recall given the
-context and definition; and definition recall cards given the word in context.
+from.
 
 ![zhread reading the 道德經 and carding 天下](zhread.gif)
+
+Two types of cards are made: cloze cards for word recall given the context
+and definition; and definition recall cards given the word in context.
 
 ![The two cards made of 天下 in Anki, each question and then its
 answer](zhread-cards.gif)
