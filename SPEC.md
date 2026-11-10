@@ -104,7 +104,7 @@ without true color. The full list of keys:
 | `/ ?`, `n N`        | search forward, back (a Go regexp); repeat           |
 | `* #`               | search for the word under the cursor                 |
 | `v V`               | select by character, by line                         |
-| Enter               | make a card of the word, or of the selection         |
+| Enter               | make a card for the word, or for the selection       |
 | `u`                 | undo this session's last card or update (asks `y`)   |
 | `:>cmd`             | in `v` or `V`: pipe the selection to `cmd`           |
 | `m`, `'`            | bookmark this line, go to the bookmark               |
@@ -120,7 +120,7 @@ without true color. The full list of keys:
 | Esc                 | hide them; end a selection; back to the book         |
 | `q`                 | quit                                                 |
 | click, wheel        | move the cursor there; scroll the text               |
-| double-click        | make a card of the word, as Enter                    |
+| double-click        | make a card for the word, as Enter                   |
 | wheel on the pane   | scroll the definitions, as J and K                   |
 | drag                | select from where the button was pressed             |
 | click a key         | on the rule, or 詞/字 and a hint on the status line    |

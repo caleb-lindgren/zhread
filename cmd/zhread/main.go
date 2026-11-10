@@ -27,7 +27,7 @@ const usage = `usage: zhread [options] FILE
 
 Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #; the
 arrows, Home, End, PgUp, PgDn, with Ctrl to go further and Shift to
-select; v V select, Enter to make a card of the word or the selection,
+select; v V select, Enter to make a card for the word or the selection,
 :>cmd to pipe the selection to cmd; m bookmark the line, ' return to
 it; s single characters, not words; e show English definitions, x
 quotations, t Taiwan readings, c MoEDict, E Wiktionary; J K scroll them;

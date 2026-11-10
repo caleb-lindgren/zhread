@@ -100,7 +100,7 @@ means there is none.
 | search forward, back; repeat                        | `/ ?`, `n N`       | `/ ?`, `n N`                   | —                                               |
 | select                                              | Shift-arrows       | `v V`                          | drag                                            |
 | end a selection                                     | Esc                | Esc                            | click                                           |
-| make a card of the word or selection                | Enter              | Enter                          | double-click a word; click "Enter: make a card" |
+| make a card for the word or selection               | Enter              | Enter                          | double-click a word; click "Enter: make a card" |
 | undo the last card                                  | `u`                | `u`                            | click undo, after saving; or menu               |
 | show or hide English definitions                    | `e`                | `e`                            | click `e` on the definitions' rule              |
 | show or hide Taiwan readings                        | `t`                | `t`                            | click `t` on the rule                           |

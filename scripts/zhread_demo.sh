@@ -86,7 +86,7 @@ click 嚴寒
 pause 1800
 click 相隔
 pause 1800
-caption ...and a double-click makes a card of it
+caption ...and a double-click makes a card for it
 pause 800
 dclick $WORD
 pause 1500
