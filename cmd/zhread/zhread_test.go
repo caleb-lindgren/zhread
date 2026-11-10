@@ -1514,7 +1514,7 @@ func TestDemo(t *testing.T) {
 		"\nfind 我们\ncaption hello\nkeys <C-Right>*2 <S-Right>\n"),
 		0o644)
 	out := filepath.Join(tmp, "out.gif")
-	if err := runDemo("", acts, out); err != nil {
+	if err := runDemo("", acts, out, ""); err != nil {
 		t.Fatal(err)
 	}
 	fh, err := os.Open(out)
@@ -1528,6 +1528,42 @@ func TestDemo(t *testing.T) {
 	}
 	if len(g.Image) != 5 {
 		t.Errorf("%d frames, want 5", len(g.Image))
+	}
+}
+
+// TestDemoCards checks that -cards with -demo neither overwrites a file
+// nor writes one when the demo makes no card.
+func TestDemoCards(t *testing.T) {
+	if _, err := zhdict.FindDir(""); err != nil {
+		t.Skipf("dictionaries unavailable: %v", err)
+	}
+	if _, err := fontFile(true); err != nil {
+		t.Skipf("no font: %v", err)
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp)
+	text := filepath.Join(tmp, "book.txt")
+	os.WriteFile(text, []byte(book), 0o644)
+	acts := filepath.Join(tmp, "acts")
+	os.WriteFile(acts, []byte("size 40 12\nopen "+text+
+		"\ncaption hello\n"), 0o644)
+	out := filepath.Join(tmp, "out.gif")
+
+	kept := filepath.Join(tmp, "kept.tsv")
+	os.WriteFile(kept, []byte("mine\n"), 0o644)
+	if err := runDemo("", acts, out, kept); err == nil {
+		t.Errorf("an existing -cards file was accepted")
+	}
+	if b, _ := os.ReadFile(kept); string(b) != "mine\n" {
+		t.Errorf("an existing -cards file was changed to %q", b)
+	}
+
+	none := filepath.Join(tmp, "none.tsv")
+	if err := runDemo("", acts, out, none); err == nil {
+		t.Errorf("no error for a demo that made no cards")
+	}
+	if _, err := os.Stat(none); err == nil {
+		t.Errorf("a card file was written for a demo with no cards")
 	}
 }
 

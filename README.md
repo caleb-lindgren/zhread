@@ -1,11 +1,14 @@
 # zhread
 
-An integrated reader and dictionary for Chinese text files that makes Anki cards of the words you
-select, each with the context of the sentence it came from. Two types of cards
-are made: cloze cards for word recall given the context and definition; and
-definition recall cards given the word in context.
+An integrated reader and dictionary for Chinese text files that makes Anki
+cards of the words you select, each with the context of the sentence it came
+from. Two types of cards are made: cloze cards for word recall given the
+context and definition; and definition recall cards given the word in context.
 
 ![zhread reading the 道德經 and carding 天下](zhread.gif)
+
+![The two cards made of 天下 in Anki, each question and then its
+answer](zhread-cards.gif)
 
 ## Building
 
@@ -14,9 +17,17 @@ definition recall cards given the word in context.
     make test
     make install         # PREFIX=/usr/local
 
-Go 1.24 or later, and Python 3 with venv for `make dict`, which installs
-requirements.txt into `.venv/`. zhread uses tcell for the terminal, which
-`make` fetches through the Go module proxy on the first build.
+It needs Go 1.24 or later and make, and `make dict` needs curl and Python 3
+with venv, into which it installs requirements.txt (`.venv/`):
+
+- macOS: `xcode-select --install` for make, curl and Python 3, then Go from
+  `brew install go` or the installer at <https://go.dev/dl/>.
+- Ubuntu: `sudo apt install make curl python3-venv`, then Go from `sudo snap
+  install go --classic` or <https://go.dev/dl/>: apt's golang-go is older
+  than 1.24 on Ubuntu 24.04 and before.
+
+zhread uses tcell for the terminal, which `make` fetches through the Go module
+proxy on the first build.
 
 The binary finds the dictionaries by looking for a `dict` directory at or
 above its own location, and then at or above the working directory. An
@@ -25,7 +36,38 @@ installed copy sits outside this checkout and so finds neither: point
 
 ## Usage
 
-    zhread book.txt
+    zhread [options] FILE
+
+`zhread` is a wrapper for the program itself, `gozhread`, and takes the same
+options. Where st ([the suckless terminal](https://st.suckless.org)) and a
+display are available, it opens gozhread in an st window of its own, in
+Liberation Mono at 24 pixels, and returns to the shell at once; if gozhread
+fails, the window stays open until Enter so the error can be read. Anywhere
+else, as on macOS, on a desktop without st, over ssh, or with
+`ZHREAD_WINDOW=0`, it runs gozhread in the current terminal. That terminal
+needs 256 colors, as macOS's Terminal and GNOME Terminal have, and a font with
+Chinese characters.
+
+| Option                 | Meaning                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-dict DIR`            | the dictionary directory (default: `$ZHREAD_DICT`, else the nearest `dict/` at or above the executable, then at or above the working directory)                                                                              |
+| `-cards FILE`          | the card file to append to (default: `$XDG_DATA_HOME/zhread/cards.tsv`, which is `~/.local/share/zhread/cards.tsv` when `XDG_DATA_HOME` is unset); see "The card file". With `-demo`, a new file to save the demo's cards to |
+| `-pron cn`, `-pron tw` | show the Mainland reading first (the default) or the Taiwan one; see "Taiwan and Mainland readings"                                                                                                                          |
+| `-deck NAME`           | the Anki deck a new card file's header names (default: `main`); see "Into Anki"                                                                                                                                              |
+| `-demo FILE`           | play the demo actions in FILE (`-` for standard input) and write a GIF of them, instead of reading; `-demo help` describes the actions; see "The demo"                                                                       |
+| `-gif FILE`            | the GIF `-demo` writes (default: `zhread.gif`)                                                                                                                                                                               |
+| `-h`                   | list the options, and the keys                                                                                                                                                                                               |
+
+| Variable         | Meaning                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `ZHREAD_DICT`    | the dictionary directory, as `-dict`                                                                               |
+| `XDG_DATA_HOME`  | the default card file is `zhread/cards.tsv` under it (default: `~/.local/share`)                                   |
+| `XDG_STATE_HOME` | bookmarks are kept in `zhread/bookmarks` under it (default: `~/.local/state`)                                      |
+| `ZHREAD_FONT`    | the st window's font, as st's `-f` takes it (default: `Liberation Mono:pixelsize=24:antialias=true:autohint=true`) |
+| `ZHREAD_WINDOW`  | `0` runs gozhread in the current terminal even where st could open a window                                        |
+
+Inside, `gh` or F1 lists the keys; "Reading" and "Making a card" below
+describe them.
 
 ## Dictionaries
 
@@ -50,12 +92,6 @@ does, and `dict/*_additions.tsv` and `dict/fallback_exclude.tsv` are
 corrections and additions written by hand.
 
 ## Reading
-
-`zhread` is a wrapper that opens `gozhread` in its own st window, in Liberation
-Mono at 24 pixels (`ZHREAD_FONT` to change), and returns to the shell at once.
-If gozhread fails, the window stays open until Enter so the error can be read.
-Without st or a display, or with `ZHREAD_WINDOW=0`, it runs gozhread in the
-current terminal.
 
 The words of the text come from the segmenter (see "Segmentation" below), run
 in the background a screenful at a time, and the definitions of the word under
@@ -397,7 +433,23 @@ FILE=daodejing.txt scripts/zhread_demo.sh
 FILE=hongloumeng.txt START=此開卷 WORD=夢幻 SENSE=1 scripts/zhread_demo.sh
 ```
 
-The cards the demo makes go to a scratch file, not the card file.
+The cards the demo makes go to a scratch file, not your card file. CARDS names
+a new file to save them to, from which zhread-cards.gif is made: it shows them
+as Anki does, each card's question and then its answer.
+
+```sh
+FILE=daodejing.txt CARDS=/tmp/demo-cards.tsv scripts/zhread_demo.sh
+make cards-gif CARDS=/tmp/demo-cards.tsv
+```
+
+`make cards-gif` runs `scripts/cards_demo.py`, which fills in anki/'s templates
+as Anki does and draws them with Chromium, through Playwright, in Anki's dark
+theme (`--light` for its light one). The first run installs
+requirements-demo.txt and Playwright's Chromium into `.venv/`. The cards are
+drawn in the fonts installed, so for them to look as they do in Anki, install
+the ones anki/style.css names: TW-MOE-Std-Kai, the Ministry of Education's Kai
+(<https://language.moe.gov.tw/001/Upload/Files/site_content/M0001/edukai-5.0.zip>),
+and Noto Serif CJK SC or Source Han Serif.
 
 ## Taiwan and Mainland readings
 

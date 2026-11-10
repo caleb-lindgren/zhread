@@ -38,7 +38,7 @@ MOEDICT_URL='https://www.dropbox.com/s/avy920um3wuijpl/MoEDict-05-Simp03-cards.t
 CSLD_URL=https://raw.githubusercontent.com/g0v/moedict-data-csld/master/%E5%85%A9%E5%B2%B8%E8%A9%9E%E5%85%B8.csv
 WIKT_URL=https://kaikki.org/dictionary/Chinese/kaikki.org-dictionary-Chinese.jsonl
 
-root=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/..
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PYTHON=${PYTHON:-$root/.venv/bin/python}
 # Made absolute, as the parsers are run from other directories, but not
 # with readlink -f, which would resolve a venv's python to the system one.

@@ -16,6 +16,8 @@
 #           zhread splits the text
 #   SENSE   which of its Chinese senses the card takes instead of the first
 #   OUT     the GIF written
+#   CARDS   if set, a new file to save the demo's cards to, for
+#           scripts/cards_demo.py to show
 #
 #     FILE=daodejing.txt WORD=萬物 SENSE=1 scripts/zhread_demo.sh
 
@@ -27,16 +29,17 @@ STEPS=${STEPS:-8}
 WORD=${WORD:-天下}
 SENSE=${SENSE:-2}
 OUT=${OUT:-zhread.gif}
+CARDS=${CARDS:-}
 FONT=${FONT:-}
 
 # rep C N is C N times, as a keys action takes a character, its * being
 # the key of that name
 rep() { local i; for ((i = 0; i < $2; i++)); do printf %s "$1"; done; }
 
-root=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/..
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 
-go run ./cmd/zhread -demo - -gif "$OUT" <<EOF
+go run ./cmd/zhread -demo - -gif "$OUT" ${CARDS:+-cards "$CARDS"} <<EOF
 size 80 24
 font 20 $FONT
 open $FILE

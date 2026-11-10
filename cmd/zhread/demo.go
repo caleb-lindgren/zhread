@@ -15,6 +15,7 @@ import (
 	"image/color"
 	"image/gif"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -182,7 +183,17 @@ type demo struct {
 	bfontf  string
 }
 
-func runDemo(dictDir, actions, out string) error {
+// runDemo plays the actions and writes the GIF to out. A cardsOut that is
+// not empty is where the cards the demo made are saved, a new file: the
+// card file is a record worth keeping, so one that exists is not
+// overwritten.
+func runDemo(dictDir, actions, out, cardsOut string) error {
+	if cardsOut != "" {
+		if _, err := os.Lstat(cardsOut); err == nil {
+			return fmt.Errorf("%s exists; the demo saves "+
+				"its cards to a new file", cardsOut)
+		}
+	}
 	var in io.Reader = os.Stdin
 	if actions != "-" {
 		fh, err := os.Open(actions)
@@ -230,7 +241,28 @@ func runDemo(dictDir, actions, out string) error {
 		return errors.New("no open in the actions")
 	}
 	dm.v.s.Fini()
-	return dm.write(out)
+	if err := dm.write(out); err != nil {
+		return err
+	}
+	if cardsOut == "" {
+		return nil
+	}
+	buf, err := os.ReadFile(filepath.Join(tmp, "cards.tsv"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New("the demo made no cards to save")
+	} else if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(cardsOut, os.O_WRONLY|os.O_CREATE|os.O_EXCL,
+		0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(buf); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func (dm *demo) do(line string) error {
@@ -665,6 +697,9 @@ const (
 // write renders the frames and writes them as a GIF. Each frame after the
 // first holds only the cells that changed, the rest showing through.
 func (dm *demo) write(out string) error {
+	if len(dm.frames) == 0 {
+		return errors.New("the actions show nothing: no frames")
+	}
 	fnt, err := openFont(dm.fontf, dm.px, true)
 	if err != nil {
 		return err

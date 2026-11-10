@@ -47,7 +47,8 @@ func main() {
 	flag.StringVar(&o.cards, "cards", "",
 		"card file to append to (default:\n"+
 			"$XDG_DATA_HOME/zhread/cards.tsv, or\n"+
-			"~/.local/share/zhread/cards.tsv)")
+			"~/.local/share/zhread/cards.tsv); with -demo, a\n"+
+			"new file to save the demo's cards to")
 	flag.StringVar(&o.pron, "pron", zhdict.PronCN,
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
 	flag.StringVar(&o.deck, "deck", "main",
@@ -67,7 +68,7 @@ func main() {
 		return
 	}
 	if o.demo != "" {
-		if err := runDemo(o.dict, o.demo, o.gif); err != nil {
+		if err := runDemo(o.dict, o.demo, o.gif, o.cards); err != nil {
 			fail(err)
 		}
 		return

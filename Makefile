@@ -3,7 +3,7 @@ PREFIX ?= /usr/local
 
 LIB := $(wildcard zhdict/*.go internal/*/*.go) go.mod go.sum
 
-.PHONY: all install clean test apkg dict
+.PHONY: all install clean test apkg dict cards-gif cards-set
 
 all: bin/gozhread
 
@@ -19,6 +19,21 @@ dict: .venv/.installed
 # It is committed, so this is needed only when anki/ changes.
 apkg: .venv/.installed
 	.venv/bin/python scripts/make_apkg.py
+
+# zhread-cards.gif, the cards a demo made as Anki shows them: CARDS names
+# the card file scripts/zhread_demo.sh saved (see the README's demo
+# section). The first run installs Playwright and its Chromium into .venv.
+cards-gif: cards-set .venv/.demo
+	.venv/bin/python scripts/cards_demo.py $(CARDS)
+
+# Checked before anything is installed.
+cards-set:
+	$(if $(CARDS),,$(error set CARDS to the card file the demo saved))
+
+.venv/.demo: requirements-demo.txt .venv/.installed
+	.venv/bin/pip install -q -r requirements-demo.txt
+	.venv/bin/playwright install chromium
+	touch $@
 
 .venv/.installed: requirements.txt
 	python3 -m venv .venv

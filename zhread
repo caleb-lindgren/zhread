@@ -1,14 +1,23 @@
 #!/bin/bash
-# Read a Chinese text file with gozhread, in its own st window, and return
-# to this shell at once.
+# Read a Chinese text file with gozhread. With st (suckless's simple
+# terminal) and a display, it opens in a window of its own and this shell
+# is back at once; otherwise, on macOS or a desktop without st, or with
+# ZHREAD_WINDOW=0, gozhread runs in this terminal.
 #
 #     zhread [options] FILE
 #
-# ZHREAD_FONT changes the font. Without st or a display, or with
-# ZHREAD_WINDOW=0, gozhread runs in this terminal instead.
+# ZHREAD_FONT changes st's font. Written for the bash 3.2 macOS ships.
 
-self=$(readlink -f "${BASH_SOURCE[0]}")
-root=$(dirname "$self")
+# This script's directory, following symlinks, so a link to it from a
+# directory on PATH still finds the checkout's bin/. (readlink -f would do
+# it in one, but macOS before 12.3 lacks it.)
+self=${BASH_SOURCE[0]}
+while [[ -L "$self" ]]; do
+    dir=$(cd "$(dirname "$self")" && pwd)
+    self=$(readlink "$self")
+    [[ "$self" == /* ]] || self=$dir/$self
+done
+root=$(cd "$(dirname "$self")" && pwd)
 
 prog=
 for cand in "$root/bin/gozhread" "$root/gozhread"; do
@@ -29,11 +38,17 @@ font="Liberation Mono:pixelsize=24:antialias=true:autohint=true"
 font=${ZHREAD_FONT:-$font}
 file=${@: -1}
 
+# st, the suckless terminal, which says so on -v ("st 0.9.2"): another
+# program called st would take the window's options for its own.
+have_st() {
+    command -v st >/dev/null &&
+        st -v </dev/null 2>&1 | grep -q '^st[ -]*[0-9]'
+}
+
 # Usage errors and a missing file are reported here rather than in a
 # window that would close before they could be read.
 if [[ $# -eq 0 || ! -f "$file" || ${ZHREAD_WINDOW:-1} == 0 ]] ||
-    ! command -v st >/dev/null ||
-    [[ -z "$DISPLAY" && -z "$WAYLAND_DISPLAY" ]]; then
+    [[ -z "$DISPLAY" && -z "$WAYLAND_DISPLAY" ]] || ! have_st; then
     exec "$prog" "$@"
 fi
 
