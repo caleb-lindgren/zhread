@@ -54,26 +54,24 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
    others first, as `iconv -f GB18030 -t UTF-8 old.txt > book.txt`.
 3. **Look words up:** move the cursor with the arrow keys, vi's `h j k l w
    b`, or the mouse. The definitions of the word under the cursor appear
-   below the text. See [Reading](#reading) for the keys and mouse.
+   below the text. See [Reading](#reading) for the key commands and mouse controls.
 4. **Make a card:** press Enter on a word, or select a phrase and press
    Enter. The card maker opens with the sentence as the context: choose
    the definitions that fit, adjust the context, and press Enter to save.
-   See [Making a card](#making-a-card) for its keys.
+   See [Making a card](#making-a-card) for its key commands and mouse controls.
 5. **Study:** in Anki, File > Import your card file,
    `~/.local/share/zhread/cards.tsv`. Import the whole file each time: cards
    Anki already has are updated, not duplicated, and keep their review
    history.
 
-zhread is made for modern Chinese. In classical Chinese (文言), such as the
-道德經, its word splitting and dictionaries, which are modern, often join
-characters that are separate words: 非常 in 「道可道，非常道」 comes out as "very"
-rather than 非 "not" and 常 "constant". Press `s`, or start zhread with
-`-chars`, to look up single characters instead; select with `v` to look up a
-longer word.
-
 To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
 you've carded.
+
+zhread is made for modern Chinese. In classical Chinese, its default word splitting often joins
+characters that are separate words. To only look up individual characters, press `s`, or start zhread with
+`-chars`. In this mode, you can still select multiple characters with Shift, `v`, or the mouse to look up a
+longer word.
 
 ## Keys and mouse
 
