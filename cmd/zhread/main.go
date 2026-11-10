@@ -42,7 +42,7 @@ func main() {
 	var o struct{ dict, cards, pron, deck, demo, gif string }
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default:\n"+
-			"$MULTIZHDICT_DICT, else the nearest dict/ at or\n"+
+			"$ZHREAD_DICT, else the nearest dict/ at or\n"+
 			"above the executable, then the working directory)")
 	flag.StringVar(&o.cards, "cards", "",
 		"card file to append to (default:\n"+

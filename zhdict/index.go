@@ -366,13 +366,13 @@ func cleanPleco(b []byte) string {
 }
 
 // FindDir locates the dict directory: an explicit path wins, then
-// $MULTIZHDICT_DICT, then the nearest dict/ at or above the executable, then
+// $ZHREAD_DICT, then the nearest dict/ at or above the executable, then
 // the nearest one at or above the working directory.
 func FindDir(explicit string) (string, error) {
 	if explicit != "" {
 		return explicit, checkDictDir(explicit)
 	}
-	if env := os.Getenv("MULTIZHDICT_DICT"); env != "" {
+	if env := os.Getenv("ZHREAD_DICT"); env != "" {
 		return env, checkDictDir(env)
 	}
 	var starts []string
@@ -401,7 +401,7 @@ func FindDir(explicit string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("cannot find the dict directory; " +
-		"pass -dict DIR or set MULTIZHDICT_DICT")
+		"pass -dict DIR or set ZHREAD_DICT")
 }
 
 func checkDictDir(dir string) error {

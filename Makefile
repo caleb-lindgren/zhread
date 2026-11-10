@@ -36,7 +36,7 @@ install: all
 	install -m 755 bin/gozhread $(PREFIX)/bin/gozhread
 	install -m 755 zhread $(PREFIX)/bin/zhread
 	@echo
-	@echo "Set MULTIZHDICT_DICT=$(CURDIR)/dict in your shell profile,"
+	@echo "Set ZHREAD_DICT=$(CURDIR)/dict in your shell profile,"
 	@echo "or run zhread from inside $(CURDIR)."
 
 clean:

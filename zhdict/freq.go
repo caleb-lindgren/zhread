@@ -10,8 +10,7 @@
 // rather than a matter of coverage: both readings of 交流感 are made of 交,
 // 流 and 感, so any score summed over the characters of the run is identical
 // for the two. What differs between segmentations is which groupings occur,
-// so the count has to be per word. Neither Unihan field in dict/ is per
-// word, which is why this table comes from outside.
+// so the count has to be per word.
 //
 // The table is jieba's dict.txt, vendored at dict/jieba/dict.txt: one line
 // per word, "word count POS", space separated. The counts are corpus

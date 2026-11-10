@@ -21,9 +21,7 @@ requirements.txt into `.venv/`. zhread uses tcell for the terminal, which
 The binary finds the dictionaries by looking for a `dict` directory at or
 above its own location, and then at or above the working directory. An
 installed copy sits outside this checkout and so finds neither: point
-`MULTIZHDICT_DICT` at the absolute path of `dict/`, or pass `-dict`. (The
-name is from multizhdict, a command-line lookup built on the same zhdict
-package, which reads the same directory.)
+`ZHREAD_DICT` at the absolute path of `dict/`, or pass `-dict`.
 
 ## Dictionaries
 
@@ -378,24 +376,24 @@ context and the cloze blank, which are the orange of the reader's headwords.
 
 ## The demo
 
-zhread.gif shows zhread reading the 道德經 a word at a time, then carding
-天下 with its second sense rather than the first. `scripts/zhread_demo.sh`
-makes it, and is rerun to make it again after zhread changes: it plays a
-list of actions (keys, mouse drags, captions, pauses) on a simulated screen
-with `gozhread -demo` and draws each screen as a frame, so it needs only Go
-and a font with Chinese in it, found with fc-match (FONT=/path/to/font
-otherwise). The actions are in the script; `gozhread -demo help` lists
-them. The text, where it starts, how many words it moves over, the word
-carded and the sense taken are variables at its top, which the environment
-overrides:
+zhread.gif shows zhread reading the 道德經 a word at a time, then carding 天下 with
+its second sense rather than the first. `scripts/zhread_demo.sh` makes it, and
+is rerun to make it again after zhread changes: it plays a list of actions
+(keys, mouse drags, captions, pauses) on a simulated screen with `gozhread
+-demo` and draws each screen as a frame, so it needs only Go and a font with
+Chinese in it, found with fc-match (FONT=/path/to/font otherwise). The actions
+are in the script; `gozhread -demo help` lists them. The text, where it starts,
+how many words it moves over, the word carded and the sense taken are variables
+at its top, which the environment overrides. FILE, the text, is required,
+relative to the repository root; the others default to what zhread.gif was made
+with, which read the 道德經:
 
-    FILE=texts/hongloumeng.txt START=此開卷 WORD=夢幻 SENSE=1 \
-        scripts/zhread_demo.sh
+```sh
+FILE=daodejing.txt scripts/zhread_demo.sh
+FILE=hongloumeng.txt START=此開卷 WORD=夢幻 SENSE=1 scripts/zhread_demo.sh
+```
 
-The texts are not in this repository: FILE defaults to texts/daodejing.txt, the
-道德經 as the Chinese Text Project (ctext.org) gives it, which is what zhread.gif
-was made from. The cards the demo makes go to a scratch file, not the card
-file.
+The cards the demo makes go to a scratch file, not the card file.
 
 ## Taiwan and Mainland readings
 
@@ -477,15 +475,14 @@ more words on its own — bidi's first criterion arrived at from the counts
 rather than asserted — and it reads 交流感 as 交流 / 感, 交流 being some 40
 times commoner than 流感.
 
-Only jieba's counts are per word. Unihan's kFrequency and kHanyuPinlu are per
-character, and no per-character score can separate two segmentations of one
-run: both readings of 交流感 are made of 交, 流 and 感, so any score summed over the
-characters is the same for the two. A dictionary word the table does not list,
-which is most of what the additions files carry, scores as one occurrence —
-rarer than anything listed but still a word, so 露鋒方筆館閣體 stays 露鋒 / 方筆 / 館閣體
-rather than coming apart into characters. Reading the table costs about 17 ms a
-query here, taking 39 ms to 56 ms, the file being 4.9 MB against the 49 MB of
-definition sources.
+Only jieba's counts are per word. No per-character frequency can separate two
+segmentations of one run: both readings of 交流感 are made of 交, 流 and 感, so any
+score summed over the characters is the same for the two. A dictionary word the
+table does not list, which is most of what the additions files carry, scores as
+one occurrence — rarer than anything listed but still a word, so 露鋒方筆館閣體 stays
+露鋒 / 方筆 / 館閣體 rather than coming apart into characters. Reading the table costs
+about 17 ms a query here, taking 39 ms to 56 ms, the file being 4.9 MB against
+the 49 MB of definition sources.
 
 Runs are segmented between non-Chinese characters, which are dropped. A
 full-width comma and an interpunct are exceptions, because 1,469 entries

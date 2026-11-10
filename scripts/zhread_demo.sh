@@ -8,7 +8,7 @@
 #
 # The parameters, each overridable from the environment:
 #
-#   FILE    the text read, from the repository root
+#   FILE    the text read, relative to the repository root; required
 #   START   text the cursor starts on
 #   STEPS   how many words → and w move over from there
 #   WORD    the word carded, searched for after the scanning; Enter
@@ -17,11 +17,11 @@
 #   SENSE   which of its Chinese senses the card takes instead of the first
 #   OUT     the GIF written
 #
-#     WORD=萬物 SENSE=1 scripts/zhread_demo.sh
+#     FILE=daodejing.txt WORD=萬物 SENSE=1 scripts/zhread_demo.sh
 
 set -euo pipefail
 
-FILE=${FILE:-texts/daodejing.txt}
+FILE=${FILE:?set FILE to the text to read, as FILE=book.txt}
 START=${START:-道可道}
 STEPS=${STEPS:-8}
 WORD=${WORD:-天下}

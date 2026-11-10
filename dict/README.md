@@ -63,10 +63,9 @@ written and checked against; a fresh download will differ a little.
 - Format: one line per word, "word count POS", space separated. 349,046
   lines and 349,045 distinct words (B超 is listed twice, with the same
   count both times), counts summing to 60,101,967 and none below 2.
-- The only per-word frequency data here, and the only reason it is here:
-  Unihan's kFrequency and kHanyuPinlu are per character, which cannot
-  choose between two segmentations of one run, since both readings of
-  交流感 are made of 交, 流 and 感.
+- The only per-word frequency data here, and the only reason it is here: a
+  per-character frequency cannot choose between two segmentations of one
+  run, since both readings of 交流感 are made of 交, 流 and 感.
 - Read only by the viterbi segmenter. The headwords are simplified,
   but no conversion table is needed: a traditional candidate is looked up
   through the simplified headword of whatever entry matched it.
@@ -212,12 +211,12 @@ written and checked against; a fresh download will differ a little.
   the comparison below. tw2s differed on 6, all from TSCharactersExt, which
   OpenCC marks as possibly producing characters fonts lack, and which is
   left out.
-- Chosen over converting word by word through CC-CEDICT and MoEDict after
-  a comparison on 476k characters of natively traditional text (937 random
-  zh.wikipedia articles and 46 ROC presidential speeches), simplified per
-  character with Unihan and converted back. Counting errors over the
-  characters where traditional and simplified differ or the method changed
-  something (about 103k and 55k), s2tw got 1.76% and 2.24% wrong, the
-  dictionary method 2.24% and 2.74% at best. The dictionary method's errors
-  are senses it cannot tell apart (制/製, 只/隻, 系/係); about 600 of each
-  method's errors on the Wikipedia text are 臺 where the text writes 台.
+- Chosen over converting word by word through CC-CEDICT and MoEDict after a
+  comparison on 476k characters of natively traditional text (937 random
+  zh.wikipedia articles and 46 ROC presidential speeches), simplified character
+  by character with Unicode's kSimplifiedVariant mappings and converted back.
+  Counting errors over the characters where traditional and simplified differ
+  or the method changed something (about 103k and 55k), s2tw got 1.76% and
+  2.24% wrong, the dictionary method 2.24% and 2.74% at best. The dictionary
+  method's errors are senses it cannot tell apart (制/製, 只/隻, 系/係); about 600 of
+  each method's errors on the Wikipedia text are 臺 where the text writes 台.

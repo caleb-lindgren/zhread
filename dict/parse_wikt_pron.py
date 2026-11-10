@@ -1,5 +1,5 @@
 """Collect the Taiwan and Mainland reading pairs of wikt.tsv into
-wikt_pron.tsv, which zhread and multizhdict consult after csld_pron.tsv:
+wikt_pron.tsv, which zhread consults after csld_pron.tsv:
 
     python3 parse_wikt_pron.py > wikt_pron.tsv
 
