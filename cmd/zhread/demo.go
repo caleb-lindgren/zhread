@@ -55,6 +55,7 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
                    TEXT's first place on the screen (its Nth with #N,
                    counting from the end when N is negative)
   dclick AT        the same, a double click
+  move AT          move the pointer to AT, without clicking
   drag X Y X2 Y2   press at X Y, move to X2 Y2 a column at a time, let go
   wheel N [AT]     turn the wheel N notches, down, or up when N is
                    negative, at AT or where the pointer is
@@ -408,6 +409,12 @@ func (dm *demo) do(line string) error {
 		}
 		dm.snap(map[string]string{"click": "click",
 			"dclick": "double-click"}[name])
+	case "move":
+		x, y, err := dm.at(args)
+		if err != nil {
+			return err
+		}
+		dm.glide(x, y)
 	case "drag":
 		n, err := ints(4)
 		if err != nil {

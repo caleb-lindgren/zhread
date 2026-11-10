@@ -167,7 +167,7 @@ characters map them to send Alt-arrows.
 
 The status line's right end is a menu button, `?`. A click on it opens a menu
 of the actions with nowhere else to click: undo the last card (`u`), bookmark
-this line (`m`), go to the bookmark (`'`), show the keyboard shortcuts (F1) and
+this line (`m`), go to the bookmark (`'`), show the keyboard shortcuts (`gh`, F1) and
 quit (`q`), each shown with its key. In the menu, ↑ ↓ `j k` move, Enter or
 Space does the item, and Esc or a click off the menu closes it; any other key
 closes it and does what it does outside, so an item's own key works there too.

@@ -93,7 +93,8 @@ click Save
 pause 2500
 caption ? has the rest: undo, bookmarks, the keyboard shortcuts, quit
 click #-1 ?
-pause 3000
+move 60 8
+pause 2500
 click #1 故鄉
 pause 800
 

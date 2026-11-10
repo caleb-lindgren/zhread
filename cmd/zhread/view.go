@@ -369,7 +369,7 @@ var menuItems = []struct {
 	{"Undo the last card", "u", runeKey('u')},
 	{"Bookmark this line", "m", runeKey('m')},
 	{"Go to the bookmark", "'", runeKey('\'')},
-	{"Show keyboard shortcuts", "F1", tcell.NewEventKey(tcell.KeyF1, 0,
+	{"Show keyboard shortcuts", "gh, F1", tcell.NewEventKey(tcell.KeyF1, 0,
 		tcell.ModNone)},
 	{"Quit", "q", runeKey('q')},
 }
