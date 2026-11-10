@@ -1,6 +1,6 @@
 #!/bin/bash
 # Downloads the dictionaries zhread reads and builds its tables in dict/.
-# `make dict` runs it in the repository's venv; dict/README describes each
+# `make dict` runs it in the repository's venv; dict/README.md describes each
 # source, its licence and what the parsers do to it.
 #
 #     scripts/fetch_dict.sh [--csld] [--wikt]

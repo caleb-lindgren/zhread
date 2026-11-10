@@ -6,18 +6,18 @@ runs its parser, and `--csld` and `--wikt` add the optional extras. The
 rest are in the repository: jieba's and OpenCC's tables, vendored with
 their licences, and the corrections and additions below, written by hand.
 
-| File                                  | Needed   | Built by                   |
-| ------------------------------------- | -------- | -------------------------- |
-| `cedict_parsed.tsv`                   | yes      | fetch_dict.sh              |
-| `cedict_additions.tsv`                | yes      | by hand                    |
-| `MoEDICT/MoEDict-05-Simp03-cards.txt` | yes      | fetch_dict.sh              |
-| `ccdict_additions.tsv`                | yes      | by hand                    |
-| `jieba/dict.txt`                      | yes      | vendored                   |
-| `opencc/*.txt`                        | yes      | vendored                   |
-| `fallback_exclude.tsv`                | no       | by hand                    |
-| `csld.tsv`, `csld_pron.tsv`           | no       | fetch_dict.sh --csld       |
-| `csld_fixes.tsv`                      | for csld | by hand                    |
-| `wikt.tsv`, `wikt_pron.tsv`           | no       | fetch_dict.sh --wikt       |
+| File                                  | Needed   | Built by             |
+| ------------------------------------- | -------- | -------------------- |
+| `cedict_parsed.tsv`                   | yes      | fetch_dict.sh        |
+| `cedict_additions.tsv`                | yes      | by hand              |
+| `MoEDICT/MoEDict-05-Simp03-cards.txt` | yes      | fetch_dict.sh        |
+| `ccdict_additions.tsv`                | yes      | by hand              |
+| `jieba/dict.txt`                      | yes      | vendored             |
+| `opencc/*.txt`                        | yes      | vendored             |
+| `fallback_exclude.tsv`                | no       | by hand              |
+| `csld.tsv`, `csld_pron.tsv`           | no       | fetch_dict.sh --csld |
+| `csld_fixes.tsv`                      | for csld | by hand              |
+| `wikt.tsv`, `wikt_pron.tsv`           | no       | fetch_dict.sh --wikt |
 
 The dates and counts below are those of the builds the parsers were
 written and checked against; a fresh download will differ a little.
@@ -115,9 +115,9 @@ written and checked against; a fresh download will differ a little.
   奎 kúi, 呼牛呼馬 hūniú-hūm, ɑ inside a word (世代 shìdɑì), tone marks
   missing (削壁 xuebì) or on the wrong vowel (互惠 hùhùi). 朊 is ruǎn,
   as in CC-CEDICT: the Zhuyin lacks the ㄖ too.
-- 8 keep the pinyin, the source column repeated: the Zhuyin is wrong
-  (千里姻緣一線牽 has ㄩˊ for 緣, 隆裕太后 the Zhuyin of 皇后) or writes
-  erhua as a syllable of its own (勁兒 ㄐㄧㄣˋ ㄦ).
+- 8 keep the pinyin, the source column repeated: the Zhuyin is wrong (千里姻緣一線牽
+  has ㄩˊ for 緣, 隆裕太后 the Zhuyin of 皇后) or writes erhua as a syllable of its own
+  (勁兒 ㄐㄧㄣˋ ㄦ).
 - parse_csld.py and parse_csld_defs.py apply a fix only where the source
   still has the pinyin it was made against, so after a new download,
   check_csld.py lists any typo whose fix no longer applies along with any
@@ -125,11 +125,10 @@ written and checked against; a fresh download will differ a little.
 
 # Fallback exclusions (fallback_exclude.tsv)
 
-- Words for which zhread does not take MoEDict's reading
-  for Taiwan's and CC-CEDICT's for the Mainland's (see "Taiwan and
-  Mainland readings" in the top-level README), because the two entries
-  are two senses read differently: 下咽 xià yàn "to swallow" against
-  xià yān "hypopharynx".
+- Words for which zhread does not take MoEDict's reading for Taiwan's and
+  CC-CEDICT's for the Mainland's (see "Taiwan and Mainland readings" in the
+  top-level [README](../README.md)), because the two entries are two senses
+  read differently: 下咽 xià yàn "to swallow" against xià yān "hypopharynx".
 - Written by hand on 4 Nov 2026, from a review of all 748 words the
   fallback then applied to, with each pair's MoEDict and CC-CEDICT
   definitions side by side: 28 are listed. Columns: trad, MoEDict's
@@ -146,18 +145,17 @@ written and checked against; a fresh download will differ a little.
   CC BY-NC-ND 4.0, personal study only.
 - zhread's main source of Chinese definitions; MoEDict
   is their fallback.
-- Columns: trad, simp, tw, cn, def, unquoted. Every one of the 101,686
-  rows is kept. The readings are split into syllables as in
-  csld_pron.tsv, or left as written where they cannot be; cn is empty
-  where the source gives no separate Mainland reading. def is the row's
-  definition cells joined by ¶, with the source's ～ for the headword
-  replaced by the headword, and its examples, which follow [例] separated
-  by bars, rewritten in MoEDict's form, 如：「…」、「…」。. The source ends
-  90,044 of its 92,326 example lists with 。, which goes after the last
-  closing bracket. Quotations, those ending with their source in 《》 or
-  〈〉, are cells of their own. The source's HTML (tables,
-  superscripts, subscripts, in 80 rows) is turned into text, a table
-  row to a cell. See the script's docstring for the layout.
+- Columns: trad, simp, tw, cn, def, unquoted. Every one of the 101,686 rows is
+  kept. The readings are split into syllables as in csld_pron.tsv, or left as
+  written where they cannot be; cn is empty where the source gives no separate
+  Mainland reading. def is the row's definition cells joined by ¶, with the
+  source's ～ for the headword replaced by the headword, and its examples, which
+  follow [例] separated by bars, rewritten in MoEDict's form, 如：「…」、「…」。. The
+  source ends 90,044 of its 92,326 example lists with 。, which goes after the
+  last closing bracket. Quotations, those ending with their source in 《》 or 〈〉,
+  are cells of their own. The source's HTML (tables, superscripts, subscripts,
+  in 80 rows) is turned into text, a table row to a cell. See the script's
+  docstring for the layout.
 
 # Wiktionary (wikt.tsv)
 

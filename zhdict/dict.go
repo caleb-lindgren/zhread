@@ -51,7 +51,7 @@ func Open(dir string) (*Dict, error) {
 
 // CheckExtra maps the extra sources, reporting one that cannot be. A
 // missing one is not an error: the extras are built separately (see
-// dict/README), and a lookup without one has its other sources' entries.
+// dict/README.md), and a lookup without one has its other sources' entries.
 func (d *Dict) CheckExtra() error {
 	_, err := d.extraBufs()
 	return err

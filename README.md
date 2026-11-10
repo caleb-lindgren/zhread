@@ -39,13 +39,13 @@ licences; `make dict` downloads them and builds dict/'s tables:
 | jieba's dict.txt    | word frequencies, for segmentation | MIT             | in the repository       |
 | OpenCC's tables     | simplified/traditional conversion  | Apache-2.0      | in the repository       |
 
-`ARGS="--csld --wikt"` builds both extras. 兩岸詞典's licence forbids
-sharing adaptations, so its tables are built for your own use only. The
-Wiktionary build streams a 1.2 GB extract and takes several minutes.
-zhread runs without either extra, with fewer definitions and fewer Taiwan
-readings. dict/README describes each source and what its parser does, and
-dict/*_additions.tsv and dict/fallback_exclude.tsv are corrections and
-additions written by hand.
+`ARGS="--csld --wikt"` builds both extras. 兩岸詞典's licence forbids sharing
+adaptations, so its tables are built for your own use only. The Wiktionary
+build streams a 1.2 GB extract and takes several minutes. zhread runs without
+either extra, with fewer definitions and fewer Taiwan readings.
+[dict/README.md](dict/README.md) describes each source and what its parser
+does, and `dict/*_additions.tsv` and `dict/fallback_exclude.tsv` are
+corrections and additions written by hand.
 
 ## Reading
 
@@ -73,7 +73,7 @@ the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 definition shown beside the main one is labelled with its name, under the
 word. 兩岸詞典 and Wiktionary are optional extras (see "Dictionaries"
 below); without them, MoEDict is the main Chinese dictionary and CC-CEDICT
-the only English one. See dict/README for the files.
+the only English one. See [dict/README.md](dict/README.md) for the files.
 
 A word is shown in traditional, with the simplified form after it in brackets
 when it differs and the characters the two share as ～: 企業（～业）. An entry that is
@@ -284,13 +284,13 @@ Enter saves, Esc cancels. An Esc right after another, as from insert mode out
 past the list, asks first when the card has been changed (a context edited or
 its edges moved, or a tick changed), and only `y` then throws the card away.
 The other script's context comes from OpenCC's s2tw or tw2s, chosen by which
-changes the paragraph more (see dict/README for why OpenCC). When the word is
-the same in both scripts, the traditional fields are left empty and only the
-simplified cards are made; for a traditional text it is the simplified contexts
-that are left empty, and only the traditional cards are made. The source is the
-text's full path and the line, so a card can be traced back to its book from
-anywhere; it is kept in the card file but not shown on the card. The reading is
-followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
+changes the paragraph more (see [dict/README.md](dict/README.md) for why
+OpenCC). When the word is the same in both scripts, the traditional fields are
+left empty and only the simplified cards are made; for a traditional text it is
+the simplified contexts that are left empty, and only the traditional cards are
+made. The source is the text's full path and the line, so a card can be traced
+back to its book from anywhere; it is kept in the card file but not shown on
+the card. The reading is followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
 
 ## The card file
 
@@ -406,13 +406,13 @@ shows the Taiwan reading instead, or first: `qì yè (CN qǐ yè)`.
 The differences come from the cross-strait dictionary (兩岸詞典), which gives both
 readings for every entry where they differ; dict/csld_pron.tsv (built with
 `--csld`) holds the 6,443 of its rows that differ in pronunciation rather than
-only in notation (see dict/README). For words it lacks, dict/wikt_pron.tsv
-(built with `--wikt`) adds 2,269 pairs from Wiktionary, such as 導播 dǎo bò
-against dǎo bō. A reading is looked up in the column for the side its
-dictionary speaks for, and in the other column too for MoEDict, which sometimes
-already gives the Mainland reading (認識 rèn shi). CC-CEDICT's own "Taiwan pr.
-[...]" note, when it ends a definition, moves into the reading; one inside
-parentheses applies to a single sense and stays where it is.
+only in notation (see [dict/README.md](dict/README.md)). For words it lacks,
+dict/wikt_pron.tsv (built with `--wikt`) adds 2,269 pairs from Wiktionary, such
+as 導播 dǎo bò against dǎo bō. A reading is looked up in the column for the side
+its dictionary speaks for, and in the other column too for MoEDict, which
+sometimes already gives the Mainland reading (認識 rèn shi). CC-CEDICT's own
+"Taiwan pr. [...]" note, when it ends a definition, moves into the reading; one
+inside parentheses applies to a single sense and stays where it is.
 
 The table's rows are per sense but do not say which sense, so a row is not
 applied where it could belong to another entry. A Taiwan reading that
@@ -475,15 +475,15 @@ more words on its own — bidi's first criterion arrived at from the counts
 rather than asserted — and it reads 交流感 as 交流 / 感, 交流 being some 40
 times commoner than 流感.
 
-Only jieba's counts are per word. Unihan's kFrequency and kHanyuPinlu are
-per character, and no per-character score can separate two
-segmentations of one run: both readings of 交流感 are made of 交, 流 and 感,
-so any score summed over the characters is the same for the two. A
-dictionary word the table does not list, which is most of what the additions
-files carry, scores as one occurrence — rarer than anything listed but still
-a word, so 露鋒方筆館閣體 stays 露鋒 / 方筆 / 館閣體 rather than coming apart
-into characters. Reading the table costs about 17 ms a query here, taking 39
-ms to 56 ms, the file being 4.9 MB against the 49 MB of definition sources.
+Only jieba's counts are per word. Unihan's kFrequency and kHanyuPinlu are per
+character, and no per-character score can separate two segmentations of one
+run: both readings of 交流感 are made of 交, 流 and 感, so any score summed over the
+characters is the same for the two. A dictionary word the table does not list,
+which is most of what the additions files carry, scores as one occurrence —
+rarer than anything listed but still a word, so 露鋒方筆館閣體 stays 露鋒 / 方筆 / 館閣體
+rather than coming apart into characters. Reading the table costs about 17 ms a
+query here, taking 39 ms to 56 ms, the file being 4.9 MB against the 49 MB of
+definition sources.
 
 Runs are segmented between non-Chinese characters, which are dropped. A
 full-width comma and an interpunct are exceptions, because 1,469 entries
@@ -494,5 +494,6 @@ them.
 
 ## Licence
 
-The code is licensed under the Apache License 2.0 (LICENSE). The
-dictionaries keep their own licences, listed in NOTICE and dict/README.
+The code is licensed under the Apache License 2.0 ([LICENSE](LICENSE)). The
+dictionaries keep their own licences, listed in [NOTICE](NOTICE) and
+[dict/README.md](dict/README.md).

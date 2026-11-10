@@ -25,5 +25,5 @@ Data downloaded and built by scripts/fetch_dict.sh, not in the repository:
 - With --wikt: English Wiktionary (https://en.wiktionary.org), CC BY-SA
   4.0, through wiktextract's extract at https://kaikki.org.
 
-dict/README describes each source, the date it was taken, and what its
+dict/README.md describes each source, the date it was taken, and what its
 parser does to it.
