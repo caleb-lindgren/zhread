@@ -1546,10 +1546,11 @@ func TestPaneMarks(t *testing.T) {
 func TestCardMarks(t *testing.T) {
 	v, s := newTestView(t, "须臾\n")
 	keys(v, "⏎")
+	// the marks, after the buttons
 	end := func() string {
 		rows := screen(s)
-		f := strings.Fields(rows[len(rows)-1])
-		return strings.Join(f[3:], " ")
+		_, m, _ := strings.Cut(rows[len(rows)-1], "Cancel")
+		return strings.Join(strings.Fields(m), " ")
 	}
 	if got := end(); got != "c E" {
 		t.Errorf("須臾: marks %q, want %q", got, "c E")
@@ -1764,5 +1765,160 @@ func TestUndoCard(t *testing.T) {
 	keys(v, "u")
 	if v.undoAsk {
 		t.Errorf("u asks with nothing left to undo")
+	}
+}
+
+// find is where text is on the screen, its column and row, or -1, -1.
+func find(s tcell.SimulationScreen, text string) (int, int) {
+	for y, row := range screen(s) {
+		if i := strings.Index(row, text); i >= 0 {
+			return zhdict.Width(row[:i]), y
+		}
+	}
+	return -1, -1
+}
+
+// clickOn clicks on text where the screen shows it.
+func clickOn(t *testing.T, v *view, s tcell.SimulationScreen, text string) {
+	t.Helper()
+	x, y := find(s, text)
+	if y < 0 {
+		t.Fatalf("%q is not on the screen:\n%s", text,
+			strings.Join(screen(s), "\n"))
+	}
+	click(v, x, y)
+	v.draw()
+}
+
+// TestEditorTypes checks that in the editor's normal mode a key that is
+// no vi command types itself, and Backspace and Delete delete.
+func TestEditorTypes(t *testing.T) {
+	e := &edited{text: []rune("天下")}
+	var s vi
+	ev := func(r rune) *tcell.EventKey {
+		return tcell.NewEventKey(tcell.KeyRune, r, tcell.ModNone)
+	}
+	s.key(ev('人'), e, func() {})
+	if string(e.text) != "人天下" || !s.insert || s.col != 1 {
+		t.Fatalf("人 in normal mode: %q, insert %v, col %d",
+			e.text, s.insert, s.col)
+	}
+	s.key(tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone), e,
+		func() {})
+	s.col = 1
+	s.key(tcell.NewEventKey(tcell.KeyBackspace2, 0, tcell.ModNone), e,
+		func() {})
+	if string(e.text) != "天下" {
+		t.Errorf("Backspace in normal mode: %q", e.text)
+	}
+	s.key(tcell.NewEventKey(tcell.KeyDelete, 0, tcell.ModNone), e,
+		func() {})
+	if string(e.text) != "下" {
+		t.Errorf("Delete in normal mode: %q", e.text)
+	}
+	if s.key(ev('j'), e, func() {}) {
+		t.Errorf("j was taken as text, not left to the list")
+	}
+}
+
+// TestReaderMouse checks the reader's mouse and the keys for those who
+// do not use vi's: a double click makes a card, the wheel over the
+// definitions scrolls them, Alt-PgDn too, and a click on a key the rule
+// or the status line names is that key.
+func TestReaderMouse(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/企业⏎")
+	v.mouse(tcell.NewEventMouse(0, v.h-3, tcell.WheelDown, tcell.ModNone))
+	if v.pscroll != 1 {
+		t.Errorf("wheel over the definitions: pscroll %d, want 1",
+			v.pscroll)
+	}
+	cl := v.cl
+	v.pscroll = 0
+	// not drawn after, which would clamp the scroll to the entry
+	v.key(tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModAlt))
+	if v.pscroll != 1 || v.cl != cl {
+		t.Errorf("Alt-PgDn: pscroll %d, line %d; want 1, %d",
+			v.pscroll, v.cl, cl)
+	}
+	en := v.showEn
+	x, y := find(s, " e ")
+	if y < 0 {
+		t.Fatalf("no e on the rule:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	click(v, x+1, y)
+	v.draw()
+	if v.showEn == en {
+		t.Errorf("a click on the rule's e did not toggle English")
+	}
+	clickOn(t, v, s, "詞")
+	if !v.chars {
+		t.Errorf("a click on 詞 did not switch to single characters")
+	}
+	clickOn(t, v, s, "字")
+	segAll(v)
+	x, y = find(s, "讨论")
+	click(v, x, y)
+	click(v, x, y)
+	v.draw()
+	if v.mode != card {
+		t.Fatalf("a double click did not make a card")
+	}
+	if !onScreen(s, "讨论") || !onScreen(s, "New card") {
+		t.Errorf("the card is not for 讨论:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+}
+
+// TestCardButtons checks the card's buttons and the arrow keys for its
+// context's edges.
+func TestCardButtons(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/企业⏎⏎")
+	ctx := func() string {
+		r, _, _ := v.dr.context()
+		return string(r)
+	}
+	keys(v, "]")
+	want := ctx()
+	keys(v, "⎋⏎")
+	special(v, tcell.KeyRight, tcell.ModShift)
+	if got := ctx(); got != want {
+		t.Errorf("Shift-→: context %q, ] gives %q", got, want)
+	}
+	keys(v, "⎋⏎")
+	clickOn(t, v, s, "start>")
+	if got := ctx(); got != want {
+		t.Errorf("start>: context %q, ] gives %q", got, want)
+	}
+	clickOn(t, v, s, "Cancel")
+	if v.mode != card || !v.dr.discard {
+		t.Fatalf("Cancel on an edited card did not ask first")
+	}
+	clickOn(t, v, s, "y: ")
+	if v.mode != normal {
+		t.Fatalf("y: yes did not throw the card away")
+	}
+	keys(v, "⏎")
+	clickOn(t, v, s, "Save")
+	if v.mode != normal || !strings.HasPrefix(v.msg, "saved a card") {
+		t.Errorf("Save: mode %d, message %q", v.mode, v.msg)
+	}
+}
+
+// TestChooseMouse checks that a click on a way of dividing a word chooses
+// it, as Enter on it does.
+func TestChooseMouse(t *testing.T) {
+	v, s := newTestView(t, "他牟取暴利。\n")
+	keys(v, "/牟取⏎⏎")
+	if v.mode != choose {
+		t.Fatalf("no choice of divisions:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+	clickOn(t, v, s, "牟取 · 暴利")
+	if v.mode != card || !onScreen(s, "(1 of 2)") {
+		t.Errorf("click on 牟取 · 暴利: mode %d\n%s", v.mode,
+			strings.Join(screen(s), "\n"))
 	}
 }

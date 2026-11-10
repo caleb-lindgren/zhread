@@ -52,13 +52,14 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
    adds the zhread note type and its card designs.
 2. **Read:** `zhread book.txt`. The file must be UTF-8 plain text; convert
    others first, as `iconv -f GB18030 -t UTF-8 old.txt > book.txt`.
-3. **Look words up:** move the cursor with the arrow keys, vi's `h j k l w
-   b`, or the mouse. The definitions of the word under the cursor appear
-   below the text. See [Reading](#reading) for the key commands and mouse controls.
-4. **Make a card:** press Enter on a word, or select a phrase and press
-   Enter. The card maker opens with the sentence as the context: choose
-   the definitions that fit, adjust the context, and press Enter to save.
-   See [Making a card](#making-a-card) for its key commands and mouse controls.
+3. **Look words up:** move the cursor with the arrow keys, vi's `h j k l w b`,
+   or the mouse. The definitions of the word under the cursor appear below the
+   text. See [Reading](#reading) for the key commands and mouse controls.
+4. **Make a card:** press Enter on a word or double-click it, or select a
+   phrase and press Enter. The card maker opens with the sentence as the
+   context: choose the definitions that fit, adjust the context, and press
+   Enter to save. See [Making a card](#making-a-card) for its key commands and
+   mouse controls.
 5. **Study:** in Anki, File > Import your card file,
    `~/.local/share/zhread/cards.tsv`. Import the whole file each time: cards
    Anki already has are updated, not duplicated, and keep their review
@@ -68,10 +69,11 @@ To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
 you've carded.
 
-zhread is made for modern Chinese. In classical Chinese, its default word splitting often joins
-characters that are separate words. To only look up individual characters, press `s`, or start zhread with
-`-chars`. In this mode, you can still select multiple characters with Shift, `v`, or the mouse to look up a
-longer word.
+zhread is made for modern Chinese. In classical Chinese, its default word
+splitting often joins characters that are separate words. To only look up
+individual characters, press `s`, or start zhread with `-chars`. In this mode,
+you can still select multiple characters with Shift, `v`, or the mouse to look
+up a longer word.
 
 ## Keys and mouse
 
@@ -79,31 +81,38 @@ longer word.
 
 ### Reading
 
-| Key                 | Action                                              |
-| ------------------- | --------------------------------------------------- |
-| arrows, `h j k l`   | move (← → move by word)                             |
-| `w b`               | next word, previous word                            |
-| `/ ?`, `n N`        | search forward, back; repeat                        |
-| `v V`, Shift-arrows | select                                              |
-| Enter               | make a card of the word or selection                |
-| `u`                 | undo the last card                                  |
-| `e`                 | show or hide English definitions                    |
-| `t`                 | show or hide Taiwan readings                        |
-| `s`                 | single characters instead of words; again for words |
-| `x`                 | show or hide quotations                             |
-| `c`, `E`            | also show MoEDict, Wiktionary                       |
-| `J K`               | scroll the definitions                              |
-| Tab, Shift-Tab      | look up words inside a definition; back out         |
-| `m`, `'`            | bookmark this line; go to the bookmark              |
-| `gh`, F1            | list every key                                      |
-| `q`                 | quit                                                |
+| Key                        | Action                                              |
+| -------------------------- | --------------------------------------------------- |
+| arrows, `h j k l`          | move (← → move by word)                             |
+| `w b`                      | next word, previous word                            |
+| PgUp PgDn, `^B ^F`         | page up, down (`^U ^D`: half a page)                |
+| Ctrl-Home Ctrl-End, `gg G` | start, end of the text                              |
+| `/ ?`, `n N`               | search forward, back; repeat                        |
+| `v V`, Shift-arrows        | select                                              |
+| Enter                      | make a card of the word or selection                |
+| `u`                        | undo the last card                                  |
+| `e`                        | show or hide English definitions                    |
+| `t`                        | show or hide Taiwan readings                        |
+| `s`                        | single characters instead of words; again for words |
+| `x`                        | show or hide quotations                             |
+| `c`, `E`                   | also show MoEDict, Wiktionary                       |
+| `J K`, Alt-PgDn Alt-PgUp   | scroll the definitions                              |
+| Tab, Shift-Tab             | look up words inside a definition; back out         |
+| `m`, `'`                   | bookmark this line; go to the bookmark              |
+| `gh`, F1                   | list every key                                      |
+| `q`                        | quit                                                |
 
-| Mouse                 | Action                               |
-| --------------------- | ------------------------------------ |
-| click                 | move the cursor there                |
-| drag                  | select                               |
-| wheel                 | scroll the text                      |
-| click in a definition | look up words inside it, as Tab does |
+| Mouse                                              | Action                               |
+| -------------------------------------------------- | ------------------------------------ |
+| click                                              | move the cursor there                |
+| double-click a word                                | make a card of it                    |
+| drag                                               | select                               |
+| wheel                                              | scroll the text                      |
+| wheel over the definitions                         | scroll them                          |
+| click in a definition                              | look up words inside it, as Tab does |
+| click a key on the definitions' rule (`x c e E t`) | that key                             |
+| click 詞 or 字 in the status line                    | words or single characters, as `s`   |
+| click a hint, as "Enter: make a card"              | that key                             |
 
 In macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
 Keyboard) so that Option-arrows work.
@@ -111,25 +120,30 @@ Keyboard) so that Option-arrows work.
 ### Making a card
 
 The card maker lists the context, then the definitions; tick the ones the card
-should have.
+should have. To edit the context, press `i` on it and type: the arrows, Home,
+End, Backspace and Delete work as in any editor, and vi's keys work too.
 
-| Key           | Action                                                      |
-| ------------- | ----------------------------------------------------------- |
-| `j k`         | move through the context and definitions                    |
-| Space         | tick or untick a definition or context                      |
-| `[ ]`         | move the context's start a clause left, right               |
-| `{ }`         | move the context's end a clause left, right                 |
-| `i`           | edit the context with vi's keys; Esc until back in the list |
-| Enter         | save the card                                               |
-| `u`           | add this context to the word's existing card instead        |
-| `n`           | skip to the next word of a selected phrase                  |
-| `x`, `c`, `E` | show or hide quotations, MoEDict, Wiktionary                |
-| Esc           | cancel                                                      |
+| Key                    | Action                                                    |
+| ---------------------- | --------------------------------------------------------- |
+| `j k`, ↑ ↓             | move through the context and definitions (PgUp PgDn: ten) |
+| Space                  | tick or untick a definition or context                    |
+| `[ ]`, Shift-← Shift-→ | move the context's start a clause left, right             |
+| `{ }`, Alt-← Alt-→     | move the context's end a clause left, right               |
+| `i`                    | edit the context; Esc until back in the list              |
+| Enter                  | save the card                                             |
+| `u`                    | add this context to the word's existing card instead      |
+| `n`                    | skip to the next word of a selected phrase                |
+| `x`, `c`, `E`          | show or hide quotations, MoEDict, Wiktionary              |
+| Esc                    | cancel                                                    |
 
-| Mouse        | Action                             |
-| ------------ | ---------------------------------- |
-| click a line | move to that context or definition |
-| click `[ ]`  | tick or untick it                  |
+| Mouse                     | Action                                                   |
+| ------------------------- | -------------------------------------------------------- |
+| click a line              | move to that context or definition                       |
+| click `[ ]`               | tick or untick it                                        |
+| click `<start` `start>`   | move the context's start a clause left, right            |
+| click `<end` `end>`       | move the context's end a clause left, right              |
+| click Save, Cancel        | save the card; cancel it, asking first if you changed it |
+| click a hint, as "y: yes" | answer a question                                        |
 
 ## Reader options
 

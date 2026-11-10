@@ -112,6 +112,7 @@ without true color. The full list of keys:
 | `x`                 | show or hide quotations                              |
 | `c`, `E`            | show or hide MoEDict, Wiktionary as well             |
 | `J K`               | scroll the definitions down, up                      |
+| M-PgDn M-PgUp       | the same, for those who do not use vi's keys         |
 | Tab, Shift-Tab      | move into the definitions; back up a level           |
 | `t`                 | show or hide the other side's reading                |
 | `s`                 | single characters, not words; again for words        |
@@ -119,7 +120,10 @@ without true color. The full list of keys:
 | Esc                 | hide them; end a selection; back to the book         |
 | `q`                 | quit                                                 |
 | click, wheel        | move the cursor there; scroll the text               |
+| double-click        | make a card of the word, as Enter                    |
+| wheel on the pane   | scroll the definitions, as J and K                   |
 | drag                | select from where the button was pressed             |
+| click a key         | on the rule, or 詞/字 and a hint on the status line    |
 
 Tab moves the cursor into the definitions pane, which becomes the text: every
 key above works on it as on the book, making cards and piping included, and a
@@ -188,7 +192,7 @@ word, or for a phrase the segmenter's words, then the other ways to divide it
 wholly into words of two characters or more (words of one character are left
 out, or every 散发 would offer 散 and 发), and for a phrase what the forward and
 backward maximum-matching segmenters make of it. `j`/`k` and Enter, or a
-digit, choose; Esc cancels.
+digit, choose, as does a click on one; Esc cancels.
 
 The preview shows:
 
@@ -211,17 +215,20 @@ The preview shows:
   editor on it, in normal mode: `h l w b e 0 ^ $` move (a run of Chinese
   characters is one word, as in vi, so `dw` deletes to the next punctuation),
   `x X r s D C`, and `d` or `c` with a motion (`dw`, `cb`, `d$`, `dd`) change,
-  `i a I A` insert until Esc, and `u` undoes. Esc in normal mode goes back to
-  the list, as do `j` and `k`, which move on as well; Enter saves. The bottom
-  line starts with the mode: `-- LIST --`, `-- NORMAL --` or `-- INSERT --`;
-  after it come only the card's questions and warnings, and at its right, as on
-  the reader's rule, which of `x` (a ticked definition has quotations), `c` and
-  `E` would change the card. `e` never would: the card lists the English
-  definitions whatever it says. The keys are listed instead by `gh` or F1, as
-  in the reader, in a pane below the card that `J` and `K` scroll. Esc in the
-  list hides the keys before it cancels. Editing the text's own script converts
-  the other script's line again, unless that line has been edited itself. The
-  edge keys start again from the text, undoing the edits.
+  `i a I A` insert until Esc, and `u` undoes. For those who do not use vi, the
+  arrows, Home and End move, Backspace and Delete delete, and any other key
+  types itself, starting insert mode before the cursor, so the editor can be
+  typed in without knowing `i`. Esc in normal mode goes back to the list, as do
+  `j` and `k`, which move on as well; Enter saves. The bottom line starts with
+  the mode: `-- LIST --`, `-- NORMAL --` or `-- INSERT --`; after it come only
+  the card's questions and warnings, and at its right, as on the reader's rule,
+  which of `x` (a ticked definition has quotations), `c` and `E` would change
+  the card. `e` never would: the card lists the English definitions whatever it
+  says. The keys are listed instead by `gh` or F1, as in the reader, in a pane
+  below the card that `J` and `K` scroll. Esc in the list hides the keys before
+  it cancels. Editing the text's own script converts the other script's line
+  again, unless that line has been edited itself. The edge keys start again
+  from the text, undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
@@ -258,18 +265,24 @@ The preview shows:
 
 A click on a line of the card moves the cursor to it, out of the editor if it
 was in one, and a click on a `[ ]` box ticks or unticks it, as Space does; the
-button held or dragged ticks it once. Enter saves, Esc cancels. An Esc right
-after another, as from insert mode out past the list, asks first when the card
-has been changed (a context edited or its edges moved, or a tick changed), and
-only `y` then throws the card away. The other script's context comes from
-OpenCC's s2tw or tw2s, chosen by which changes the paragraph more (see
-[dict/README.md](dict/README.md) for why OpenCC). When the word is the same in
-both scripts, the traditional fields are left empty and only the simplified
-cards are made; for a traditional text it is the simplified contexts that are
-left empty, and only the traditional cards are made. The source is the text's
-full path and the line, so a card can be traced back to its book from anywhere;
-it is kept in the card file but not shown on the card. The reading is followed
-by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
+button held or dragged ticks it once. The bottom line has buttons for the
+mouse: `<start` `start>` and `<end` `end>` move the context's edges as `[ ]`
+and `{ }` do (and Shift-← Shift-→, and Alt or Ctrl with them, from the
+keyboard), Save saves, and Cancel cancels, asking first when the card has been
+changed; a question or warning takes their room, and its answers, as "y: yes",
+are clicked instead. In the reader, the keys the rule names (x c e E t), 詞 or 字
+on the status line (s), and its hints in visual mode are clicked as those keys.
+Enter saves, Esc cancels. An Esc right after another, as from insert mode out
+past the list, asks first when the card has been changed (a context edited or
+its edges moved, or a tick changed), and only `y` then throws the card away.
+The other script's context comes from OpenCC's s2tw or tw2s, chosen by which
+changes the paragraph more (see [dict/README.md](dict/README.md) for why
+OpenCC). When the word is the same in both scripts, the traditional fields are
+left empty and only the simplified cards are made; for a traditional text it is
+the simplified contexts that are left empty, and only the traditional cards are
+made. The source is the text's full path and the line, so a card can be traced
+back to its book from anywhere; it is kept in the card file but not shown on
+the card. The reading is followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
 
 ## The card file
 

@@ -9,6 +9,9 @@ import (
 // The card preview's context lines are edited with a few of vi's commands,
 // in normal mode until i, a, I, A, s or C: h l 0 ^ $ w b e to move, x X r
 // D s C and d or c with a motion (dw, cb, d$, dd) to change, u to undo.
+// For those who do not use vi, the arrows, Home and End move, Backspace
+// and Delete delete, and any other key types itself, starting insert
+// mode, so the editor can be typed in without knowing i.
 
 // vi is the editor's state on the context under the cursor.
 type vi struct {
@@ -242,6 +245,26 @@ func (s *vi) key(ev *tcell.EventKey, e *edited, change func()) bool {
 			k == tcell.KeyDown || k == tcell.KeyEnter ||
 			r == '[' || r == ']' || r == '{' || r == '}':
 			return false
+		// For those who do not use vi: Backspace and Delete delete, as
+		// X and x do, and a key that is no command types itself,
+		// starting insert mode before the cursor, so the editor can be
+		// typed in without knowing i.
+		case k == tcell.KeyBackspace || k == tcell.KeyBackspace2:
+			if s.col > 0 {
+				change()
+				e.remove(s.col-1, s.col)
+				s.col--
+			}
+		case k == tcell.KeyDelete:
+			if s.col < len(t) {
+				change()
+				e.remove(s.col, s.col+1)
+			}
+		case r != 0 && unicode.IsPrint(r):
+			change()
+			e.insert(s.col, r)
+			s.col++
+			s.insert = true
 		}
 	}
 	s.clamp(e)

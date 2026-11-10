@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/caleb-lindgren/zhread/internal/opencc"
@@ -68,10 +69,16 @@ type view struct {
 	pron    string
 	chars   bool // single characters, not words: -chars, s
 	// cardHits are where drawCard put each line of the card a click can
-	// go to, and cardDown that the button is held since a click there,
-	// so that holding or dragging it ticks a box only once.
+	// go to, and hits the other things a click does something on: key
+	// hints, buttons, the divide screen's lines.
 	cardHits []cardHit
-	cardDown bool
+	hits     []hit
+	// down is that the first button is held, so that a press is told
+	// from the drag after it; lastPress, lastX and lastY are the press
+	// before, to tell a double click.
+	down         bool
+	lastPress    time.Time
+	lastX, lastY int
 
 	w, h    int
 	ph      int  // rows of the definitions pane, rule included
@@ -278,6 +285,7 @@ func (v *view) requestSeg() {
 }
 
 func (v *view) draw() {
+	v.hits = v.hits[:0]
 	v.w, v.h = v.s.Size()
 	v.wrap()
 	v.clamp()
@@ -658,8 +666,10 @@ func (v *view) pane() []styled {
 // CC-CEDICT, while the English is shown.
 func (v *view) toggles(g zhdict.Group) string {
 	en := v.showEn || g.Zh == 0
-	var x, c, e, E bool
+	var x, c, e, E, t bool
 	for i := range g.Rows {
+		py := g.Rows[i][2]
+		t = t || zhdict.Preferred(py) != py
 		if i >= g.Zh && g.Zh > 0 {
 			e = true
 		}
@@ -677,7 +687,16 @@ func (v *view) toggles(g zhdict.Group) string {
 					(sn.Text != "" || len(sn.Ex) > 0)
 			})
 	}
-	return marks(x, c, e, E)
+	return marks(x, c, e, E) + tMark(t)
+}
+
+// tMark is the mark for t, after the others, when the word has a reading
+// of the other side's that t would show or hide.
+func tMark(t bool) string {
+	if t {
+		return " t"
+	}
+	return ""
 }
 
 // marks notes which of x, c, e and E have anything to show or hide.
@@ -901,6 +920,7 @@ var keyHelp = [][2]string{
 	{"t", "show or hide the other reading (Taiwan)"},
 	{"s", "single characters, not words; s again for words"},
 	{"J K", "scroll the definitions down, up"},
+	{"M-PgDn M-PgUp", "the same"},
 	{"Tab S-Tab", "move into the definitions; back up"},
 	{"gh F1", "show this help"},
 	{"Esc", "hide it; end a selection; back to the book"},
@@ -912,15 +932,19 @@ var keyHelp = [][2]string{
 	{"Shift-", "with any of the last four: select as it moves"},
 	{"M-", "Alt (Option) as Ctrl with the arrows; M-f M-b words"},
 	{"click wheel", "move the cursor there; scroll the text"},
+	{"double-click", "make a card of the word"},
+	{"wheel on pane", "scroll the definitions"},
 	{"drag", "select from where the button was pressed"},
+	{"click a key", "on the rule or status line: that key"},
 }
 
 // cardKeyHelp is what gh shows below a card.
 var cardKeyHelp = [][2]string{
-	{"j k", "move over the contexts and definitions"},
+	{"j k ↑ ↓", "move over the contexts and definitions"},
 	{"PgDn PgUp", "the same, ten at a time"},
 	{"space", "tick the definition or context, or untick it"},
 	{"[ ] { }", "move the context's left edge, right edge"},
+	{"S-← S-→", "the same as [ ]; M-← M-→ or ^← ^→ as { }"},
 	{"i", "edit the context under the cursor"},
 	{"Enter y", "save the card (again if already carded)"},
 	{"u", "edit the word's card instead (1-9: which)"},
@@ -942,6 +966,8 @@ var cardKeyHelp = [][2]string{
 	{"d c D C", "delete, change over a motion; to the end"},
 	{"dd cc u", "delete, change it all; undo"},
 	{"Esc j k", "out of insert mode; back to the list"},
+	{"other keys", "type themselves, starting insert mode"},
+	{"Bksp Del", "delete back, delete"},
 }
 
 func helpLines() []styled { return keyLines(keyHelp) }
@@ -1006,8 +1032,15 @@ func (v *view) rule(y int, marks string, above, below int) {
 	}
 	if len(more) > 0 {
 		m := " " + strings.Join(more, " ") + " "
-		v.put(max(v.w-zhdict.Width(m)-1, 0), y, y+1, []rune(m),
-			plain(stRule))
+		x := max(v.w-zhdict.Width(m)-1, 0)
+		v.put(x, y, y+1, []rune(m), plain(stRule))
+		// The marks are the keys that would change the pane: a click
+		// on one is that key.
+		for i, r := range marks {
+			if r != ' ' {
+				v.keyHit(y, x+1+i, x+2+i, runeKey(r))
+			}
+		}
 	}
 }
 
@@ -1022,16 +1055,26 @@ func (v *view) drawStatus() {
 	case vline:
 		left = "-- VISUAL LINE --  Enter: make a card  :>cmd: pipe it"
 	}
-	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines), v.d.name)
+	// The mode, words (詞) or single characters (字), first, which a
+	// click switches, as s does.
+	mode := " 詞"
 	if v.chars {
-		right = " 字" + right
+		mode = " 字"
 	}
+	right := mode + fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines),
+		v.d.name)
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y, ' ', nil, stStatus)
 	}
 	v.put(0, y, y+1, []rune(left), plain(stStatus))
+	if v.mode == visual || v.mode == vline {
+		v.keyLabels(0, y, left)
+	}
 	rx := v.w - zhdict.Width(right)
 	v.put(max(rx, 0), y, y+1, []rune(right), plain(stStatus))
+	if rx >= 0 {
+		v.keyHit(y, rx+1, rx+3, runeKey('s'))
+	}
 	if v.mode == prompt {
 		v.s.ShowCursor(zhdict.Width(left), y)
 	}
@@ -1107,6 +1150,17 @@ func (v *view) key(ev *tcell.EventKey) {
 		return
 	}
 	n := max(v.count, 1)
+	// Alt (Option) with Page Up or Down scrolls the definitions, as K and
+	// J do, for those who do not use vi's keys.
+	if k := ev.Key(); ev.Modifiers()&tcell.ModAlt != 0 &&
+		(k == tcell.KeyPgUp || k == tcell.KeyPgDn) {
+		if k == tcell.KeyPgDn {
+			v.pscroll += n
+		} else {
+			v.pscroll = max(v.pscroll-n, 0)
+		}
+		return
+	}
 	switch ev.Key() {
 	case tcell.KeyEscape:
 		// Esc ends a selection or the keys; with neither, it goes back
@@ -1299,6 +1353,54 @@ func (v *view) paraBack() {
 // held selects from where it was pressed, as far as the level's text on
 // screen goes. A click on a rule or the status line, or while a prompt or
 // card is open, does nothing.
+// hit is a part of the screen a click does something on: row y, columns
+// x0 to x1-1.
+type hit struct {
+	y, x0, x1 int
+	do        func()
+}
+
+// keyHit makes columns x0 to x1-1 of row y act as the key ev when clicked.
+func (v *view) keyHit(y, x0, x1 int, ev *tcell.EventKey) {
+	v.hits = append(v.hits, hit{y, x0, x1, func() { v.key(ev) }})
+}
+
+func runeKey(r rune) *tcell.EventKey {
+	return tcell.NewEventKey(tcell.KeyRune, r, tcell.ModNone)
+}
+
+// hintKeys are the keys a hint such as "Esc: cancel" may name, as they
+// are clicked.
+var hintKeys = map[string]*tcell.EventKey{
+	"Enter":         tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone),
+	"Enter or 1-9":  tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone),
+	"Esc":           tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone),
+	"y":             runeKey('y'),
+	"u":             runeKey('u'),
+	"any other key": runeKey('n'),
+}
+
+// keyLabels makes each hint of text drawn from column x of row y, as
+// "Enter: new card", act as its key when clicked. The hints are set off
+// from each other by two spaces, and the first may follow a sentence, as
+// "Already carded. Enter: new card".
+func (v *view) keyLabels(x, y int, text string) {
+	for _, seg := range strings.Split(text, "  ") {
+		w := zhdict.Width(seg)
+		k, _, ok := strings.Cut(seg, ": ")
+		at := 0
+		if i := max(strings.LastIndex(k, ". "),
+			strings.LastIndex(k, "? ")); i >= 0 {
+			at, k = i+2, k[i+2:]
+		}
+		if ok && hintKeys[k] != nil {
+			x0 := x + zhdict.Width(seg[:at])
+			v.keyHit(y, x0, x+w, hintKeys[k])
+		}
+		x += w + 2
+	}
+}
+
 // isBox reports whether a line starts with a tick box, [ ] or [x].
 func isBox(text []rune) bool {
 	s := string(text)
@@ -1315,16 +1417,11 @@ type cardHit struct {
 
 // cardMouse moves the card's cursor to the line clicked, and a click on a
 // tick box ticks or unticks it, as Space does.
-func (v *view) cardMouse(ev *tcell.EventMouse) {
+func (v *view) cardMouse(ev *tcell.EventMouse, press bool) {
 	dr := v.dr
-	if ev.Buttons()&tcell.Button1 == 0 {
-		v.cardDown = false
+	if !press || dr == nil || dr.discard || dr.which {
 		return
 	}
-	if v.cardDown || dr == nil || dr.discard || dr.which {
-		return
-	}
-	v.cardDown = true
 	x, y := ev.Position()
 	for _, h := range v.cardHits {
 		if y < h.y0 || y >= h.y1 {
@@ -1342,21 +1439,39 @@ func (v *view) cardMouse(ev *tcell.EventMouse) {
 	}
 }
 
+// doubleClick is how soon a second press at the same place makes a
+// double click.
+const doubleClick = 400 * time.Millisecond
+
 func (v *view) mouse(ev *tcell.EventMouse) {
+	x, y := ev.Position()
+	b := ev.Buttons()
+	// A press is the button going down; holding or dragging it after
+	// sends more events with it down, which are not presses.
+	press := b&tcell.Button1 != 0 && !v.down
+	v.down = b&tcell.Button1 != 0
+	if press {
+		for _, h := range v.hits {
+			if y == h.y && x >= h.x0 && x < h.x1 {
+				v.drag = false
+				h.do()
+				return
+			}
+		}
+	}
 	if v.mode == card {
-		v.cardMouse(ev)
+		v.cardMouse(ev, press)
 		return
 	}
 	if v.mode == prompt || v.mode == choose {
 		v.drag = false
 		return
 	}
-	x, y := ev.Position()
-	switch b := ev.Buttons(); {
+	switch {
 	case b&tcell.WheelDown != 0:
-		v.byRows(1)
+		v.wheel(y, 1)
 	case b&tcell.WheelUp != 0:
-		v.byRows(-1)
+		v.wheel(y, -1)
 	case b&tcell.Button1 != 0 && v.drag:
 		for _, bl := range v.blocks {
 			if bl.lv != v.level {
@@ -1368,6 +1483,8 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			if v.mode == normal && (l != v.dl || c != v.dc) {
 				v.al, v.ac, v.mode = v.dl, v.dc, visual
 				v.shiftSel = true
+				// a drag: the next press is no double click
+				v.lastPress = time.Time{}
 			}
 			v.cl, v.cc = l, c
 			v.settle(v.dl, v.dc)
@@ -1398,11 +1515,32 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			v.settle(v.cl, v.cc)
 			v.want, v.msg, v.pend, v.count = v.vcol(), "", 0, 0
 			v.drag, v.dl, v.dc = true, v.cl, v.cc
+			// A second press at the same place soon after makes a
+			// card of the word, as Enter does.
+			dbl := x == v.lastX && y == v.lastY &&
+				ev.When().Sub(v.lastPress) < doubleClick
+			v.lastPress, v.lastX, v.lastY = ev.When(), x, y
+			if dbl {
+				v.drag, v.lastPress = false, time.Time{}
+				v.openCard()
+			}
 			return
 		}
 	default: // released
 		v.drag = false
 	}
+}
+
+// wheel scrolls by n rows what is at row y: the definitions pane, as J
+// and K do, or else the text.
+func (v *view) wheel(y, n int) {
+	for _, bl := range v.blocks {
+		if bl.lv == nil && y >= bl.y && y < bl.y+bl.n {
+			v.pscroll = max(v.pscroll+n, 0)
+			return
+		}
+	}
+	v.byRows(n)
 }
 
 // descend moves the cursor into the definitions pane, at the start of its
@@ -2122,11 +2260,21 @@ func (v *view) drawChoose() {
 		if i == pk.cur {
 			st = stSel
 		}
+		y0 := y
 		y = v.put(0, y, maxY, []rune(fmt.Sprintf(" %d  %s", i+1,
 			strings.Join(ws, " · "))), plain(st))
+		// A click on a way chooses it, as Enter on it does.
+		for row := y0; row < y; row++ {
+			v.hits = append(v.hits, hit{row, 0, v.w, func() {
+				pk.cur = i
+				v.key(tcell.NewEventKey(tcell.KeyEnter, 0,
+					tcell.ModNone))
+			}})
+		}
 	}
 	help := "j k: choose  Enter or 1-9: make the cards  Esc: cancel"
 	v.put(0, v.h-1, v.h, clip([]rune(help), v.w), plain(stHint))
+	v.keyLabels(0, v.h-1, help)
 }
 
 // nextCard shows the next card of the selection, or returns to reading
@@ -2212,6 +2360,18 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	r := ev.Rune()
 	if ev.Key() != tcell.KeyRune {
 		r = 0
+	}
+	// In the list, Shift with ← → moves the context's start as [ ] do,
+	// and Alt (Option) or Ctrl with them its end, as { } do.
+	if k, m := ev.Key(), ev.Modifiers(); !dr.editing &&
+		(k == tcell.KeyLeft || k == tcell.KeyRight) {
+		edge := map[bool]rune{false: '[', true: ']'}
+		if m&(tcell.ModAlt|tcell.ModCtrl) != 0 {
+			edge = map[bool]rune{false: '{', true: '}'}
+		}
+		if m&(tcell.ModShift|tcell.ModAlt|tcell.ModCtrl) != 0 {
+			r = edge[k == tcell.KeyRight]
+		}
 	}
 	f := dr.forms(v.conv)
 	lines := dr.ctxLines(f)
@@ -2528,6 +2688,10 @@ func (v *view) drawCard() {
 			if slices.ContainsFunc(dr.exact, isK) {
 				n++
 				line = fmt.Sprintf("%d  %s", n, line[3:])
+				if dr.which && n <= 9 {
+					v.keyHit(y, 0, v.w,
+						runeKey('0'+rune(n)))
+				}
 			}
 			if k.ctx != "" {
 				line += k.ctx
@@ -2570,11 +2734,20 @@ func (v *view) drawCard() {
 	case dr.editing:
 		mode = "-- NORMAL --"
 	}
-	// At the right, the toggles that would change the card, as on the
-	// reader's rule.
+	// At the right, buttons for the mouse, then the toggles that would
+	// change the card, as on the reader's rule. A question or warning
+	// takes the buttons' room: its answers are clickable instead.
+	var buttons []button
+	if help == "" {
+		buttons = v.cardButtons()
+	}
 	right := ""
-	if m := v.cardToggles(); m != "" {
-		right = " " + m + " "
+	for _, b := range buttons {
+		right += " " + b.label + " "
+	}
+	m := v.cardToggles()
+	if m != "" {
+		right += " " + m + " "
 	}
 	text := clip([]rune(mode+"  "+help), v.w-zhdict.Width(right))
 	n := len([]rune(mode))
@@ -2584,9 +2757,65 @@ func (v *view) drawCard() {
 		}
 		return st
 	})
-	if right != "" {
-		v.put(max(v.w-zhdict.Width(right), 0), v.h-1, v.h,
-			[]rune(right), plain(stHint))
+	v.keyLabels(zhdict.Width(mode)+2, v.h-1, help)
+	x := v.w - zhdict.Width(right)
+	if x < zhdict.Width(string(text)) {
+		return // no room: the keys still work
+	}
+	v.put(x, v.h-1, v.h, []rune(right), func(i int) tcell.Style {
+		if i < len([]rune(right))-len([]rune(m))-2 || m == "" {
+			return stSel
+		}
+		return stHint
+	})
+	for _, b := range buttons {
+		w := zhdict.Width(b.label) + 2
+		v.hits = append(v.hits, hit{v.h - 1, x, x + w, b.do})
+		x += w
+	}
+	for i, r := range m {
+		if r != ' ' {
+			v.keyHit(v.h-1, x+1+i, x+2+i, runeKey(r))
+		}
+	}
+}
+
+// button is a label on the card's bottom line that does something when
+// clicked.
+type button struct {
+	label string
+	do    func()
+}
+
+// cardButtons are the card's buttons for the mouse: the context's start
+// and end, out or in a clause, as [ ] { } move them; Save, as Enter; and
+// Cancel, as Esc, which asks first when the card has been edited.
+func (v *view) cardButtons() []button {
+	dr := v.dr
+	leave := func() {
+		if dr.editing {
+			dr.curVi().insert, dr.editing = false, false
+		}
+	}
+	key := func(r rune) func() {
+		return func() { leave(); v.key(runeKey(r)) }
+	}
+	return []button{
+		{"<start", key('[')}, {"start>", key(']')},
+		{"<end", key('{')}, {"end>", key('}')},
+		{"Save", func() {
+			leave()
+			v.key(tcell.NewEventKey(tcell.KeyEnter, 0,
+				tcell.ModNone))
+		}},
+		{"Cancel", func() {
+			leave()
+			if dr.edited() {
+				dr.discard = true
+				return
+			}
+			v.mode, v.dr, v.queue = normal, nil, nil
+		}},
 	}
 }
 
