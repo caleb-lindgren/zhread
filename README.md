@@ -1,9 +1,9 @@
 # zhread
 
-A reader for Chinese text files that makes Anki cards of the words you
-select, each with the sentence it came from:
-
-    zhread book.txt
+An integrated reader and dictionary for Chinese text files that makes Anki cards of the words you
+select, each with the context of the sentence it came from. Two types of cards
+are made: cloze cards for word recall given the context and definition; and
+definition recall cards given the word in context.
 
 ![zhread reading the 道德經 and carding 天下](zhread.gif)
 
@@ -22,6 +22,10 @@ The binary finds the dictionaries by looking for a `dict` directory at or
 above its own location, and then at or above the working directory. An
 installed copy sits outside this checkout and so finds neither: point
 `ZHREAD_DICT` at the absolute path of `dict/`, or pass `-dict`.
+
+## Usage
+
+    zhread book.txt
 
 ## Dictionaries
 
