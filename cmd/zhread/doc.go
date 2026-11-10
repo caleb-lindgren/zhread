@@ -26,6 +26,7 @@ type doc struct {
 	toks    [][]tok         // nil until the line is segmented
 	probe   []*zhdict.Probe // the probe that segmented the line
 	pending []bool          // a request for the line is in flight
+	chars   bool            // toks are single characters (-chars, s)
 }
 
 // tok is a word of a line: a segment of a Han run, a run of letters and
@@ -241,6 +242,7 @@ type segReq struct {
 	doc   *doc
 	lines []int
 	text  [][]rune
+	chars bool // single characters, not words
 }
 
 type segRes struct {
@@ -248,6 +250,7 @@ type segRes struct {
 	lines []int
 	toks  [][]tok
 	probe *zhdict.Probe
+	chars bool
 }
 
 // segWorker segments batches of lines as they are requested.
@@ -268,10 +271,13 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	}
 	p := zhdict.NewProbe(runs)
 	mode := zhdict.SegViterbi
+	if rq.chars {
+		mode = zhdict.SegChar
+	}
 	if len(runs) > 0 {
 		p.Load(d)
 		p.LoadExtra(d) // checked at startup
-		if p.LoadFreq(d) != nil {
+		if !rq.chars && p.LoadFreq(d) != nil {
 			mode = zhdict.SegBidi
 		}
 		p.LoadPron(d)
@@ -280,7 +286,7 @@ func segment(d *zhdict.Dict, pron string, rq segReq) segRes {
 	seg := func(run []rune) []string {
 		return p.Segment([][]rune{run}, mode)
 	}
-	res := segRes{doc: rq.doc, lines: rq.lines, probe: p}
+	res := segRes{doc: rq.doc, lines: rq.lines, probe: p, chars: rq.chars}
 	for _, l := range rq.text {
 		res.toks = append(res.toks, tokenize(l, seg))
 	}
@@ -320,10 +326,26 @@ func tradText(p *zhdict.Probe, text [][]rune, toks [][]tok) bool {
 }
 
 func (d *doc) apply(r segRes) {
+	if r.chars != d.chars {
+		// asked for before s switched the mode: segmented the old way
+		for _, l := range r.lines {
+			d.pending[l] = false
+		}
+		return
+	}
 	for i, l := range r.lines {
 		d.toks[l] = r.toks[i]
 		d.probe[l] = r.probe
 		d.pending[l] = false
+	}
+}
+
+// resegment forgets the doc's words, to be found again in the mode chars
+// says: single characters, or words.
+func (d *doc) resegment(chars bool) {
+	d.chars = chars
+	for l := range d.toks {
+		d.toks[l], d.probe[l], d.pending[l] = nil, nil, false
 	}
 }
 

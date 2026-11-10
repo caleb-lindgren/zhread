@@ -28,9 +28,10 @@ Keys: hjkl w b 0 $ gg G g0 g$ gj gk, ^D ^U ^F ^B, / ? n N * #; the
 arrows, Home, End, PgUp, PgDn, with Ctrl to go further and Shift to
 select; v V select, Enter to make a card of the word or the selection,
 :>cmd to pipe the selection to cmd; m bookmark the line, ' return to
-it; e show English definitions, x quotations, t Taiwan readings, c
-MoEDict, E Wiktionary; J K scroll them; Tab move into them, Shift-Tab
-back, Esc back to the book; gh or F1 list the keys; q quit.
+it; s single characters, not words; e show English definitions, x
+quotations, t Taiwan readings, c MoEDict, E Wiktionary; J K scroll them;
+Tab move into them, Shift-Tab back, Esc back to the book; gh or F1 list
+the keys; q quit.
 
 options:
 `
@@ -40,6 +41,7 @@ type convs struct{ s2t, t2s *opencc.Converter }
 
 func main() {
 	var o struct{ dict, cards, pron, deck, demo, gif string }
+	var chars bool
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default:\n"+
 			"$ZHREAD_DICT, else the nearest dict/ at or\n"+
@@ -51,6 +53,9 @@ func main() {
 			"new file to save the demo's cards to")
 	flag.StringVar(&o.pron, "pron", zhdict.PronCN,
 		"reading to show first: cn (Mainland) or tw (Taiwan)")
+	flag.BoolVar(&chars, "chars", false,
+		"look up single characters rather than words, as for\n"+
+			"classical Chinese (s switches while reading)")
 	flag.StringVar(&o.deck, "deck", "main",
 		"Anki deck named in a new card file's header")
 	flag.StringVar(&o.demo, "demo", "",
@@ -121,7 +126,7 @@ func main() {
 	})
 	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec, reqs: reqs,
 		convDir: filepath.Join(dir, "opencc"), deck: o.deck,
-		pron: o.pron, showEn: true}
+		pron: o.pron, showEn: true, chars: chars}
 	if l := d.getMark(); l >= 0 {
 		v.cl = l
 		v.msg = fmt.Sprintf("opened at the bookmark, line %d", l+1)

@@ -20,7 +20,7 @@ dict: .venv/.installed
 apkg: .venv/.installed
 	.venv/bin/python scripts/make_apkg.py
 
-# zhread-cards.gif, the cards a demo made as Anki shows them: CARDS names
+# demo/cards.gif, the cards a demo made as Anki shows them: CARDS names
 # the card file scripts/zhread_demo.sh saved (see the README's demo
 # section). The first run installs Playwright and its Chromium into .venv.
 cards-gif: cards-set .venv/.demo

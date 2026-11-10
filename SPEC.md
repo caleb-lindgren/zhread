@@ -114,6 +114,7 @@ without true color. The full list of keys:
 | `J K`               | scroll the definitions down, up                      |
 | Tab, Shift-Tab      | move into the definitions; back up a level           |
 | `t`                 | show or hide the other side's reading                |
+| `s`                 | single characters, not words; again for words        |
 | `gh`, F1            | show the keys                                        |
 | Esc                 | hide them; end a selection; back to the book         |
 | `q`                 | quit                                                 |
@@ -255,17 +256,20 @@ The preview shows:
   ones already on its cards, so a new card for another sense is a matter of
   unticking those and ticking that one.
 
-Enter saves, Esc cancels. An Esc right after another, as from insert mode out
-past the list, asks first when the card has been changed (a context edited or
-its edges moved, or a tick changed), and only `y` then throws the card away.
-The other script's context comes from OpenCC's s2tw or tw2s, chosen by which
-changes the paragraph more (see [dict/README.md](dict/README.md) for why
-OpenCC). When the word is the same in both scripts, the traditional fields are
-left empty and only the simplified cards are made; for a traditional text it is
-the simplified contexts that are left empty, and only the traditional cards are
-made. The source is the text's full path and the line, so a card can be traced
-back to its book from anywhere; it is kept in the card file but not shown on
-the card. The reading is followed by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
+A click on a line of the card moves the cursor to it, out of the editor if it
+was in one, and a click on a `[ ]` box ticks or unticks it, as Space does; the
+button held or dragged ticks it once. Enter saves, Esc cancels. An Esc right
+after another, as from insert mode out past the list, asks first when the card
+has been changed (a context edited or its edges moved, or a tick changed), and
+only `y` then throws the card away. The other script's context comes from
+OpenCC's s2tw or tw2s, chosen by which changes the paragraph more (see
+[dict/README.md](dict/README.md) for why OpenCC). When the word is the same in
+both scripts, the traditional fields are left empty and only the simplified
+cards are made; for a traditional text it is the simplified contexts that are
+left empty, and only the traditional cards are made. The source is the text's
+full path and the line, so a card can be traced back to its book from anywhere;
+it is kept in the card file but not shown on the card. The reading is followed
+by its zhuyin, "zǔ hé ㄗㄨˇ ㄏㄜˊ".
 
 ## The card file
 
@@ -402,7 +406,14 @@ reading its dictionary gives, unmarked.
 ## Segmentation
 
 zhread divides text with `viterbi`, below, and with `bidi` if
-dict/jieba/dict.txt cannot be read. The zhdict package has four modes:
+dict/jieba/dict.txt cannot be read. With `-chars`, or after `s`, it divides
+it into single characters instead (`char`), for classical Chinese, whose
+words are mostly one character and which a segmenter counting modern words
+joins wrongly (非常道 as 非常 / 道 "very" rather than 非 / 常 / 道 "not the
+constant way"). `s` forgets the words found so far, in the book and in the
+panes moved into, and they are found again in the new mode; a batch
+segmented before the switch is dropped when it arrives. A selection is still
+looked up as one word. The zhdict package's other four modes:
 
 | mode    | segmentation                                                     |
 | ------- | ---------------------------------------------------------------- |
@@ -453,8 +464,8 @@ them.
 
 ## The demo
 
-zhread.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then carding
-禁不住 with its second sense, 控制不住 "can't help", rather than its first,
+demo/reader.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then
+carding 禁不住 with its second sense, 控制不住 "can't help", rather than its first,
 承受不住 "can't bear". `scripts/zhread_demo.sh` makes it, and is rerun to make it
 again after zhread changes: it plays a list of actions (keys, mouse drags,
 captions, pauses) on a simulated screen with `gozhread -demo` and draws each
@@ -462,7 +473,7 @@ screen as a frame, so it needs only Go and a font with Chinese in it, found
 with fc-match (FONT=/path/to/font otherwise). The actions are in the script;
 `gozhread -demo help` lists them. The text, where it starts, how many words it
 moves over, the word carded and the sense taken are variables at its top, which
-the environment overrides; they default to what zhread.gif was made with:
+the environment overrides; they default to what demo/reader.gif was made with:
 
 ```sh
 scripts/zhread_demo.sh
@@ -478,7 +489,7 @@ characters that are separate words (非常 "not constant" in the 道德經 becom
 "very").
 
 The cards the demo makes go to a scratch file, not your card file. CARDS names
-a new file to save them to, from which zhread-cards.gif is made: it shows them
+a new file to save them to, from which demo/cards.gif is made: it shows them
 as Anki does, each card's question and then its answer.
 
 ```sh
@@ -491,7 +502,7 @@ as Anki does and draws them with Chromium, through Playwright, in Anki's dark
 theme (`--light` for its light one). The first run installs
 requirements-demo.txt and Playwright's Chromium into `.venv/`. The cards are
 drawn in the fonts installed, not from Anki's media folder, so for them to look
-as zhread-cards.gif does, install TW-MOE-Std-Kai, the Ministry of Education's
+as demo/cards.gif does, install TW-MOE-Std-Kai, the Ministry of Education's
 Kai
 (<https://language.moe.gov.tw/001/Upload/Files/site_content/M0001/edukai-5.0.zip>),
 and Noto Serif CJK SC or Source Han Serif.

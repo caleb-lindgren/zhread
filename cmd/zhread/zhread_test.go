@@ -869,13 +869,54 @@ func TestVisualNoWordHighlight(t *testing.T) {
 
 // segAll segments the lines of the level being read, as the worker would.
 func segAll(v *view) {
-	rq := segReq{doc: v.d}
+	rq := segReq{doc: v.d, chars: v.chars}
 	for l, line := range v.d.lines {
 		rq.lines = append(rq.lines, l)
 		rq.text = append(rq.text, line)
 	}
 	v.d.apply(segment(v.dict, zhdict.PronCN, rq))
 	v.draw()
+}
+
+// words lists the words of line l, as segmented.
+func words(v *view, l int) []string {
+	var ws []string
+	for _, t := range v.d.toks[l] {
+		if t.han {
+			ws = append(ws, string(v.d.lines[l][t.start:t.end]))
+		}
+	}
+	return ws
+}
+
+// TestChars checks that s switches between words and single characters,
+// and that a batch segmented before the switch is not applied after it.
+func TestChars(t *testing.T) {
+	v, _ := newTestView(t, "道可道，非常道。\n")
+	want := []string{"道", "可", "道", "非常", "道"}
+	if got := words(v, 0); !slices.Equal(got, want) {
+		t.Fatalf("words: got %v, want %v", got, want)
+	}
+	stale := segReq{doc: v.d, lines: []int{0}, text: v.d.lines[:1]}
+	res := segment(v.dict, zhdict.PronCN, stale)
+	keys(v, "s")
+	if !v.chars || v.d.toks[0] != nil {
+		t.Fatalf("s did not switch to characters and forget the words")
+	}
+	v.d.apply(res) // segmented as words, before s
+	if v.d.toks[0] != nil {
+		t.Fatalf("a batch segmented before s was applied after it")
+	}
+	segAll(v)
+	want = []string{"道", "可", "道", "非", "常", "道"}
+	if got := words(v, 0); !slices.Equal(got, want) {
+		t.Errorf("characters: got %v, want %v", got, want)
+	}
+	keys(v, "s")
+	segAll(v)
+	if got := words(v, 0); len(got) != 5 {
+		t.Errorf("s again: got %v, want words", got)
+	}
 }
 
 func tab(v *view, back bool) {
@@ -1333,6 +1374,54 @@ func TestContextEnd(t *testing.T) {
 
 // TestCardOptions checks that c in the preview adds MoEDict's definitions,
 // keeping what was ticked.
+// TestCardMouse checks that a click on a card's line moves the cursor to
+// it, and one on a tick box ticks or unticks it, once however long the
+// button is held.
+func TestCardMouse(t *testing.T) {
+	v, _ := newTestView(t, book)
+	keys(v, "/企业⏎⏎")
+	dr := v.dr
+	if n := len(v.cardHits); n < 3 {
+		t.Fatalf("%d lines to click on, want 3 or more", n)
+	}
+	var ctx, opt cardHit
+	for _, h := range v.cardHits {
+		if h.cur < 0 {
+			ctx = h
+		} else if h.cur == 1 {
+			opt = h
+		}
+	}
+	was := dr.sel[1]
+	click(v, opt.bx+10, opt.y0) // the text, not the box
+	v.draw()
+	if dr.cur != 1 || dr.sel[1] != was {
+		t.Errorf("click on option 1's text: cur %d, ticked %v; "+
+			"want 1, %v", dr.cur, dr.sel[1], was)
+	}
+	click(v, opt.bx+1, opt.by) // the box
+	v.draw()
+	if dr.sel[1] == was {
+		t.Errorf("click on option 1's box did not tick it")
+	}
+	// Held and dragged, the button ticks the box once.
+	v.mouse(tcell.NewEventMouse(opt.bx, opt.by, tcell.Button1,
+		tcell.ModNone))
+	v.mouse(tcell.NewEventMouse(opt.bx+1, opt.by, tcell.Button1,
+		tcell.ModNone))
+	v.mouse(tcell.NewEventMouse(opt.bx+1, opt.by, tcell.ButtonNone,
+		tcell.ModNone))
+	if dr.sel[1] != was {
+		t.Errorf("a held button ticked the box more than once")
+	}
+	click(v, 5, ctx.y0)
+	v.draw()
+	if dr.cur != ctx.cur {
+		t.Errorf("click on the context: cur %d, want %d",
+			dr.cur, ctx.cur)
+	}
+}
+
 func TestCardOptions(t *testing.T) {
 	v, _ := newTestView(t, book)
 	keys(v, "/企业⏎⏎")

@@ -33,6 +33,10 @@ const (
 	SegBMM     = "bmm"
 	SegBidi    = "bidi"
 	SegViterbi = "viterbi"
+	// SegChar makes every character a word of its own, for classical
+	// Chinese, where most words are one character and a segmenter
+	// trained on modern text joins them (非常道 as 非常 / 道).
+	SegChar = "char"
 )
 
 // joiners are the non-Han runes that occur inside headwords, so a run has to
@@ -88,6 +92,10 @@ func (p *Probe) Segment(runs [][]rune, mode string) []string {
 			out = append(out, p.bmm(run)...)
 		case SegBidi:
 			out = append(out, pickBidi(p.fmm(run), p.bmm(run))...)
+		case SegChar:
+			for _, r := range run {
+				out = append(out, string(r))
+			}
 		default:
 			out = append(out, p.viterbi(run)...)
 		}

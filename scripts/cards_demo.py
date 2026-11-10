@@ -1,10 +1,10 @@
-"""Make zhread-cards.gif: the cards of a card file as Anki shows them,
+"""Make demo/cards.gif: the cards of a card file as Anki shows them,
 each card's question and then its answer.
 
     python3 scripts/cards_demo.py [--light] CARDS [OUT]
 
 CARDS is a card file, as `scripts/zhread_demo.sh` saves the demo's with
-CARDS=FILE; OUT defaults to zhread-cards.gif. Each note's cards are those
+CARDS=FILE; OUT defaults to demo/cards.gif. Each note's cards are those
 Anki would make of it, in the note type's order: a card type whose front
 comes out empty, as the simplified ones do for a note from a traditional
 text, makes no card. The answer of the first card is shown twice, the
@@ -53,7 +53,7 @@ BASE = ("html {{ padding: 0 20px 20px; background: {0}; }} "
         "body {{ background: {0}; color: {1}; }}")
 THEMES = {"dark": ("#2c2c2c", "#fcfcfc"), "light": ("#ffffff", "#000000")}
 
-# A strip above the card naming what is shown, as zhread.gif's captions
+# A strip above the card naming what is shown, as demo/reader.gif's captions
 # do; outside .card, so the card's own styling is untouched.
 BANNER = """<div style="position: sticky; top: 0; margin: 0 -20px 24px;
 padding: 10px 24px; background: #3a3a3a; color: #f0dfaf;
@@ -148,7 +148,7 @@ def main():
     if len(args) not in (1, 2):
         sys.exit(__doc__)
     out = args[1] if len(args) == 2 else os.path.join(
-        ROOT, "zhread-cards.gif")
+        ROOT, "demo", "cards.gif")
     css = read("style.css")
     frames = []  # (image, milliseconds)
     with sync_playwright() as p:

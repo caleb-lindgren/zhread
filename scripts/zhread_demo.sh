@@ -1,10 +1,10 @@
 #!/bin/bash
-# Makes zhread.gif, the demo of zhread the README points to, by playing the
-# actions below on a simulated screen (gozhread -demo; `gozhread -demo help`
-# lists the actions). Rerun it after changing zhread, or the actions, to
-# make the GIF again. Needs Go and a font with Chinese in it, found with
-# fc-match unless FONT names one. Cards the demo makes go to a scratch file,
-# not cards.tsv.
+# Makes demo/reader.gif, the demo of zhread the README points to, by playing
+# the actions below on a simulated screen (gozhread -demo;
+# `gozhread -demo help` lists the actions). Rerun it after changing zhread, or
+# the actions, to make the GIF again. Needs Go and a font with Chinese in it,
+# found with fc-match unless FONT names one. Cards the demo makes go to a
+# scratch file, not cards.tsv.
 #
 # The parameters, each overridable from the environment:
 #
@@ -29,7 +29,7 @@ START=${START:-我冒了嚴寒}
 STEPS=${STEPS:-5}
 WORD=${WORD:-禁不住}
 SENSE=${SENSE:-2}
-OUT=${OUT:-zhread.gif}
+OUT=${OUT:-demo/reader.gif}
 CARDS=${CARDS:-}
 FONT=${FONT:-}
 

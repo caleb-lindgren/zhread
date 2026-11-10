@@ -4,13 +4,13 @@ An integrated reader and dictionary for Chinese text files that makes Anki
 cards of the words you select, each with the context of the sentence it came
 from.
 
-![zhread reading Lu Xun's 故鄉 and carding 禁不住](zhread.gif)
+![zhread reading Lu Xun's 故鄉 and carding 禁不住](demo/reader.gif)
 
 Two types of cards are made: cloze cards for word recall given the context
 and definition; and definition recall cards given the word in context.
 
 ![The two cards made of 禁不住 in Anki, each question and then its
-answer](zhread-cards.gif)
+answer](demo/cards.gif)
 
 ## Install
 
@@ -67,8 +67,9 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
 zhread is made for modern Chinese. In classical Chinese (文言), such as the
 道德經, its word splitting and dictionaries, which are modern, often join
 characters that are separate words: 非常 in 「道可道，非常道」 comes out as "very"
-rather than 非 "not" and 常 "constant". Select a single character with `v` to
-look it up on its own.
+rather than 非 "not" and 常 "constant". Press `s`, or start zhread with
+`-chars`, to look up single characters instead; select with `v` to look up a
+longer word.
 
 To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
@@ -80,23 +81,24 @@ you've carded.
 
 ### Reading
 
-| Key                 | Action                                      |
-| ------------------- | ------------------------------------------- |
-| arrows, `h j k l`   | move (← → move by word)                     |
-| `w b`               | next word, previous word                    |
-| `/ ?`, `n N`        | search forward, back; repeat                |
-| `v V`, Shift-arrows | select                                      |
-| Enter               | make a card of the word or selection        |
-| `u`                 | undo the last card                          |
-| `e`                 | show or hide English definitions            |
-| `t`                 | show or hide Taiwan readings                |
-| `x`                 | show or hide quotations                     |
-| `c`, `E`            | also show MoEDict, Wiktionary               |
-| `J K`               | scroll the definitions                      |
-| Tab, Shift-Tab      | look up words inside a definition; back out |
-| `m`, `'`            | bookmark this line; go to the bookmark      |
-| `gh`, F1            | list every key                              |
-| `q`                 | quit                                        |
+| Key                 | Action                                              |
+| ------------------- | --------------------------------------------------- |
+| arrows, `h j k l`   | move (← → move by word)                             |
+| `w b`               | next word, previous word                            |
+| `/ ?`, `n N`        | search forward, back; repeat                        |
+| `v V`, Shift-arrows | select                                              |
+| Enter               | make a card of the word or selection                |
+| `u`                 | undo the last card                                  |
+| `e`                 | show or hide English definitions                    |
+| `t`                 | show or hide Taiwan readings                        |
+| `s`                 | single characters instead of words; again for words |
+| `x`                 | show or hide quotations                             |
+| `c`, `E`            | also show MoEDict, Wiktionary                       |
+| `J K`               | scroll the definitions                              |
+| Tab, Shift-Tab      | look up words inside a definition; back out         |
+| `m`, `'`            | bookmark this line; go to the bookmark              |
+| `gh`, F1            | list every key                                      |
+| `q`                 | quit                                                |
 
 | Mouse                 | Action                               |
 | --------------------- | ------------------------------------ |
@@ -111,7 +113,7 @@ Keyboard) so that Option-arrows work.
 ### Making a card
 
 The card maker lists the context, then the definitions; tick the ones the card
-should have. It is keyboard only: the mouse does nothing there.
+should have.
 
 | Key           | Action                                                      |
 | ------------- | ----------------------------------------------------------- |
@@ -126,6 +128,11 @@ should have. It is keyboard only: the mouse does nothing there.
 | `x`, `c`, `E` | show or hide quotations, MoEDict, Wiktionary                |
 | Esc           | cancel                                                      |
 
+| Mouse        | Action                             |
+| ------------ | ---------------------------------- |
+| click a line | move to that context or definition |
+| click `[ ]`  | tick or untick it                  |
+
 ## Reader options
 
 ```sh
@@ -136,6 +143,7 @@ zhread [options] FILE
 | ---------------- | ------------------------------------------------------------------------------- |
 | `-cards FILE`    | the card file (default: `~/.local/share/zhread/cards.tsv`)                      |
 | `-dict DIR`      | the dictionary directory (default: `$ZHREAD_DICT`, else the checkout's `dict/`) |
+| `-chars`         | look up single characters instead of words, as for classical Chinese            |
 | `-pron cn`, `tw` | show Mainland readings first (the default), or Taiwan ones                      |
 | `-deck NAME`     | the Anki deck a new card file imports into (default: `main`)                    |
 | `-demo`, `-gif`  | for making the demo GIF; see [SPEC.md](SPEC.md#the-demo)                        |

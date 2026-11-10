@@ -66,6 +66,12 @@ type view struct {
 	convDir string
 	deck    string
 	pron    string
+	chars   bool // single characters, not words: -chars, s
+	// cardHits are where drawCard put each line of the card a click can
+	// go to, and cardDown that the button is held since a click there,
+	// so that holding or dragging it ticks a box only once.
+	cardHits []cardHit
+	cardDown bool
 
 	w, h    int
 	ph      int  // rows of the definitions pane, rule included
@@ -247,7 +253,10 @@ func (v *view) requestSeg() {
 	th := v.textH()
 	a := v.rows[max(v.top-th/2, 0)].line
 	b := v.rows[min(v.top+2*th, len(v.rows)-1)].line
-	rq := segReq{doc: v.d}
+	if v.d.chars != v.chars {
+		v.d.resegment(v.chars) // a pane opened before s
+	}
+	rq := segReq{doc: v.d, chars: v.chars}
 	n := 0
 	for l := a; l <= b && n < 20000; l++ {
 		if v.d.toks[l] == nil && !v.d.pending[l] {
@@ -890,6 +899,7 @@ var keyHelp = [][2]string{
 	{"c", "show or hide MoEDict beside 兩岸詞典"},
 	{"E", "show or hide Wiktionary beside CC-CEDICT"},
 	{"t", "show or hide the other reading (Taiwan)"},
+	{"s", "single characters, not words; s again for words"},
 	{"J K", "scroll the definitions down, up"},
 	{"Tab S-Tab", "move into the definitions; back up"},
 	{"gh F1", "show this help"},
@@ -918,6 +928,7 @@ var cardKeyHelp = [][2]string{
 	{"n", "skip to the selection's next card"},
 	{"Esc q", "cancel the card and those after it"},
 	{"Esc Esc", "the same, asking first if it is edited"},
+	{"click", "go to the line; on its [ ], tick or untick it"},
 	{"x", "show or hide quotations (on the card too)"},
 	{"c", "show or hide MoEDict beside 兩岸詞典"},
 	{"E", "show or hide Wiktionary beside CC-CEDICT"},
@@ -1012,6 +1023,9 @@ func (v *view) drawStatus() {
 		left = "-- VISUAL LINE --  Enter: make a card  :>cmd: pipe it"
 	}
 	right := fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines), v.d.name)
+	if v.chars {
+		right = " 字" + right
+	}
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y, ' ', nil, stStatus)
 	}
@@ -1285,8 +1299,55 @@ func (v *view) paraBack() {
 // held selects from where it was pressed, as far as the level's text on
 // screen goes. A click on a rule or the status line, or while a prompt or
 // card is open, does nothing.
+// isBox reports whether a line starts with a tick box, [ ] or [x].
+func isBox(text []rune) bool {
+	s := string(text)
+	return strings.HasPrefix(s, "[ ] ") || strings.HasPrefix(s, "[x] ")
+}
+
+// cardHit is a line of the card on screen: rows y0 to y1-1 are the
+// context or option at cur, as dr.cur counts them, and an option's tick
+// box is at row by, columns bx to bx+2; by is -1 for a context of the
+// card's own, which has none.
+type cardHit struct {
+	y0, y1, cur, by, bx int
+}
+
+// cardMouse moves the card's cursor to the line clicked, and a click on a
+// tick box ticks or unticks it, as Space does.
+func (v *view) cardMouse(ev *tcell.EventMouse) {
+	dr := v.dr
+	if ev.Buttons()&tcell.Button1 == 0 {
+		v.cardDown = false
+		return
+	}
+	if v.cardDown || dr == nil || dr.discard || dr.which {
+		return
+	}
+	v.cardDown = true
+	x, y := ev.Position()
+	for _, h := range v.cardHits {
+		if y < h.y0 || y >= h.y1 {
+			continue
+		}
+		if dr.editing && dr.cur != h.cur {
+			dr.editing = false
+		}
+		dr.cur, dr.warn = h.cur, ""
+		if y == h.by && x >= h.bx && x < h.bx+3 {
+			dr.tick(h.cur)
+			dr.changed = true
+		}
+		return
+	}
+}
+
 func (v *view) mouse(ev *tcell.EventMouse) {
-	if v.mode == prompt || v.mode == card || v.mode == choose {
+	if v.mode == card {
+		v.cardMouse(ev)
+		return
+	}
+	if v.mode == prompt || v.mode == choose {
 		v.drag = false
 		return
 	}
@@ -1542,6 +1603,16 @@ func (v *view) runeKey(r rune) {
 		v.showEn = !v.showEn
 	case 't':
 		v.showTW = !v.showTW
+	case 's':
+		v.chars = !v.chars
+		v.d.resegment(v.chars)
+		for _, lv := range v.stack {
+			lv.d.resegment(v.chars)
+		}
+		v.msg = "words"
+		if v.chars {
+			v.msg = "single characters"
+		}
 	case 'q':
 		if v.mode == normal {
 			v.quit = true
@@ -2351,6 +2422,7 @@ func (v *view) drawCard() {
 		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
 	}
 	y := v.put(0, 0, maxY, []rune(head), plain(stHead)) + 1
+	v.cardHits = v.cardHits[:0]
 	lines := dr.ctxLines(f)
 	dr.cur = max(dr.cur, -len(lines))
 	for n, k := range lines {
@@ -2383,7 +2455,10 @@ func (v *view) drawCard() {
 			}
 			return stDef
 		}
+		y0 := y
 		y = v.put(0, y, maxY, append(lr, rs...), style)
+		v.cardHits = append(v.cardHits,
+			cardHit{y0: y0, y1: y, cur: n - len(lines), by: -1})
 	}
 	y++
 	if len(dr.opts) == 0 {
@@ -2425,8 +2500,16 @@ func (v *view) drawCard() {
 			dr.top)), plain(stHint))
 	}
 	for i := dr.top; i < dr.rows() && y < end; i++ {
+		h := cardHit{cur: i, by: -1}
 		for _, l := range v.optLines(i) {
+			if h.by < 0 && isBox(l.text) {
+				h.y0, h.by, h.bx = y, y, l.x
+			}
 			y = v.putw(l.x, l.wx, y, 0, end, l.text, l.style)
+		}
+		if h.by >= 0 {
+			h.y1 = y
+			v.cardHits = append(v.cardHits, h)
 		}
 	}
 	if len(dr.dups) > 0 {
