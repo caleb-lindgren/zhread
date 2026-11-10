@@ -12,6 +12,10 @@ Vendored data, in the repository:
 - dict/jieba/dict.txt: the word-frequency table of jieba 0.42.1
   (https://github.com/fxsjy/jieba), MIT License; see dict/jieba/LICENSE.
 
+The demo's text, demo/guxiang.txt: Lu Xun's 故鄉 (1921), in the public
+domain, from Chinese Wikisource's transcription of the 1948 魯迅全集
+(https://zh.wikisource.org/wiki/故鄉), with 鄕 written 鄉.
+
 Data downloaded and built by scripts/fetch_dict.sh, not in the repository:
 
 - CC-CEDICT (https://www.mdbg.net/chinese/dictionary?page=cc-cedict),

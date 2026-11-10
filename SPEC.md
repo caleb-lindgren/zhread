@@ -453,29 +453,36 @@ them.
 
 ## The demo
 
-zhread.gif shows zhread reading the 道德經 a word at a time, then carding 天下 with
-its second sense rather than the first. `scripts/zhread_demo.sh` makes it, and
-is rerun to make it again after zhread changes: it plays a list of actions
-(keys, mouse drags, captions, pauses) on a simulated screen with `gozhread
--demo` and draws each screen as a frame, so it needs only Go and a font with
-Chinese in it, found with fc-match (FONT=/path/to/font otherwise). The actions
-are in the script; `gozhread -demo help` lists them. The text, where it starts,
-how many words it moves over, the word carded and the sense taken are variables
-at its top, which the environment overrides. FILE, the text, is required,
-relative to the repository root; the others default to what zhread.gif was made
-with, which read the 道德經:
+zhread.gif shows zhread reading Lu Xun's 《故鄉》 a word at a time, then carding
+禁不住 with its second sense, 控制不住 "can't help", rather than its first,
+承受不住 "can't bear". `scripts/zhread_demo.sh` makes it, and is rerun to make it
+again after zhread changes: it plays a list of actions (keys, mouse drags,
+captions, pauses) on a simulated screen with `gozhread -demo` and draws each
+screen as a frame, so it needs only Go and a font with Chinese in it, found
+with fc-match (FONT=/path/to/font otherwise). The actions are in the script;
+`gozhread -demo help` lists them. The text, where it starts, how many words it
+moves over, the word carded and the sense taken are variables at its top, which
+the environment overrides; they default to what zhread.gif was made with:
 
 ```sh
-FILE=daodejing.txt scripts/zhread_demo.sh
-FILE=hongloumeng.txt START=此開卷 WORD=夢幻 SENSE=1 scripts/zhread_demo.sh
+scripts/zhread_demo.sh
+FILE=book.txt START=第一句 STEPS=3 WORD=詞語 SENSE=2 scripts/zhread_demo.sh
 ```
+
+The text is demo/guxiang.txt: 《故鄉》 (1921), in the public domain, from
+Chinese Wikisource's transcription of the 1948 《魯迅全集》, with the edition's 鄕
+written 鄉 as modern editions write it, so that 故鄉 is found as one word. A
+modern text shows zhread as it is meant to be used: its segmenter and
+dictionaries are for modern Mandarin, and in classical Chinese they join
+characters that are separate words (非常 "not constant" in the 道德經 becomes
+"very").
 
 The cards the demo makes go to a scratch file, not your card file. CARDS names
 a new file to save them to, from which zhread-cards.gif is made: it shows them
 as Anki does, each card's question and then its answer.
 
 ```sh
-FILE=daodejing.txt CARDS=/tmp/demo-cards.tsv scripts/zhread_demo.sh
+CARDS=/tmp/demo-cards.tsv scripts/zhread_demo.sh
 make cards-gif CARDS=/tmp/demo-cards.tsv
 ```
 

@@ -8,25 +8,26 @@
 #
 # The parameters, each overridable from the environment:
 #
-#   FILE    the text read, relative to the repository root; required
+#   FILE    the text read, relative to the repository root
 #   START   text the cursor starts on
 #   STEPS   how many words → and w move over from there
 #   WORD    the word carded, searched for after the scanning; Enter
 #           cards the word the cursor is on, so it must be one word as
 #           zhread splits the text
-#   SENSE   which of its Chinese senses the card takes instead of the first
+#   SENSE   which of its Chinese senses the card takes instead of the first,
+#           2 or more: the actions untick the first and tick this one
 #   OUT     the GIF written
 #   CARDS   if set, a new file to save the demo's cards to, for
 #           scripts/cards_demo.py to show
 #
-#     FILE=daodejing.txt WORD=萬物 SENSE=1 scripts/zhread_demo.sh
+#     FILE=book.txt START=第一句 WORD=詞語 SENSE=3 scripts/zhread_demo.sh
 
 set -euo pipefail
 
-FILE=${FILE:?set FILE to the text to read, as FILE=book.txt}
-START=${START:-道可道}
-STEPS=${STEPS:-8}
-WORD=${WORD:-天下}
+FILE=${FILE:-demo/guxiang.txt}
+START=${START:-我冒了嚴寒}
+STEPS=${STEPS:-5}
+WORD=${WORD:-禁不住}
 SENSE=${SENSE:-2}
 OUT=${OUT:-zhread.gif}
 CARDS=${CARDS:-}

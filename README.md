@@ -4,12 +4,12 @@ An integrated reader and dictionary for Chinese text files that makes Anki
 cards of the words you select, each with the context of the sentence it came
 from.
 
-![zhread reading the 道德經 and carding 天下](zhread.gif)
+![zhread reading Lu Xun's 故鄉 and carding 禁不住](zhread.gif)
 
 Two types of cards are made: cloze cards for word recall given the context
 and definition; and definition recall cards given the word in context.
 
-![The two cards made of 天下 in Anki, each question and then its
+![The two cards made of 禁不住 in Anki, each question and then its
 answer](zhread-cards.gif)
 
 ## Install
@@ -63,6 +63,12 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
    `~/.local/share/zhread/cards.tsv`. Import the whole file each time: cards
    Anki already has are updated, not duplicated, and keep their review
    history.
+
+zhread is made for modern Chinese. In classical Chinese (文言), such as the
+道德經, its word splitting and dictionaries, which are modern, often join
+characters that are separate words: 非常 in 「道可道，非常道」 comes out as "very"
+rather than 非 "not" and 常 "constant". Select a single character with `v` to
+look it up on its own.
 
 To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
