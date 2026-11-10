@@ -1823,6 +1823,67 @@ func clickOn(t *testing.T, v *view, s tcell.SimulationScreen, text string) {
 	v.draw()
 }
 
+// TestMenu checks the undo button after a card is saved, and the menu
+// button's menu, by mouse and by keys.
+func TestMenu(t *testing.T) {
+	v, s := newTestView(t, book)
+	keys(v, "/企业⏎⏎⏎")
+	if !strings.HasPrefix(v.msg, "saved a card") {
+		t.Fatalf("no card saved: %q", v.msg)
+	}
+	clickOn(t, v, s, "undo")
+	if !v.undoAsk {
+		t.Fatalf("a click on undo did not ask: %q", v.msg)
+	}
+	clickOn(t, v, s, "y: undo it")
+	if v.rec.lastUndo() != "" {
+		t.Errorf("a click on y: undo it did not undo the card: %q",
+			v.msg)
+	}
+	if x, _ := find(s, "undo"); x >= 0 {
+		t.Errorf("undo still shown after undoing:\n%s",
+			strings.Join(screen(s), "\n"))
+	}
+
+	clickOn(t, v, s, "menu")
+	if !v.menu {
+		t.Fatal("a click on menu did not open the menu")
+	}
+	clickOn(t, v, s, "bookmark this line")
+	if v.menu || !strings.HasPrefix(v.msg, "bookmarked") {
+		t.Errorf("the menu's bookmark: menu %v, %q", v.menu, v.msg)
+	}
+
+	// Off the menu, a click only closes it.
+	l, c := v.cl, v.cc
+	clickOn(t, v, s, "menu")
+	click(v, 2, 2)
+	v.draw()
+	if v.menu || v.cl != l || v.cc != c {
+		t.Errorf("a click off the menu: menu %v, cursor %d,%d; "+
+			"want closed, %d,%d", v.menu, v.cl, v.cc, l, c)
+	}
+
+	// Keys: ↓ twice and Enter go to the bookmark; an item's own key
+	// works with the menu open.
+	keys(v, "G")
+	clickOn(t, v, s, "menu")
+	for _, k := range []tcell.Key{tcell.KeyDown, tcell.KeyDown,
+		tcell.KeyEnter} {
+		v.key(tcell.NewEventKey(k, 0, tcell.ModNone))
+		v.draw()
+	}
+	if v.menu || v.cl != l {
+		t.Errorf("↓ ↓ Enter in the menu: menu %v, line %d; want "+
+			"closed, %d", v.menu, v.cl, l)
+	}
+	clickOn(t, v, s, "menu")
+	keys(v, "q")
+	if !v.quit {
+		t.Errorf("q with the menu open did not quit")
+	}
+}
+
 // TestEditorTypes checks that in the editor's normal mode a key that is
 // no vi command types itself, and Backspace and Delete delete.
 func TestEditorTypes(t *testing.T) {

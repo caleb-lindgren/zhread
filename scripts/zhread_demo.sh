@@ -121,6 +121,11 @@ pause 1500
 caption Save saves the card
 click Save
 pause 2500
+caption menu has the rest: undo, bookmarks, the keys, quit
+click menu
+pause 3000
+click #1 故鄉
+pause 800
 
 # Single characters.
 caption s looks up single characters instead of words

@@ -86,6 +86,13 @@ type view struct {
 	pchar   rune // the prompt's kind: / to search, : for a command
 	pend    rune // first key of a two-key command (g)
 	undoAsk bool // u asked whether to undo the last card; y does
+	// undoBtn is that msg reports a card just saved, and is followed by
+	// an undo button, a click on which is u.
+	undoBtn bool
+	// menu is that the menu of the status line's menu button is open,
+	// menuCur the item its cursor is on.
+	menu    bool
+	menuCur int
 	count   int
 	showEn  bool
 	showTW  bool // also show the other reading: TW, or CN with -pron tw
@@ -347,7 +354,126 @@ func (v *view) draw() {
 	}
 	v.s.HideCursor()
 	v.drawStatus()
+	if v.menu {
+		v.drawMenu()
+	}
 	v.s.Show()
+}
+
+// menuItems are the menu's actions: those with no other place to click,
+// each with its key, which the menu shows to teach it.
+var menuItems = []struct {
+	label, key string
+	ev         *tcell.EventKey
+}{
+	{"undo the last card", "u", runeKey('u')},
+	{"bookmark this line", "m", runeKey('m')},
+	{"go to the bookmark", "'", runeKey('\'')},
+	{"list every key", "F1", tcell.NewEventKey(tcell.KeyF1, 0,
+		tcell.ModNone)},
+	{"quit", "q", runeKey('q')},
+}
+
+// undoButton follows the message that a card was saved.
+const undoButton = " undo "
+
+// menuButton is the status line's button that opens the menu, at its
+// right end.
+const menuButton = " menu "
+
+// drawMenu draws the open menu in a box above the status line, its right
+// edge under the menu button's. While it is open, a click does only what
+// the menu has: one on an item is that item, one elsewhere closes it.
+func (v *view) drawMenu() {
+	v.hits = v.hits[:0]
+	in := 0
+	for _, it := range menuItems {
+		in = max(in, zhdict.Width(it.label)+2+zhdict.Width(it.key))
+	}
+	w, h := in+4, len(menuItems)+2
+	x0, y0 := max(v.w-w, 0), max(v.h-1-h, 0)
+	box := func(x, y int, r rune) {
+		v.s.SetContent(x, y, r, nil, stStatus)
+	}
+	// a column of space at its left too, so that no wide character
+	// reaches into it
+	for y := y0; y < y0+h; y++ {
+		if x0 > 0 {
+			v.s.SetContent(x0-1, y, ' ', nil, stDef)
+		}
+		for x := x0; x < x0+w; x++ {
+			box(x, y, ' ')
+		}
+	}
+	for x := x0 + 1; x < x0+w-1; x++ {
+		box(x, y0, '─')
+		box(x, y0+h-1, '─')
+	}
+	for y := y0 + 1; y < y0+h-1; y++ {
+		box(x0, y, '│')
+		box(x0+w-1, y, '│')
+	}
+	box(x0, y0, '┌')
+	box(x0+w-1, y0, '┐')
+	box(x0, y0+h-1, '└')
+	box(x0+w-1, y0+h-1, '┘')
+	for i, it := range menuItems {
+		y := y0 + 1 + i
+		st := stStatus
+		if i == v.menuCur {
+			st = stSel.Bold(true)
+		}
+		pad := in - zhdict.Width(it.label) - zhdict.Width(it.key)
+		line := " " + it.label + strings.Repeat(" ", pad) + it.key +
+			" "
+		v.put(x0+1, y, y+1, []rune(line), plain(st))
+		v.hits = append(v.hits, hit{y, x0 + 1, x0 + w - 1,
+			func() { v.menuDo(i) }})
+	}
+	// the button closes it again
+	bx := v.w - zhdict.Width(menuButton)
+	v.hits = append(v.hits, hit{v.h - 1, bx, v.w, v.closeMenu})
+}
+
+func (v *view) closeMenu() { v.menu = false }
+
+func (v *view) openMenu() {
+	if v.mode == prompt {
+		return
+	}
+	v.menu, v.menuCur = true, 0
+}
+
+// menuDo closes the menu and does item i, as its key would.
+func (v *view) menuDo(i int) {
+	v.menu = false
+	v.key(menuItems[i].ev)
+}
+
+// menuKey is a key pressed while the menu is open: the arrows, j and k
+// move through it, Enter or Space does the item the cursor is on, and Esc
+// closes it. Any other key closes it and is pressed as usual, so the
+// items' own keys work in it too.
+func (v *view) menuKey(ev *tcell.EventKey) bool {
+	n := len(menuItems)
+	r := ev.Rune()
+	if ev.Key() != tcell.KeyRune {
+		r = 0
+	}
+	switch {
+	case ev.Key() == tcell.KeyDown || r == 'j':
+		v.menuCur = (v.menuCur + 1) % n
+	case ev.Key() == tcell.KeyUp || r == 'k':
+		v.menuCur = (v.menuCur + n - 1) % n
+	case ev.Key() == tcell.KeyEnter || r == ' ':
+		v.menuDo(v.menuCur)
+	case ev.Key() == tcell.KeyEscape:
+		v.menu = false
+	default:
+		v.menu = false
+		return false
+	}
+	return true
 }
 
 // drawBlock draws a level's text in n rows from y, under a rule when it is
@@ -1061,19 +1187,36 @@ func (v *view) drawStatus() {
 	if v.chars {
 		mode = " 字"
 	}
-	right := mode + fmt.Sprintf(" %d/%d  %s", v.cl+1, len(v.d.lines),
-		v.d.name)
+	right := mode + fmt.Sprintf(" %d/%d  %s ", v.cl+1, len(v.d.lines),
+		v.d.name) + menuButton
+	// A card just saved can be undone with a click, as u does.
+	if v.undoBtn && v.mode == normal {
+		left += "  " + undoButton
+	}
 	for x := 0; x < v.w; x++ {
 		v.s.SetContent(x, y, ' ', nil, stStatus)
 	}
 	v.put(0, y, y+1, []rune(left), plain(stStatus))
-	if v.mode == visual || v.mode == vline {
+	if v.mode == visual || v.mode == vline || v.undoAsk {
 		v.keyLabels(0, y, left)
+	}
+	// The buttons look like the card maker's.
+	if v.undoBtn && v.mode == normal {
+		x := zhdict.Width(left) - zhdict.Width(undoButton)
+		v.put(x, y, y+1, []rune(undoButton), plain(stSel))
+		v.keyHit(y, x, x+zhdict.Width(undoButton), runeKey('u'))
+	}
+	// A question takes the whole line, so that its answers show.
+	if v.undoAsk {
+		right = ""
 	}
 	rx := v.w - zhdict.Width(right)
 	v.put(max(rx, 0), y, y+1, []rune(right), plain(stStatus))
-	if rx >= 0 {
+	if rx >= 0 && right != "" {
 		v.keyHit(y, rx+1, rx+3, runeKey('s'))
+		bx := v.w - zhdict.Width(menuButton)
+		v.put(bx, y, y+1, []rune(menuButton), plain(stSel))
+		v.hits = append(v.hits, hit{y, bx, v.w, v.openMenu})
 	}
 	if v.mode == prompt {
 		v.s.ShowCursor(zhdict.Width(left), y)
@@ -1135,7 +1278,10 @@ func (v *view) key(ev *tcell.EventKey) {
 		v.chooseKey(ev)
 		return
 	}
-	v.msg = ""
+	if v.menu && v.menuKey(ev) {
+		return
+	}
+	v.msg, v.undoBtn = "", false
 	if v.undoAsk {
 		v.undoAsk = false
 		if ev.Key() == tcell.KeyRune && ev.Rune() == 'y' {
@@ -1459,6 +1605,14 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			}
 		}
 	}
+	// While the menu is open, a click off it closes it and does nothing
+	// else, and the wheel does nothing.
+	if v.menu {
+		if press {
+			v.menu = false
+		}
+		return
+	}
 	if v.mode == card {
 		v.cardMouse(ev, press)
 		return
@@ -1734,7 +1888,7 @@ func (v *view) runeKey(r rune) {
 		if what := v.rec.lastUndo(); what == "" {
 			v.msg = "no card made this session to undo"
 		} else {
-			v.msg = what + "? y does, any other key keeps it"
+			v.msg = what + "?  y: undo it  any other key: keep it"
 			v.undoAsk = true
 		}
 	case 'e':
@@ -2493,6 +2647,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			v.msg = "saved a card for " +
 				headword(f.wordT, f.wordS)
 		}
+		v.undoBtn = err == nil
 		v.nextCard()
 	case strings.ContainsRune("[]{}", r) && r != 0 && o != nil:
 		o.span.move(r)

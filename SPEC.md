@@ -165,6 +165,16 @@ takes Esc b and Esc f, and Esc B and Esc F with Shift, as word left and right,
 as the plain arrows are; Option-arrows then move by word in iTerm2, so for
 characters map them to send Alt-arrows.
 
+The status line's right end is a menu button. A click on it opens a menu of
+the actions with nowhere else to click: undo the last card (`u`), bookmark
+this line (`m`), go to the bookmark (`'`), list every key (F1) and quit (`q`),
+each shown with its key. In the menu, ↑ ↓ `j k` move, Enter or Space does the
+item, and Esc or a click off the menu closes it; any other key closes it and
+does what it does outside, so an item's own key works there too. After a card
+is saved, the message saying so is followed by an undo button, a click on
+which is `u`, and the question `u` asks has clickable answers, shown on the
+whole status line.
+
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
 it is meant for commands that open a window of their own, such as

@@ -761,8 +761,9 @@ const shades = 6
 // palette maps a cell's colors, and a level of coverage between them, to
 // the index of the GIF palette's color.
 type demoPalette struct {
-	colors color.Palette
-	index  map[[3]int32]uint8 // fg, bg, level
+	colors  color.Palette
+	index   map[[3]int32]uint8 // fg, bg, level
+	dropped int                // colors that did not fit in 256
 }
 
 func (p *demoPalette) add(fg, bg int32) {
@@ -774,7 +775,11 @@ func (p *demoPalette) add(fg, bg int32) {
 		if l == shades {
 			k[1] = fg
 		}
-		if _, ok := p.index[k]; ok || len(p.colors) == 256 {
+		if _, ok := p.index[k]; ok {
+			continue
+		}
+		if len(p.colors) == 256 {
+			p.dropped++
 			continue
 		}
 		mix := func(a, b int32) uint8 {
@@ -846,13 +851,20 @@ func (dm *demo) write(out string) error {
 	pal.add(keyFg, keyBg)
 	pal.add(0xffffff, 0x000000) // the pointer
 	for _, f := range dm.frames {
-		for _, c := range f.cells {
-			fg, bg, _, _ := colors(c.Style)
-			pal.add(fg, bg)
-			if bg != 0xffffff {
-				pal.add(bg, fg) // for the prompt's cursor
+		for i, c := range f.cells {
+			st := c.Style
+			if f.cursor && i == f.cy*f.w+f.cx {
+				st = st.Reverse(true)
 			}
+			fg, bg, _, _ := colors(st)
+			pal.add(fg, bg)
 		}
+	}
+	// A color left out would draw as the transparent one, showing the
+	// frame before through it.
+	if pal.dropped > 0 {
+		return fmt.Errorf("the frames need %d colors more than a "+
+			"GIF's 256", pal.dropped)
 	}
 	g := &gif.GIF{}
 	var prev *image.Paletted
