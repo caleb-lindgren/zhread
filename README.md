@@ -131,11 +131,11 @@ keys work too.
 | move the context's end a clause left, right    | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |
 | edit the context                               | `i`; Esc until back in the list | `i`; Esc until back in the list | double-click it; or menu                            |
 | move another context up, down the card's order | `< >`                           | `< >`                           | menu                                                |
-| save the card                                  | Enter                           | Enter                           | click Save                                          |
+| save the card                                  | Enter                           | Enter                           | click save                                          |
 | edit the word's existing card instead          | `u`                             | `u`                             | click "u: edit it" when shown; or menu              |
 | skip to the next word of a selected phrase     | `n`                             | `n`                             | menu                                                |
 | show or hide quotations, MoEDict, Wiktionary   | `x`, `c`, `E`                   | `x`, `c`, `E`                   | click `x c E` at the bottom right                   |
-| cancel                                         | Esc                             | Esc                             | click Cancel; it asks first if you changed the card |
+| cancel                                         | Esc                             | Esc                             | click cancel; it asks first if you changed the card |
 | answer a question                              | its key                         | its key                         | click the answer, as "y: yes"                       |
 | list every key                                 | F1                              | `gh`                            | menu                                                |
 

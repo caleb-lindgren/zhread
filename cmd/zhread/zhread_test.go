@@ -437,7 +437,7 @@ func TestUpdateCard(t *testing.T) {
 	keys(v, "gg/头发⏎n⏎u")
 	dr := v.dr
 	if v.mode != card || dr.guid != guid ||
-		!onScreen(s, "Edit card: 頭髮") {
+		!onScreen(s, "edit card: 頭髮") {
 		t.Fatalf("not editing:\n%s", strings.Join(screen(s), "\n"))
 	}
 	if string(dr.p.text) != "他把头发剪短了。" {
@@ -590,11 +590,11 @@ func TestSplitCard(t *testing.T) {
 		t.Fatalf("mode %d, %d cards:\n%s", v.mode, v.dr.of,
 			strings.Join(screen(s), "\n"))
 	}
-	if !onScreen(s, "New card: 討論（讨论）") || !onScreen(s, "(1 of 3)") {
+	if !onScreen(s, "new card: 討論（讨论）") || !onScreen(s, "(1 of 3)") {
 		t.Errorf("first card:\n%s", strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⏎n") // save 讨论, skip 了
-	if !onScreen(s, "New card: 企業（～业）") {
+	if !onScreen(s, "new card: 企業（～业）") {
 		t.Errorf("third card:\n%s", strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⏎")
@@ -1207,7 +1207,7 @@ func TestDiscard(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/精神⏎⏎ki0x⎋⎋")
 	if v.mode != card || !v.dr.discard ||
-		!onScreen(s, "Throw away the changes") {
+		!onScreen(s, "throw away the changes") {
 		t.Fatalf("no question after ⎋⎋: mode %d", v.mode)
 	}
 	keys(v, "⎋")
@@ -1251,11 +1251,11 @@ func TestCardMode(t *testing.T) {
 		return strings.Fields(rows[len(rows)-1])[1]
 	}
 	for _, c := range []struct{ keys, want string }{
-		{"", "LIST"}, {"kk", "LIST"}, {"i", "NORMAL"},
-		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"⎋", "LIST"},
-		{"ij", "LIST"}, {"jjjj", "LIST"}, {"i", "NORMAL"},
-		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"k", "LIST"},
-		{"ji⎋", "LIST"},
+		{"", "list"}, {"kk", "list"}, {"i", "normal"},
+		{"i", "insert"}, {"⎋", "normal"}, {"⎋", "list"},
+		{"ij", "list"}, {"jjjj", "list"}, {"i", "normal"},
+		{"i", "insert"}, {"⎋", "normal"}, {"k", "list"},
+		{"ji⎋", "list"},
 	} {
 		keys(v, c.keys)
 		if got := mode(); got != c.want {
@@ -1319,7 +1319,7 @@ func TestNumbering(t *testing.T) {
 func TestEnterInNormal(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "/头发⏎⏎")
-	if v.mode != card || !onScreen(s, "New card: 頭髮（头发）") {
+	if v.mode != card || !onScreen(s, "new card: 頭髮（头发）") {
 		t.Errorf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
 	}
 }
@@ -1334,12 +1334,12 @@ func TestChoose(t *testing.T) {
 		t.Fatalf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
 	}
 	keys(v, "j⏎")
-	if v.mode != card || v.dr.of != 2 || !onScreen(s, "New card: 牟取") {
+	if v.mode != card || v.dr.of != 2 || !onScreen(s, "new card: 牟取") {
 		t.Errorf("mode %d:\n%s", v.mode, strings.Join(screen(s), "\n"))
 	}
 	keys(v, "⎋/牟⏎⏎1")
 	if v.mode != card || v.dr.of != 1 ||
-		!onScreen(s, "New card: 牟取暴利") {
+		!onScreen(s, "new card: 牟取暴利") {
 		t.Errorf("1: mode %d:\n%s", v.mode,
 			strings.Join(screen(s), "\n"))
 	}
@@ -1550,7 +1550,7 @@ func TestCardMarks(t *testing.T) {
 	// the marks, after the buttons
 	end := func() string {
 		rows := screen(s)
-		_, m, _ := strings.Cut(rows[len(rows)-1], "Cancel")
+		_, m, _ := strings.Cut(rows[len(rows)-1], "cancel")
 		return strings.Join(strings.Fields(m), " ")
 	}
 	if got := end(); got != "c E" {
@@ -1675,7 +1675,7 @@ func TestDemoMouse(t *testing.T) {
 	acts := filepath.Join(tmp, "acts")
 	out := filepath.Join(tmp, "out.gif")
 	os.WriteFile(acts, []byte("size 60 16\nopen "+text+
-		"\ndclick 企业\nclick #-1 Save\nwheel 2\n"), 0o644)
+		"\ndclick 企业\nclick #-1 save\nwheel 2\n"), 0o644)
 	cards := filepath.Join(tmp, "cards.tsv")
 	if err := runDemo("", acts, out, cards); err != nil {
 		t.Fatal(err)
@@ -1845,12 +1845,19 @@ func TestMenu(t *testing.T) {
 		t.Errorf("undo still shown after undoing:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
+	// A click clears the message, and with it the undo button.
+	keys(v, "/企业⏎⏎⏎")
+	click(v, 0, 2)
+	v.draw()
+	if x, _ := find(s, "undo"); x >= 0 {
+		t.Errorf("undo still shown after a click")
+	}
 
 	clickOn(t, v, s, "menu")
 	if !v.menu {
 		t.Fatal("a click on menu did not open the menu")
 	}
-	clickOn(t, v, s, "Bookmark this line")
+	clickOn(t, v, s, "bookmark this line")
 	if v.menu || !strings.HasPrefix(v.msg, "bookmarked") {
 		t.Errorf("the menu's bookmark: menu %v, %q", v.menu, v.msg)
 	}
@@ -1979,7 +1986,7 @@ func TestControls(t *testing.T) {
 		t.Errorf("%d clickable places without the mouse", len(v.hits))
 	}
 	keys(v, "⏎")
-	if x, _ := find(s, "Save"); x >= 0 {
+	if x, _ := find(s, " save "); x >= 0 {
 		t.Errorf("card buttons without the mouse")
 	}
 }
@@ -2000,11 +2007,11 @@ func TestCardMenu(t *testing.T) {
 	s.SetSize(90, 24)
 	keys(v, "/精神⏎⏎k")
 	clickOn(t, v, s, "menu")
-	if !v.menu || !onScreen(s, "Edit this context") {
+	if !v.menu || !onScreen(s, "edit this context") {
 		t.Fatalf("no menu in the card maker:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
-	clickOn(t, v, s, "Show keyboard shortcuts")
+	clickOn(t, v, s, "show keyboard shortcuts")
 	if v.menu || !v.chelp {
 		t.Errorf("the menu's keys: menu %v, chelp %v", v.menu, v.chelp)
 	}
@@ -2102,7 +2109,7 @@ func TestReaderMouse(t *testing.T) {
 	if v.mode != card {
 		t.Fatalf("a double click did not make a card")
 	}
-	if !onScreen(s, "讨论") || !onScreen(s, "New card") {
+	if !onScreen(s, "讨论") || !onScreen(s, "new card") {
 		t.Errorf("the card is not for 讨论:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -2129,7 +2136,7 @@ func TestCardButtons(t *testing.T) {
 	if got := ctx(); got != want {
 		t.Errorf("start>: context %q, ] gives %q", got, want)
 	}
-	clickOn(t, v, s, "Cancel")
+	clickOn(t, v, s, " cancel ")
 	if v.mode != card || !v.dr.discard {
 		t.Fatalf("Cancel on an edited card did not ask first")
 	}
@@ -2138,7 +2145,7 @@ func TestCardButtons(t *testing.T) {
 		t.Fatalf("y: yes did not throw the card away")
 	}
 	keys(v, "⏎")
-	clickOn(t, v, s, "Save")
+	clickOn(t, v, s, " save ")
 	if v.mode != normal || !strings.HasPrefix(v.msg, "saved a card") {
 		t.Errorf("Save: mode %d, message %q", v.mode, v.msg)
 	}

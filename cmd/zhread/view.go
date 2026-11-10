@@ -385,28 +385,28 @@ func (v *view) menuItems() []menuItem {
 				menuItem{label, key, press([]rune(key)[0])})
 		}
 		if o := dr.other(); dr.cur < 0 || o != nil {
-			add("Edit this context", "i")
+			add("edit this context", "i")
 			if o != nil {
-				add("Move it up", "<")
-				add("Move it down", ">")
+				add("move it up", "<")
+				add("move it down", ">")
 			}
 		}
 		if len(dr.exact) > 0 {
-			add("Edit the word's card instead", "u")
+			add("edit the word's card instead", "u")
 		}
 		if len(v.queue) > 0 {
-			add("Skip to the next word", "n")
+			add("skip to the next word", "n")
 		}
 		help := func() { v.chelp, v.cscroll = !v.chelp, 0 }
-		keys := menuItem{"Show keyboard shortcuts", v.helpKeys(), help}
+		keys := menuItem{"show keyboard shortcuts", v.helpKeys(), help}
 		return append(its, keys)
 	}
 	return []menuItem{
-		{"Undo the last card", "u", press('u')},
-		{"Bookmark this line", "m", press('m')},
-		{"Go to the bookmark", "'", press('\'')},
-		{"Show keyboard shortcuts", v.helpKeys(), v.toggleHelp},
-		{"Quit", "q", press('q')},
+		{"undo the last card", "u", press('u')},
+		{"bookmark this line", "m", press('m')},
+		{"go to the bookmark", "'", press('\'')},
+		{"show keyboard shortcuts", v.helpKeys(), v.toggleHelp},
+		{"quit", "q", press('q')},
 	}
 }
 
@@ -1202,7 +1202,7 @@ var cardKeyHelp = []helpKey{
 	{"click", "go to the line; on its [ ], tick or untick it", "m"},
 	{"double-click", "on a context: edit it", "m"},
 	{"green", "a button: a click is its key", "m"},
-	{"", "In the editor on a context:", ""},
+	{"", "in the editor on a context:", ""},
 	{"h l w b e", "move by character, by word", "v"},
 	{"0 ^ $", "move to the start, first character, end", "v"},
 	{"i a I A", "insert before, after; at the start, end", "v"},
@@ -1331,9 +1331,9 @@ func (v *view) drawStatus() {
 	case prompt:
 		left = string(v.pchar) + string(v.input)
 	case visual:
-		left = "-- VISUAL --  Enter: make a card  :>cmd: pipe it"
+		left = "-- visual --  Enter: make a card  :>cmd: pipe it"
 	case vline:
-		left = "-- VISUAL LINE --  Enter: make a card  :>cmd: pipe it"
+		left = "-- visual line --  Enter: make a card  :>cmd: pipe it"
 	}
 	// The mode, words (詞) or single characters (字), first, which a
 	// click switches, as s does.
@@ -1716,7 +1716,7 @@ var hintKeys = map[string]*tcell.EventKey{
 // keyLabels makes each hint of text drawn from column x of row y, as
 // "Enter: new card", act as its key when clicked. The hints are set off
 // from each other by two spaces, and the first may follow a sentence, as
-// "Already carded. Enter: new card".
+// "already carded. Enter: new card".
 func (v *view) keyLabels(x, y int, text string) {
 	for _, seg := range strings.Split(text, "  ") {
 		w := zhdict.Width(seg)
@@ -1865,6 +1865,7 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 			v.cl, v.cc = v.rows[ri].line, v.colAt(ri, x)
 			v.settle(v.cl, v.cc)
 			v.want, v.msg, v.pend, v.count = v.vcol(), "", 0, 0
+			v.undoBtn = false
 			v.drag, v.dl, v.dc = true, v.cl, v.cc
 			// A second press at the same place soon after makes a
 			// card of the word, as Enter does.
@@ -2611,7 +2612,7 @@ func (v *view) drawChoose() {
 	pk := v.pick
 	maxY := v.h - 1
 	whole := string(pk.p.text[pk.ws:pk.we])
-	y := v.put(0, 0, maxY, []rune(" Divide "+whole+" into:"),
+	y := v.put(0, 0, maxY, []rune(" divide "+whole+" into:"),
 		plain(stHead)) + 1
 	for i, o := range pk.opts {
 		var ws []string
@@ -2944,9 +2945,9 @@ func (v *view) drawCard() {
 		ph = min(v.need(keys), max(v.h-9, v.h/2))
 		maxY -= ph
 	}
-	head := " New card: " + headword(f.wordT, f.wordS)
+	head := " new card: " + headword(f.wordT, f.wordS)
 	if dr.guid != "" {
-		head = " Edit card: " + headword(f.wordT, f.wordS)
+		head = " edit card: " + headword(f.wordT, f.wordS)
 	}
 	if dr.of > 1 {
 		head += fmt.Sprintf("  (%d of %d)", dr.n, dr.of)
@@ -3045,7 +3046,7 @@ func (v *view) drawCard() {
 	if len(dr.dups) > 0 {
 		y++
 		y = v.put(0, y, maxY, []rune(fmt.Sprintf(
-			"Already carded (%d):", len(dr.dups))), plain(stWarn))
+			"already carded (%d):", len(dr.dups))), plain(stWarn))
 		// The cards u can add to are numbered, for when it asks which.
 		n := 0
 		for _, k := range dr.dups {
@@ -3081,28 +3082,28 @@ func (v *view) drawCard() {
 	st := stHint
 	switch {
 	case dr.discard:
-		help, st = "Throw away the changes to this card? y: yes  "+
+		help, st = "throw away the changes to this card? y: yes  "+
 			"any other key: no", stWarn
 	case dr.warn != "":
 		help, st = dr.warn, stWarn
 	case dr.which:
-		help, st = fmt.Sprintf("Add to which card? 1-%d  "+
+		help, st = fmt.Sprintf("add to which card? 1-%d  "+
 			"any other key: none", len(dr.exact)), stWarn
 	case dr.saving && len(dr.exact) > 0:
-		help, st = "Already carded. Enter: new card  u: edit it"+
+		help, st = "already carded. Enter: new card  u: edit it"+
 			"  Esc: cancel", stWarn
 	case dr.saving:
-		help, st = "Already carded. Enter: save anyway  Esc: cancel",
+		help, st = "already carded. Enter: save anyway  Esc: cancel",
 			stWarn
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
-	mode := "-- LIST --"
+	mode := "-- list --"
 	switch {
 	case dr.editing && dr.curVi().insert:
-		mode = "-- INSERT --"
+		mode = "-- insert --"
 	case dr.editing:
-		mode = "-- NORMAL --"
+		mode = "-- normal --"
 	}
 	// At the right, buttons for the mouse, then the toggles that would
 	// change the card, as on the reader's rule. A question or warning
@@ -3186,12 +3187,12 @@ func (v *view) cardButtons() []button {
 	return []button{
 		{"<start", key('[')}, {"start>", key(']')},
 		{"<end", key('{')}, {"end>", key('}')},
-		{"Save", func() {
+		{"save", func() {
 			leave()
 			v.key(tcell.NewEventKey(tcell.KeyEnter, 0,
 				tcell.ModNone))
 		}},
-		{"Cancel", func() {
+		{"cancel", func() {
 			leave()
 			if dr.edited() {
 				dr.discard = true
@@ -3321,7 +3322,7 @@ func (v *view) otherLines(k int) []styled {
 	var out []styled
 	if k == 0 {
 		out = append(out, line(0), line(0, piece{
-			"Other contexts, in order (< > move one):", stHint}))
+			"other contexts, in order (< > move one):", stHint}))
 	}
 	box := "[ ] "
 	if dr.osel[k] {

@@ -61,7 +61,8 @@ const demoHelp = `An actions file has one action a line; # starts a comment.
                    negative, at AT or where the pointer is
   The pointer is drawn from a mouse action on, and hidden by a keys one.
   It moves to a click's place and rests there a moment before clicking.
-  pause MS         show the last frame MS longer
+  pause MS         show the last frame MS longer, or a new one with
+                   the caption set since
   forget           forget the cards made so far, unseen, so the same
                    word can be carded again without the warning
 `
@@ -380,8 +381,16 @@ func (dm *demo) do(line string) error {
 		if err != nil {
 			return err
 		}
-		if len(dm.frames) > 0 {
+		// A caption set since the last frame is shown now, for the
+		// pause, rather than with the next key.
+		if len(dm.frames) > 0 &&
+			dm.frames[len(dm.frames)-1].caption == dm.caption {
 			dm.frames[len(dm.frames)-1].ms += n[0]
+		} else if len(dm.frames) > 0 {
+			delay := dm.delay
+			dm.delay = n[0]
+			dm.snap("")
+			dm.delay = delay
 		}
 	case "keys":
 		ks, err := parseKeys(args)
@@ -399,16 +408,22 @@ func (dm *demo) do(line string) error {
 			return err
 		}
 		dm.glide(x, y)
-		n := 1
+		dm.mouse(x, y, tcell.Button1)
+		dm.mouse(x, y, tcell.ButtonNone)
 		if name == "dclick" {
-			n = 2
-		}
-		for i := 0; i < n; i++ {
+			// the first click shown a moment, as it moves the
+			// cursor, then the second; zhread is told of them at
+			// once, so they are a double click whatever the pause
+			delay := dm.delay
+			dm.delay = dclickGap
+			dm.snap("click")
+			dm.delay = delay
 			dm.mouse(x, y, tcell.Button1)
 			dm.mouse(x, y, tcell.ButtonNone)
+			dm.snap("double-click")
+		} else {
+			dm.snap("click")
 		}
-		dm.snap(map[string]string{"click": "click",
-			"dclick": "double-click"}[name])
 	case "move":
 		x, y, err := dm.at(args)
 		if err != nil {
@@ -551,6 +566,10 @@ func (dm *demo) glide(x, y int) {
 	}
 	dm.delay = delay
 }
+
+// dclickGap is how long, in milliseconds, the demo shows the first click of
+// a double click before the second.
+const dclickGap = 600
 
 // hover is how long, in milliseconds, the pointer rests on a place before
 // clicking it.

@@ -247,7 +247,7 @@ The preview shows:
   types itself, starting insert mode before the cursor, so the editor can be
   typed in without knowing `i`. Esc in normal mode goes back to the list, as do
   `j` and `k`, which move on as well; Enter saves. The bottom line starts with
-  the mode: `-- LIST --`, `-- NORMAL --` or `-- INSERT --`; after it come only
+  the mode: `-- list --`, `-- normal --` or `-- insert --`; after it come only
   the card's questions and warnings, and at its right, as on the reader's rule,
   which of `x` (a ticked definition has quotations), `c` and `E` would change
   the card. `e` never would: the card lists the English definitions whatever it
@@ -295,7 +295,7 @@ was in one, a click on a `[ ]` box ticks or unticks it, as Space does, and a
 double click on a context edits it, as `i` does; the button held or dragged
 ticks it once. The bottom line has buttons for the mouse: `<start` `start>` and
 `<end` `end>` move the context's edges as `[ ]` and `{ }` do (and Shift-←
-Shift-→, and Alt or Ctrl with them, from the keyboard), Save saves, and Cancel
+Shift-→, and Alt or Ctrl with them, from the keyboard), save saves, and cancel
 cancels, asking first when the card has been changed; a question or warning
 takes their room, and its answers, as "y: yes", are clicked instead. Last,
 where there is room, a menu button opens a menu of the actions that apply where
@@ -519,7 +519,7 @@ wheel, captions, pauses) on a simulated screen with `gozhread -demo` and draws
 each screen as a frame, with the mouse pointer from a mouse action until the
 next keys, so it needs only Go and a font with Chinese in it, found with
 fc-match (FONT=/path/to/font otherwise). A click names its place by the text
-there, as `click Save`, so the actions don't depend on where the text falls.
+there, as `click save`, so the actions don't depend on where the text falls.
 The actions are in the script; `gozhread -demo help` lists them. The text,
 where it starts, how many words it moves over, the word carded and the sense
 taken are variables at its top, which the environment overrides; they default

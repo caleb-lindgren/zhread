@@ -62,6 +62,7 @@ pause 2500
 # Card it, with the sense this context uses rather than the first.
 delay 700
 caption Enter makes a card of the word under the cursor
+pause 1500
 keys <Enter>
 pause 1500
 caption Space unticks the first sense...
@@ -79,7 +80,13 @@ pause 2500
 forget
 find $START
 delay 700
-caption The same with the mouse: a double-click makes a card
+caption With the mouse, a click looks a word up...
+pause 800
+click 嚴寒
+pause 1800
+click 相隔
+pause 1800
+caption ...and a double-click makes a card of it
 pause 800
 dclick $WORD
 pause 1500
@@ -88,8 +95,8 @@ click [x]
 caption ...and ticks a different sense
 click #$SENSE [ ]
 pause 1500
-caption Save saves the card
-click Save
+caption A click on save saves the card
+click save
 pause 2500
 caption menu has the rest: undo, bookmarks, the keyboard shortcuts, quit
 click #-1 menu
