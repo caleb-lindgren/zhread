@@ -1315,10 +1315,14 @@ func (v *view) rule(y int, marks string, above, below int) {
 		x := max(v.w-zhdict.Width(m)-1, 0)
 		v.put(x, y, y+1, []rune(m), plain(stRule))
 		// The marks are the keys that would change the pane: a click
-		// on one is that key.
-		for i, r := range marks {
-			if r != ' ' {
-				v.button(y, x+1+i, x+2+i, runeKey(r))
+		// on one is that key. They are buttons side by side, green as
+		// one, the spaces between too.
+		if !v.noMouse && marks != "" {
+			v.paint(y, x, x+len(marks)+2)
+			for i, r := range marks {
+				if r != ' ' {
+					v.keyHit(y, x+1+i, x+2+i, runeKey(r))
+				}
 			}
 		}
 	}
@@ -1718,6 +1722,7 @@ var hintKeys = map[string]*tcell.EventKey{
 // from each other by two spaces, and the first may follow a sentence, as
 // "already carded. Enter: new card".
 func (v *view) keyLabels(x, y int, text string) {
+	prev := -1 // where the hint before ended, if it was a button
 	for _, seg := range strings.Split(text, "  ") {
 		w := zhdict.Width(seg)
 		k, _, ok := strings.Cut(seg, ": ")
@@ -1729,6 +1734,13 @@ func (v *view) keyLabels(x, y int, text string) {
 		if ok && hintKeys[k] != nil {
 			x0 := x + zhdict.Width(seg[:at])
 			v.button(y, x0, x+w, hintKeys[k])
+			// buttons side by side: the gap is green too
+			if prev >= 0 && !v.noMouse {
+				v.paint(y, prev, x0)
+			}
+			prev = x + w
+		} else {
+			prev = -1
 		}
 		x += w + 2
 	}
@@ -3142,8 +3154,9 @@ func (v *view) drawCard() {
 	if x < zhdict.Width(string(text)) {
 		return // no room: the keys still work
 	}
+	// The buttons and toggles side by side are green as one.
 	v.put(x, v.h-1, v.h, []rune(right), func(i int) tcell.Style {
-		if i >= nb && i < nt {
+		if i >= nb && i < nt && v.noMouse {
 			return stHint
 		}
 		return stSel
@@ -3158,8 +3171,8 @@ func (v *view) drawCard() {
 		x += w
 	}
 	for i, r := range m {
-		if r != ' ' {
-			v.button(v.h-1, x+1+i, x+2+i, runeKey(r))
+		if r != ' ' && !v.noMouse {
+			v.keyHit(v.h-1, x+1+i, x+2+i, runeKey(r))
 		}
 	}
 }

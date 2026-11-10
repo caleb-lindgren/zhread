@@ -1945,6 +1945,11 @@ func TestControls(t *testing.T) {
 	if _, _, st, _ := s.GetContent(x, y); st != stSel {
 		t.Errorf("詞 is not green as a button")
 	}
+	// the rule's marks are green as one, the spaces between too
+	x, y = find(s, "c e")
+	if _, _, st, _ := s.GetContent(x+1, y); y < 0 || st != stSel {
+		t.Errorf("the space between the rule's c and e is not green")
+	}
 
 	// The keys gh lists are those of the ways left.
 	help := func(v *view, h []helpKey) string {
