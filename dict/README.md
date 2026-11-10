@@ -4,7 +4,7 @@ zhread reads the files here. Those built from downloads are not in the
 repository: scripts/fetch_dict.sh (`make dict`) downloads each source and
 runs its parser, and `--csld` and `--wikt` add the optional extras. The
 rest are in the repository: jieba's and OpenCC's tables, vendored with
-their licences, and the corrections and additions below, written by hand.
+their licenses, and the corrections and additions below, written by hand.
 
 | File                                  | Needed   | Built by             |
 | ------------------------------------- | -------- | -------------------- |
@@ -59,7 +59,7 @@ written and checked against; a fresh download will differ a little.
 
 - Vendored from the jieba 0.42.1 release on PyPI on 19 Sep 2026. The same
   file is at <https://github.com/fxsjy/jieba/blob/master/jieba/dict.txt>.
-  MIT licensed; the licence is in jieba/LICENSE.
+  MIT licensed; the license is in jieba/LICENSE.
 - Format: one line per word, "word count POS", space separated. 349,046
   lines and 349,045 distinct words (B超 is listed twice, with the same
   count both times), counts summing to 60,101,967 and none below 2.
@@ -141,7 +141,7 @@ written and checked against; a fresh download will differ a little.
   2026 from
   <https://raw.githubusercontent.com/g0v/moedict-data-csld/master/兩岸詞典.csv>,
   29,199,151 bytes), by parse_csld_defs.py in this directory:
-  `python3 parse_csld_defs.py 兩岸詞典.csv > csld.tsv`. Same licence:
+  `python3 parse_csld_defs.py 兩岸詞典.csv > csld.tsv`. Same license:
   CC BY-NC-ND 4.0, personal study only.
 - zhread's main source of Chinese definitions; MoEDict
   is their fallback.
@@ -172,9 +172,9 @@ written and checked against; a fresh download will differ a little.
   a gloss, at most three examples and one quotation each (24,838 and
   9,729 in all). Dropped: simplified-spelling redirects (used for the
   simplified column), senses tagged only for other varieties
-  (Cantonese, Hokkien and the rest) or labelled only with one, as
+  (Cantonese, Hokkien and the rest) or labeled only with one, as
   "(Shanghainese) currently" is with no tag, examples in other
-  varieties (tagged with their romanisation, or romanised with tone
+  varieties (tagged with their romanization, or romanized with tone
   digits, as Jyutping's hoeng¹), and records left with no sense. The
   ～ in labels such as "(～市) Kyoto" is replaced by the headword.
 - Readings: wiktextract gives a record the readings of the page's other
@@ -202,7 +202,7 @@ written and checked against; a fresh download will differ a little.
 - The dictionary tables of OpenCC 1.4.2, from the ver.1.4.2 tag of
   <https://github.com/BYVoid/OpenCC> (data/dictionary/), downloaded 30 Oct
   2026, for zhread's simplified/traditional conversion of card contexts.
-  Apache-2.0; the licence is in opencc/LICENSE.
+  Apache-2.0; the license is in opencc/LICENSE.
 - STPhrases_GeneratedFromRegionalPhrases.txt is not in the repository:
   OpenCC generates it at build time. It was dumped from the .ocd2 file of
   the opencc 1.4.2 Python package.

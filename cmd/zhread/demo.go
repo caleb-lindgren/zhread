@@ -595,8 +595,8 @@ func openFont(path string, px float64, mono bool) (*demoFont, error) {
 // its background and its foreground.
 const shades = 6
 
-// palette maps a cell's colours, and a level of coverage between them, to
-// the index of the GIF palette's colour.
+// palette maps a cell's colors, and a level of coverage between them, to
+// the index of the GIF palette's color.
 type demoPalette struct {
 	colors color.Palette
 	index  map[[3]int32]uint8 // fg, bg, level
@@ -635,7 +635,7 @@ func (p *demoPalette) at(fg, bg int32, l int) uint8 {
 	if i, ok := p.index[k]; ok {
 		return i
 	}
-	return 0 // past 256 colours
+	return 0 // past 256 colors
 }
 
 // colors are a cell's foreground and background as RGB.
@@ -655,7 +655,7 @@ func colors(st tcell.Style) (fg, bg int32, bold, ul bool) {
 		tcell.UnderlineStyleNone
 }
 
-// The banner's colours, a light ground under zhread's dark one, and the
+// The banner's colors, a light ground under zhread's dark one, and the
 // key just pressed's, so neither looks part of the terminal.
 const (
 	bannerFg, bannerBg int32 = 0x202020, 0xeee8d5
@@ -871,7 +871,7 @@ func (dm *demo) cell(img *image.Paletted, fnt *demoFont, pal *demoPalette,
 	if r == ' ' || r == 0 {
 		return
 	}
-	// The glyph centred in its cells.
+	// The glyph centered in its cells.
 	adv, ok := fnt.face.GlyphAdvance(r)
 	if !ok {
 		return

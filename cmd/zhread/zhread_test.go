@@ -407,7 +407,7 @@ func TestMakeCard(t *testing.T) {
 	}
 	keys(v, "⎋")
 	if n := len(v.rec.cards); n != 1 {
-		t.Errorf("%d cards after cancelling, want 1", n)
+		t.Errorf("%d cards after canceling, want 1", n)
 	}
 }
 
@@ -790,7 +790,7 @@ func TestCardSenses(t *testing.T) {
 }
 
 // TestWiktionary checks that Wiktionary defines a word CC-CEDICT lacks,
-// and is shown beside CC-CEDICT, labelled, only after E.
+// and is shown beside CC-CEDICT, labeled, only after E.
 func TestWiktionary(t *testing.T) {
 	v, _ := newTestView(t, "最大\n土豆\n")
 	keys(v, "vle")
@@ -856,7 +856,7 @@ func TestVisualNoWordHighlight(t *testing.T) {
 	v, s := newTestView(t, book)
 	keys(v, "jjw") // on 今天
 	cells, w, _ := s.GetContents()
-	// 天, after the cursor on 今, is in the word's colours
+	// 天, after the cursor on 今, is in the word's colors
 	if st := cells[2*w+6].Style; st != stCurWord {
 		t.Fatalf("normal: rest of the word not highlighted")
 	}

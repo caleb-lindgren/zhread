@@ -103,8 +103,10 @@ type view struct {
 	quit   bool
 }
 
-// Colours from vis's zenburn theme (lua/themes/zenburn.lua). Every one is
-// in the xterm 256-colour palette, so a terminal without true colour, st
+// Colors from Zenburn, Jani Nurminen's Vim color scheme
+// (https://github.com/jnurmine/Zenburn), as vis's port of it gives them
+// (lua/themes/zenburn.lua in https://github.com/martanne/vis). Every one
+// is in the xterm 256-color palette, so a terminal without true color, st
 // among them, shows them exactly.
 func hex(c int32) tcell.Color { return tcell.NewHexColor(c) }
 
@@ -115,7 +117,7 @@ var (
 	stCarded = stDef.Foreground(hex(0xf0dfaf)) // REGEX
 	stSel    = stDef.Background(hex(0x5f875f)) // SELECTION
 	// The cursor is white, which no vis style is; the rest of the word
-	// under it takes the cursor's colours.
+	// under it takes the cursor's colors.
 	stCursor = stDef.Foreground(hex(0x1c1c1c)).
 			Background(hex(0xffffff)).Bold(true)
 	stCurWord = stDef.Foreground(hex(0x1c1c1c)).
@@ -718,7 +720,7 @@ func (v *view) shows(g zhdict.Group, i int) bool {
 
 // label matches the usage labels of 兩岸詞典 (〈書〉, 〈口〉, 〈大陸〉), and those
 // MoEDict (諺語) and Wiktionary (literary) start a sense with, which are
-// shown in the part-of-speech colour. A sub-sense number, (1), is not one.
+// shown in the part-of-speech color. A sub-sense number, (1), is not one.
 var label = regexp.MustCompile(`〈[^〈〉]{1,4}〉|^\([^()0-9][^()]{0,40}\)`)
 
 // sline is a line of a definition: its pieces from column x, wrapping to
@@ -781,7 +783,7 @@ func (v *view) senseLines(senses []zhdict.Sense, col int,
 			j++
 		}
 		for ; j < len(sn.Heads); j++ {
-			add(x+2*j, pre, labelled(sn.Heads[j])...)
+			add(x+2*j, pre, labeled(sn.Heads[j])...)
 			pre = nil
 		}
 		heads = sn.Heads
@@ -825,8 +827,8 @@ func headword(trad, simp string) string {
 	return trad + "（" + string(s) + "）"
 }
 
-// labelled is text with its usage labels in the part-of-speech colour.
-func labelled(t string) []piece {
+// labeled is text with its usage labels in the part-of-speech color.
+func labeled(t string) []piece {
 	var ps []piece
 	at := 0
 	for _, m := range label.FindAllStringIndex(t, -1) {
@@ -842,7 +844,7 @@ func labelled(t string) []piece {
 func sensePieces(sn zhdict.Sense) []piece {
 	var ps []piece
 	if sn.Text != "" {
-		ps = labelled(sn.Text)
+		ps = labeled(sn.Text)
 	}
 	add := func(t string, st tcell.Style) {
 		if len(ps) > 0 {
@@ -2531,7 +2533,7 @@ func (v *view) optLines(i int) []styled {
 		ps = append(ps, piece{o.s.Pos + " ", stPos})
 	}
 	for _, h := range o.s.Heads {
-		ps = append(ps, labelled(h)...)
+		ps = append(ps, labeled(h)...)
 		ps = append(ps, piece{" ", stDef})
 	}
 	ps = append(ps, sensePieces(o.s)...)
@@ -2613,7 +2615,7 @@ func wordAt(rs []rune, ws, we int) []bool {
 
 // otherLines are the lines other context k takes in the card preview: a
 // heading before the first, and the context in the text's script, with
-// the word in its colour, and the cursor in it while it is edited.
+// the word in its color, and the cursor in it while it is edited.
 func (v *view) otherLines(k int) []styled {
 	dr, o := v.dr, v.dr.others[k]
 	f := o.ctxf

@@ -10,7 +10,7 @@ definition is left alone. They are:
   the source's label for a variant reading, as " (語音) xiě" for 血, or a
   second reading after the first, as 尴尬's "gān gà  (又音) jiān jiè". The
   label, or the second reading, is dropped. The export's other 612
-  labelled readings are left as they are.
+  labeled readings are left as they are.
 - 般, whose simplified headword the export gives as 举.
 
 A correction whose entry is not found, or is found more often than

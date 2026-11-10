@@ -21,7 +21,7 @@ import (
 )
 
 // Context length bounds, in characters. A sentence shorter than minCtx
-// (「好。」) is too little to recall a word from, so the neighbouring
+// (「好。」) is too little to recall a word from, so the neighboring
 // sentence is added; one longer than maxCtx is trimmed to the clauses
 // around the word. Both are guesses to adjust after some use.
 const (

@@ -124,7 +124,7 @@ func (p *Probe) readings(f *[NFields]string, e entry) {
 		// Taiwan reading that CC-CEDICT also gives the word is a
 		// Mainland reading of some sense, so the row may be about
 		// another one: MoEDict's 模 mó "model" is mó on the Mainland
-		// too, and the row mó → mú is about 模 "mould". A reading
+		// too, and the row mó → mú is about 模 "mold". A reading
 		// CC-CEDICT lacks, like 和 hàn or 企業 qì yè, is Taiwan's
 		// alone, and the row is the only Mainland reading there is.
 		//
@@ -183,7 +183,7 @@ func moeReading(py string) (label, reading string) {
 // when MoEDict and CC-CEDICT each have exactly one and they differ. A row
 // that applies to neither is about some other reading, or is wrong:
 // Wiktionary's 薄伽丘 is bo qié qiú against bó jiā qiū, where MoEDict has
-// bó qié qiū and CC-CEDICT, capitalised, Bó jiā qiū.
+// bó qié qiū and CC-CEDICT, capitalized, Bó jiā qiū.
 // MoEDict's is then taken for Taiwan's and CC-CEDICT's for the Mainland's:
 // 一字不識 yī zì bù shì against yī zì bù shí, 保住 bǎo zhu against
 // bǎo zhù. Most such pairs are the two standards, but not all, so the
@@ -191,7 +191,7 @@ func moeReading(py string) (label, reading string) {
 //
 //   - The word has more than one character. A single character's
 //     readings are often of different senses: MoEDict's 羧 zuī is a
-//     woollen cloth, CC-CEDICT's suō the carboxyl.
+//     woolen cloth, CC-CEDICT's suō the carboxyl.
 //   - Each dictionary has one reading. Several mean several senses, or
 //     an alternative reading (MoEDict's 渴 hé, "backflowing water").
 //   - The cross-strait dictionary does not have the word. Where it does
@@ -341,7 +341,7 @@ func (p *Probe) pronMatch(word, reading string, taiwan bool) (pronRow, bool) {
 
 // squash makes two spellings of one reading compare equal: syllable
 // spacing varies between the sources. Case does not, and is kept: the
-// table is all lower case, and CC-CEDICT capitalises proper nouns, so the
+// table is all lower case, and CC-CEDICT capitalizes proper nouns, so the
 // surname Hé must not match the table's hé, the reading of "and".
 func squash(s string) string {
 	return strings.Join(strings.Fields(s), "")

@@ -24,7 +24,8 @@
 }
 .ctx { font-size: 60px; margin: 0.3em 0; }
 /* The word in the context, and the cloze blank, in the orange of the
-   reader's headwords; one colour, one weight elsewhere. */
+   reader's headwords (Zenburn's, as vis gives it; see the README); one
+   color, one weight elsewhere. */
 .ctx b, .cloze { color: #ffd7af; font-weight: normal; }
 .word { font-size: 80px; }
 /* The back's other contexts, under the definitions, smaller than the

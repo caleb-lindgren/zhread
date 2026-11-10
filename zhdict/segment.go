@@ -109,9 +109,9 @@ const unknownCount = 1
 
 // viterbi returns the segmentation with the highest total log probability
 // under a unigram model: every word is scored as count/total independently
-// of its neighbours, and the best path through the lattice of dictionary
+// of its neighbors, and the best path through the lattice of dictionary
 // words is taken. Because each word contributes -log(total) on top of its
-// own count, the model penalises using more words, which is bidi's first
+// own count, the model penalizes using more words, which is bidi's first
 // criterion arrived at from the frequencies rather than asserted.
 //
 // The recurrence runs from the right: best[i] is the score of the best
@@ -225,7 +225,7 @@ func (p *Probe) maxTry(avail int) int {
 
 // pickBidi chooses between the two maximum-matching results: prefer fewer
 // words, then fewer single-character words, then the backward result, which
-// is the conventional default for this heuristic. Both criteria favour the
+// is the conventional default for this heuristic. Both criteria favor the
 // segmentation that accounts for the run with more multi-character
 // dictionary words and fewer leftover characters.
 func pickBidi(fwd, bwd []string) []string {

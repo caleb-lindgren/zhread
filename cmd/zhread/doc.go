@@ -77,7 +77,7 @@ func numLen(text []rune) int {
 }
 
 // paneDoc makes a definitions pane a doc, one line for each of its lines,
-// each keeping its indents and colours, so it wraps as the pane did.
+// each keeping its indents and colors, so it wraps as the pane did.
 func paneDoc(name, src string, ls []styled) *doc {
 	d := &doc{name: name, src: src}
 	for _, l := range ls {

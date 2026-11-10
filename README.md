@@ -28,9 +28,9 @@ package, which reads the same directory.)
 ## Dictionaries
 
 The dictionaries are not in the repository, for their size and their
-licences; `make dict` downloads them and builds dict/'s tables:
+licenses; `make dict` downloads them and builds dict/'s tables:
 
-| Source              | Gives                              | Licence         | Built by                |
+| Source              | Gives                              | License         | Built by                |
 | ------------------- | ---------------------------------- | --------------- | ----------------------- |
 | CC-CEDICT           | English definitions                | CC BY-SA 4.0    | `make dict`             |
 | MoEDict (教育部重編國語辭典) | Chinese definitions                | CC BY-ND 3.0 TW | `make dict`             |
@@ -39,7 +39,7 @@ licences; `make dict` downloads them and builds dict/'s tables:
 | jieba's dict.txt    | word frequencies, for segmentation | MIT             | in the repository       |
 | OpenCC's tables     | simplified/traditional conversion  | Apache-2.0      | in the repository       |
 
-`ARGS="--csld --wikt"` builds both extras. 兩岸詞典's licence forbids sharing
+`ARGS="--csld --wikt"` builds both extras. 兩岸詞典's license forbids sharing
 adaptations, so its tables are built for your own use only. The Wiktionary
 build streams a 1.2 GB extract and takes several minutes. zhread runs without
 either extra, with fewer definitions and fewer Taiwan readings.
@@ -70,7 +70,7 @@ on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉 and
 definitions of the rest. English comes from CC-CEDICT; Wiktionary defines
 the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
 "see …"), and `E` adds its definitions of the rest. A fallback's
-definition shown beside the main one is labelled with its name, under the
+definition shown beside the main one is labeled with its name, under the
 word. 兩岸詞典 and Wiktionary are optional extras (see "Dictionaries"
 below); without them, MoEDict is the main Chinese dictionary and CC-CEDICT
 the only English one. See [dict/README.md](dict/README.md) for the files.
@@ -83,7 +83,7 @@ variant after the word, as "暖 (煖)". Which form the text has is judged from t
 words around it: the script that more of them match only one of.
 
 Each sense gets a line, with its examples and synonym lists after it on the
-same line, in colours of their own. A part of speech starts the first sense
+same line, in colors of their own. A part of speech starts the first sense
 under it, and the rest line up after it; a sense with sub-senses, like
 MoEDict's ① 結構助詞： over ⑴ to ⑷, has a line of its own, with the sub-senses
 indented under it. Quotations from books are hidden until `x`, and then shown
@@ -104,14 +104,16 @@ instead.
 Readings are Mainland (see "Taiwan and Mainland readings" below); `t` adds the
 Taiwan reading where it differs, as "qǐ yè (TW qì yè)", and a card made while
 it is shown carries both. `-pron tw` reverses the two. Words already carded are
-coloured. The cursor is white, and the rest of the word under it blue, except
-in visual mode, where only the selection is coloured. Its line stays a quarter
+colored. The cursor is white, and the rest of the word under it blue, except
+in visual mode, where only the selection is colored. Its line stays a quarter
 of the way down the screen, except near the start of the file, so the text does
 not shift as the definitions pane changes height.
 
-The colours are vis's zenburn theme (lua/themes/zenburn.lua). They are all
-xterm 256-colour palette entries, so st shows them exactly without true
-colour.
+The colors are those of Zenburn, Jani Nurminen's color scheme for Vim
+(<https://github.com/jnurmine/Zenburn>), as the vis editor's port of it
+gives them (lua/themes/zenburn.lua in <https://github.com/martanne/vis>).
+They are all xterm 256-color palette entries, so st shows them exactly
+without true color.
 
 | keys                | action                                               |
 | ------------------- | ---------------------------------------------------- |
@@ -265,7 +267,7 @@ The preview shows:
   that first Enter too) asks which by number when there are several. It opens
   that card in the preview in place of the new one, filled in as the card has
   it: its definitions ticked (MoEDict's, Wiktionary's or the quotations shown
-  if it has them, and any no dictionary has any more kept as they are, labelled
+  if it has them, and any no dictionary has any more kept as they are, labeled
   "on the card"), its reading, Taiwan's too if it has that, and its own
   context, then its other contexts in their order, then last the context `u`
   was pressed from, all ticked; a context the card has already is not added
@@ -371,7 +373,7 @@ zhread (anki/style.css): the text 40px, the context 60px, the word 80px. The
 traditional cards are in the Ministry of Education's standard Kai,
 TW-MOE-Std-Kai, as those were, falling back to a serif font where it is not
 installed, and the simplified ones in a serif font (Source Han Serif or Noto
-Serif CJK where installed). The text is all one colour but for the word in the
+Serif CJK where installed). The text is all one color but for the word in the
 context and the cloze blank, which are the orange of the reader's headwords.
 
 ## The demo
@@ -417,7 +419,7 @@ inside parentheses applies to a single sense and stays where it is.
 The table's rows are per sense but do not say which sense, so a row is not
 applied where it could belong to another entry. A Taiwan reading that
 CC-CEDICT also gives the word is left alone: MoEDict's 模 mó "model" is
-mó on the Mainland too, and the table's 模 mó → mú is about 模 "mould".
+mó on the Mainland too, and the table's 模 mó → mú is about 模 "mold".
 Likewise a Mainland reading is not matched when the dictionary has the
 row's other reading as an entry of its own: 和 hé "sum" is not the 和 hàn
 "and" that the Mainland reads hé. Such entries show the reading their
@@ -434,7 +436,7 @@ zhù (TW bǎo zhu)). Of the 748 words it covers, each checked by hand, 28
 are two senses rather than two standards (下咽 xià yàn "to swallow"
 against xià yān "hypopharynx") and are listed in dict/fallback_exclude.tsv
 instead. Single characters are left out because that is much commoner
-among them (羧 zuī a woollen cloth, suō the carboxyl), and so are words
+among them (羧 zuī a woolen cloth, suō the carboxyl), and so are words
 with several readings in either dictionary. Any other word shows the
 reading its dictionary gives, unmarked.
 
@@ -470,7 +472,7 @@ much less common word than 交流.
 `viterbi` scores the candidates instead. Each word is given the probability
 count/total from dict/jieba/dict.txt, a segmentation scores the product over
 its words, and the best path through the lattice of dictionary words is
-taken. Every word carries a factor of 1/total, so the model penalises using
+taken. Every word carries a factor of 1/total, so the model penalizes using
 more words on its own — bidi's first criterion arrived at from the counts
 rather than asserted — and it reads 交流感 as 交流 / 感, 交流 being some 40
 times commoner than 流感.
@@ -492,8 +494,14 @@ interpunct (transliterated names); both are skipped when no word covers
 them.
 
 
-## Licence
+## License
 
 The code is licensed under the Apache License 2.0 ([LICENSE](LICENSE)). The
-dictionaries keep their own licences, listed in [NOTICE](NOTICE) and
+dictionaries keep their own licenses, listed in [NOTICE](NOTICE) and
 [dict/README.md](dict/README.md).
+
+The reader's colors, and the orange of the Anki cards, are Zenburn's, by
+Jani Nurminen (<https://github.com/jnurmine/Zenburn>), in the 256-color
+values of the port in vis by Marc André Tanner and others
+(<https://github.com/martanne/vis>). zhread copies the color values only,
+not code from either project.

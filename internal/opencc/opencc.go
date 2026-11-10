@@ -27,7 +27,7 @@ type table struct {
 }
 
 // configs lists each conversion's stages, each stage's tables in order of
-// precedence. CJK_Compatibility_Ideographs is OpenCC's normalisation step.
+// precedence. CJK_Compatibility_Ideographs is OpenCC's normalization step.
 var configs = map[string][][]table{
 	"s2tw": {
 		{{"CJK_Compatibility_Ideographs", false}},
