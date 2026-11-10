@@ -53,11 +53,12 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
 2. **Read:** `zhread book.txt`. The file must be UTF-8 plain text; convert
    others first, as `iconv -f GB18030 -t UTF-8 old.txt > book.txt`.
 3. **Look words up:** move the cursor with the arrow keys, vi's `h j k l w
-   b`, or the mouse. The definitions of the word under the cursor appear below the text.
-4. **Make a card:** press Enter on a word, or select a phrase with `v` and
-   press Enter. In the preview, Space ticks the definitions that fit the
-   sentence, `[ ] { }` move the start and end of the context, `i` edits it,
-   and Enter saves the card. Esc cancels.
+   b`, or the mouse. The definitions of the word under the cursor appear
+   below the text. See [Reading](#reading) for the keys and mouse.
+4. **Make a card:** press Enter on a word, or select a phrase and press
+   Enter. The card maker opens with the sentence as the context: choose
+   the definitions that fit, adjust the context, and press Enter to save.
+   See [Making a card](#making-a-card) for its keys.
 5. **Study:** in Anki, File > Import your card file,
    `~/.local/share/zhread/cards.tsv`. Import the whole file each time: cards
    Anki already has are updated, not duplicated, and keep their review
@@ -67,7 +68,11 @@ To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
 you've carded.
 
-## Key and mouse usage
+## Keys and mouse
+
+`gh` or F1 lists every key, in the reader and in the card maker.
+
+### Reading
 
 | Key                 | Action                                      |
 | ------------------- | ------------------------------------------- |
@@ -87,9 +92,33 @@ you've carded.
 | `gh`, F1            | list every key                              |
 | `q`                 | quit                                        |
 
-The mouse works too: click to move, drag to select, scroll with the wheel. In
-macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
+| Mouse                 | Action                               |
+| --------------------- | ------------------------------------ |
+| click                 | move the cursor there                |
+| drag                  | select                               |
+| wheel                 | scroll the text                      |
+| click in a definition | look up words inside it, as Tab does |
+
+In macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
 Keyboard) so that Option-arrows work.
+
+### Making a card
+
+The card maker lists the context, then the definitions; tick the ones the card
+should have. It is keyboard only: the mouse does nothing there.
+
+| Key           | Action                                                      |
+| ------------- | ----------------------------------------------------------- |
+| `j k`         | move through the context and definitions                    |
+| Space         | tick or untick a definition or context                      |
+| `[ ]`         | move the context's start a clause left, right               |
+| `{ }`         | move the context's end a clause left, right                 |
+| `i`           | edit the context with vi's keys; Esc until back in the list |
+| Enter         | save the card                                               |
+| `u`           | add this context to the word's existing card instead        |
+| `n`           | skip to the next word of a selected phrase                  |
+| `x`, `c`, `E` | show or hide quotations, MoEDict, Wiktionary                |
+| Esc           | cancel                                                      |
 
 ## Reader options
 
@@ -122,8 +151,8 @@ of its own instead, and gives you your shell back at once.
 The cards set traditional characters in a Kai (楷書) font, the handwriting
 style taught in Taiwan's schools, when your system has one, e.g. Windows has
 標楷體. Otherwise they use your system's usual Chinese font, which works just
-as well. For the Kai shown above, the Taiwan Ministry of Education's standard Kai,
-add it to Anki once:
+as well. For the Kai shown above, the Taiwan Ministry of Education's standard
+Kai, add it to Anki once:
 
 1. Download and unzip
    <https://language.moe.gov.tw/001/Upload/Files/site_content/M0001/edukai-5.0.zip>.
