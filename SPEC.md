@@ -343,14 +343,17 @@ before its 简 ones.
 The answer gives the word as the pane does, 組合（组～）, then the reading and zhuyin
 and the definitions. Sizes are those of the cards from before zhread
 (anki/style.css): the text 40px, the context 60px, the word 80px. The
-traditional cards are in the Ministry of Education's standard Kai,
-TW-MOE-Std-Kai, as those were, falling back to a serif font where it is not
-installed, and the simplified ones in a serif font (Source Han Serif or Noto
-Serif CJK where installed). The text is all one color but for the word in the
-context and the cloze blank, which are orange: in Anki's dark mode the orange
-of the reader's headwords, Zenburn's #ffd7af, and in its light mode, on white,
-a darker #af5f00, since #ffd7af is too pale to read there (1.35:1 against
-white, where #af5f00 is 4.7:1).
+traditional cards are in a Kai, as those were: the Ministry of Education's
+standard Kai, TW-MOE-Std-Kai, where it is installed or added to Anki's media
+folder as `_edukai.ttf` (loaded with `@font-face`, which syncs it to phones;
+the README's "Optional: the Kai font" tells how), else a Kai the system has
+(DFKai-SB, BiauKai, Kaiti TC, AR PL UKai TW), else the serif the simplified
+cards use. Those are in a serif font (Source Han Serif or Noto Serif CJK where
+installed, else the system's serif). The text is all one color but for the word
+in the context and the cloze blank, which are orange: in Anki's dark mode the
+orange of the reader's headwords, Zenburn's #ffd7af, and in its light mode, on
+white, a darker #af5f00, since #ffd7af is too pale to read there (1.35:1
+against white, where #af5f00 is 4.7:1).
 
 ## Taiwan and Mainland readings
 
@@ -480,7 +483,8 @@ make cards-gif CARDS=/tmp/demo-cards.tsv
 as Anki does and draws them with Chromium, through Playwright, in Anki's dark
 theme (`--light` for its light one). The first run installs
 requirements-demo.txt and Playwright's Chromium into `.venv/`. The cards are
-drawn in the fonts installed, so for them to look as they do in Anki, install
-the ones anki/style.css names: TW-MOE-Std-Kai, the Ministry of Education's Kai
+drawn in the fonts installed, not from Anki's media folder, so for them to look
+as zhread-cards.gif does, install TW-MOE-Std-Kai, the Ministry of Education's
+Kai
 (<https://language.moe.gov.tw/001/Upload/Files/site_content/M0001/edukai-5.0.zip>),
 and Noto Serif CJK SC or Source Han Serif.

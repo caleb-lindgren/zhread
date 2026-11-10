@@ -22,9 +22,10 @@ The templates and styling are anki/'s, filled in as Anki fills them in
 (fields, {{text:Field}}, {{#Field}} and {{^Field}} sections, {{Card}}),
 and drawn by Chromium through Playwright, so the cards look as they do in
 Anki's card view, without the rest of its window. The fonts are the ones
-the styling names, as installed: TW-MOE-Std-Kai and a serif with
-simplified Chinese (Source Han Serif or Noto Serif CJK SC) for the cards
-to look as intended. Needs requirements-demo.txt and a Chromium for
+the styling names, as installed (a _edukai.ttf in Anki's media folder is
+not seen here): TW-MOE-Std-Kai and a serif with simplified Chinese
+(Source Han Serif or Noto Serif CJK SC) for the cards to look as the
+committed GIF does. Needs requirements-demo.txt and a Chromium for
 Playwright (`.venv/bin/playwright install chromium`); `make cards-gif`
 sets up both.
 """

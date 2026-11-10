@@ -1,13 +1,27 @@
+/* The Ministry of Education's standard Kai (TW-MOE-Std-Kai), loaded from
+   Anki's media folder, where it syncs to every device, AnkiMobile and
+   AnkiDroid included, as Anki's manual describes for fonts. Optional: the
+   README tells how to add it, and without it the url fails and the Kai
+   fonts after it in .card are tried. */
+@font-face {
+  font-family: "zhread MoE Kai";
+  src: url("_edukai.ttf");
+}
 /* As the note type before zhread had it: Arial first, so that Latin text
    (pinyin, English) is in it and only the characters, which Arial lacks,
-   fall through to the Ministry of Education's standard Kai. Characters
-   that font lacks, simplified ones in a traditional definition say, fall
-   through again to the serif the simplified text uses, rather than to
+   fall through to a Kai: the MoE's, installed on this machine or added to
+   the media folder; else one the system has, 標楷體 on Windows (DFKai-SB)
+   or macOS (BiauKai, BiauKaiTC), macOS's Kaiti TC once downloaded in Font
+   Book, Linux's AR PL UKai TW. Characters a Kai lacks, simplified ones in
+   a traditional definition say, and everything on a machine with no Kai,
+   fall through to the serif the simplified text uses, rather than to
    whatever sans the system substitutes for the generic serif. Sizes are
    the old note type's too (40px, the prompt 60px, the word 80px). */
 .card {
-  font-family: arial, "TW-MOE-Std-Kai", "Source Han Serif CN",
-    "Source Han Serif SC", "Noto Serif CJK SC", serif;
+  font-family: arial, "TW-MOE-Std-Kai", "zhread MoE Kai", "DFKai-SB",
+    "BiauKai", "BiauKaiTC", "Kaiti TC", "AR PL UKai TW",
+    "Source Han Serif CN", "Source Han Serif SC", "Noto Serif CJK SC",
+    serif;
   font-size: 40px;
   line-height: 1.5;
   text-align: left;

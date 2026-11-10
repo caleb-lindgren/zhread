@@ -67,6 +67,27 @@ To fix a card, edit it in the card file, not in Anki: the next import
 overwrites Anki's copy. Back the card file up; it's the record of everything
 you've carded.
 
+## Optional: the Kai font
+
+The cards set traditional characters in a Kai (楷書) font, the handwriting
+style taught in Taiwan's schools, when your system has one, as Windows has
+標楷體. Otherwise they use your system's usual Chinese font, which works just
+as well. For the Kai shown above, the Ministry of Education's standard Kai,
+add it to Anki once:
+
+1. Download and unzip
+   <https://language.moe.gov.tw/001/Upload/Files/site_content/M0001/edukai-5.0.zip>.
+2. Rename `edukai-5.0.ttf` to `_edukai.ttf` and copy it into Anki's media
+   folder, in your Anki profile's folder (`User 1` unless you renamed it):
+   - macOS: `~/Library/Application Support/Anki2/User 1/collection.media`
+   - Windows: `%APPDATA%\Anki2\User 1\collection.media`
+   - Linux: `~/.local/share/Anki2/User 1/collection.media`
+3. Sync, and AnkiMobile and AnkiDroid get the font too.
+
+The leading `_` tells Anki to keep the file even though no card links to it.
+The font is free to use and share unchanged (CC BY-ND 3.0 TW, from Taiwan's
+Ministry of Education).
+
 ## Keys
 
 | Key                 | Action                                      |
