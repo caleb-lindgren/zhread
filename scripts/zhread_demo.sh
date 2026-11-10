@@ -61,7 +61,7 @@ pause 2500
 
 # Card it, with the sense this context uses rather than the first.
 delay 700
-caption Enter makes a card of the word under the cursor
+caption Enter makes a card for the word under the cursor
 pause 1500
 keys <Enter>
 pause 1500
@@ -102,7 +102,14 @@ caption menu has the rest: undo, bookmarks, the keyboard shortcuts, quit
 click #-1 menu
 move 60 8
 pause 2500
-click #1 故鄉
-pause 800
+click #-1 menu
+pause 600
+
+# End as it began, the cursor on the first word and nothing carded, so
+# the GIF loops.
+caption none
+forget
+click #1 我
+pause 1200
 EOF
 echo "wrote $OUT"
