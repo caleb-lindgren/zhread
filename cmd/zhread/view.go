@@ -1331,9 +1331,9 @@ func (v *view) drawStatus() {
 	case prompt:
 		left = string(v.pchar) + string(v.input)
 	case visual:
-		left = "-- visual --  Enter: make a card  :>cmd: pipe it"
+		left = "-- VISUAL --  Enter: make a card  :>cmd: pipe it"
 	case vline:
-		left = "-- visual line --  Enter: make a card  :>cmd: pipe it"
+		left = "-- VISUAL LINE --  Enter: make a card  :>cmd: pipe it"
 	}
 	// The mode, words (詞) or single characters (字), first, which a
 	// click switches, as s does.
@@ -3098,12 +3098,12 @@ func (v *view) drawCard() {
 	}
 	// The mode, first: the list of definitions and contexts, or the
 	// editor on a context, in normal or insert mode.
-	mode := "-- list --"
+	mode := "-- LIST --"
 	switch {
 	case dr.editing && dr.curVi().insert:
-		mode = "-- insert --"
+		mode = "-- INSERT --"
 	case dr.editing:
-		mode = "-- normal --"
+		mode = "-- NORMAL --"
 	}
 	// At the right, buttons for the mouse, then the toggles that would
 	// change the card, as on the reader's rule. A question or warning

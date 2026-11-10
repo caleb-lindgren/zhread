@@ -1251,11 +1251,11 @@ func TestCardMode(t *testing.T) {
 		return strings.Fields(rows[len(rows)-1])[1]
 	}
 	for _, c := range []struct{ keys, want string }{
-		{"", "list"}, {"kk", "list"}, {"i", "normal"},
-		{"i", "insert"}, {"⎋", "normal"}, {"⎋", "list"},
-		{"ij", "list"}, {"jjjj", "list"}, {"i", "normal"},
-		{"i", "insert"}, {"⎋", "normal"}, {"k", "list"},
-		{"ji⎋", "list"},
+		{"", "LIST"}, {"kk", "LIST"}, {"i", "NORMAL"},
+		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"⎋", "LIST"},
+		{"ij", "LIST"}, {"jjjj", "LIST"}, {"i", "NORMAL"},
+		{"i", "INSERT"}, {"⎋", "NORMAL"}, {"k", "LIST"},
+		{"ji⎋", "LIST"},
 	} {
 		keys(v, c.keys)
 		if got := mode(); got != c.want {

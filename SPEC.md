@@ -247,7 +247,7 @@ The preview shows:
   types itself, starting insert mode before the cursor, so the editor can be
   typed in without knowing `i`. Esc in normal mode goes back to the list, as do
   `j` and `k`, which move on as well; Enter saves. The bottom line starts with
-  the mode: `-- list --`, `-- normal --` or `-- insert --`; after it come only
+  the mode: `-- LIST --`, `-- NORMAL --` or `-- INSERT --`; after it come only
   the card's questions and warnings, and at its right, as on the reader's rule,
   which of `x` (a ticked definition has quotations), `c` and `E` would change
   the card. `e` never would: the card lists the English definitions whatever it
