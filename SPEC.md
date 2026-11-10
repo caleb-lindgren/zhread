@@ -189,7 +189,8 @@ without `vi`, `i` starts the editor typing and Esc leaves it. Keys in neither,
 such as Enter, Space, Esc, `/`, `n` and the letters that toggle what is shown,
 always work, as do the arrows and vi's keys in the search prompt and the
 editor, where they edit text. Without `mouse`, zhread leaves the mouse to the
-terminal, which selects its text as usual, and shows no buttons.
+terminal, which selects its text as usual, and shows no buttons. The keys `gh`
+and F1 list, and the menu's, are only those of the ways left.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:

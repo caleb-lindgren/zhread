@@ -77,49 +77,41 @@ up a longer word.
 
 ## Keys and mouse
 
-`gh` or F1 lists every key, in the reader and in the card maker. Buttons, and
-anything else a click works on, have a green background.
+`gh` or F1 lists the keys, in the reader and in the card maker. Buttons have a
+green background.
 
 The arrows, vi's keys and the mouse all work by default. To use only some,
 start zhread with `-controls`: `-controls arrows,vi`, for one, leaves the mouse
 to the terminal, to select text as usual.
 
+Each table below gives an action's arrow key, vi key and mouse command; a —
+means there is none.
+
 ### Reading
 
-| Key                        | Action                                              |
-| -------------------------- | --------------------------------------------------- |
-| arrows, `h j k l`          | move (← → move by word)                             |
-| `w b`                      | next word, previous word                            |
-| PgUp PgDn, `^B ^F`         | page up, down (`^U ^D`: half a page)                |
-| Ctrl-Home Ctrl-End, `gg G` | start, end of the text                              |
-| `/ ?`, `n N`               | search forward, back; repeat                        |
-| `v V`, Shift-arrows        | select                                              |
-| Enter                      | make a card of the word or selection                |
-| `u`                        | undo the last card                                  |
-| `e`                        | show or hide English definitions                    |
-| `t`                        | show or hide Taiwan readings                        |
-| `s`                        | single characters instead of words; again for words |
-| `x`                        | show or hide quotations                             |
-| `c`, `E`                   | also show MoEDict, Wiktionary                       |
-| `J K`, Alt-PgDn Alt-PgUp   | scroll the definitions                              |
-| Tab, Shift-Tab             | look up words inside a definition; back out         |
-| `m`, `'`                   | bookmark this line; go to the bookmark              |
-| `gh`, F1                   | list every key                                      |
-| `q`                        | quit                                                |
-
-| Mouse                                              | Action                                    |
-| -------------------------------------------------- | ----------------------------------------- |
-| click                                              | move the cursor there                     |
-| double-click a word                                | make a card of it                         |
-| drag                                               | select                                    |
-| wheel                                              | scroll the text                           |
-| wheel over the definitions                         | scroll them                               |
-| click in a definition                              | look up words inside it, as Tab does      |
-| click a key on the definitions' rule (`x c e E t`) | that key                                  |
-| click 詞 or 字 in the status line                    | words or single characters, as `s`        |
-| click a hint, as "Enter: make a card"              | that key                                  |
-| click undo, after saving a card                    | undo the card, as `u`                     |
-| click menu, at the right of the status line        | undo, bookmarks, keyboard shortcuts, quit |
+| Action                                              | Arrows             | vi                             | Mouse                                           |
+| --------------------------------------------------- | ------------------ | ------------------------------ | ----------------------------------------------- |
+| move by word                                        | ← →                | `w b`                          | click                                           |
+| move by character                                   | Ctrl-← Ctrl-→      | `h l`                          | click                                           |
+| move by line                                        | ↑ ↓                | `j k`                          | click                                           |
+| move by paragraph                                   | Ctrl-↑ Ctrl-↓      | —                              | click                                           |
+| page down, up                                       | PgDn PgUp          | `^F ^B` (`^D ^U`: half a page) | wheel                                           |
+| start, end of the text                              | Ctrl-Home Ctrl-End | `gg G`                         | —                                               |
+| search forward, back; repeat                        | `/ ?`, `n N`       | `/ ?`, `n N`                   | —                                               |
+| select                                              | Shift-arrows       | `v V`                          | drag                                            |
+| end a selection                                     | Esc                | Esc                            | click                                           |
+| make a card of the word or selection                | Enter              | Enter                          | double-click a word; click "Enter: make a card" |
+| undo the last card                                  | `u`                | `u`                            | click undo, after saving; or menu               |
+| show or hide English definitions                    | `e`                | `e`                            | click `e` on the definitions' rule              |
+| show or hide Taiwan readings                        | `t`                | `t`                            | click `t` on the rule                           |
+| show or hide quotations                             | `x`                | `x`                            | click `x` on the rule                           |
+| also show MoEDict, Wiktionary                       | `c`, `E`           | `c`, `E`                       | click `c`, `E` on the rule                      |
+| single characters instead of words; again for words | `s`                | `s`                            | click 詞 or 字 in the status line                 |
+| scroll the definitions                              | Alt-PgDn Alt-PgUp  | `J K`                          | wheel over them                                 |
+| look up words inside a definition; back out         | Tab, Shift-Tab     | Tab, Shift-Tab                 | click in it; click the text above               |
+| bookmark this line; go to the bookmark              | `m`, `'`           | `m`, `'`                       | menu                                            |
+| list every key                                      | F1                 | `gh`                           | menu                                            |
+| quit                                                | `q`                | `q`                            | menu                                            |
 
 In macOS's Terminal, tick "Use Option as Meta key" (Settings > Profiles >
 Keyboard) so that Option-arrows work.
@@ -130,27 +122,20 @@ The card maker lists the context, then the definitions; tick the ones the card
 should have. To edit the context, press `i` on it and type: the arrows, Home,
 End, Backspace and Delete work as in any editor, and vi's keys work too.
 
-| Key                    | Action                                                    |
-| ---------------------- | --------------------------------------------------------- |
-| `j k`, ↑ ↓             | move through the context and definitions (PgUp PgDn: ten) |
-| Space                  | tick or untick a definition or context                    |
-| `[ ]`, Shift-← Shift-→ | move the context's start a clause left, right             |
-| `{ }`, Alt-← Alt-→     | move the context's end a clause left, right               |
-| `i`                    | edit the context; Esc until back in the list              |
-| Enter                  | save the card                                             |
-| `u`                    | add this context to the word's existing card instead      |
-| `n`                    | skip to the next word of a selected phrase                |
-| `x`, `c`, `E`          | show or hide quotations, MoEDict, Wiktionary              |
-| Esc                    | cancel                                                    |
-
-| Mouse                     | Action                                                   |
-| ------------------------- | -------------------------------------------------------- |
-| click a line              | move to that context or definition                       |
-| click `[ ]`               | tick or untick it                                        |
-| click `<start` `start>`   | move the context's start a clause left, right            |
-| click `<end` `end>`       | move the context's end a clause left, right              |
-| click Save, Cancel        | save the card; cancel it, asking first if you changed it |
-| click a hint, as "y: yes" | answer a question                                        |
+| Action                                        | Arrows                          | vi                              | Mouse                                               |
+| --------------------------------------------- | ------------------------------- | ------------------------------- | --------------------------------------------------- |
+| move through the context and definitions      | ↑ ↓ (PgUp PgDn: ten)            | `j k`                           | click a line                                        |
+| tick or untick a definition or context        | Space                           | Space                           | click its `[ ]`                                     |
+| move the context's start a clause left, right | Shift-← Shift-→                 | `[ ]`                           | click `<start` `start>`                             |
+| move the context's end a clause left, right   | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |
+| edit the context                              | `i`; Esc until back in the list | `i`; Esc until back in the list | —                                                   |
+| save the card                                 | Enter                           | Enter                           | click Save                                          |
+| edit the word's existing card instead         | `u`                             | `u`                             | click "u: edit it" when shown                       |
+| skip to the next word of a selected phrase    | `n`                             | `n`                             | —                                                   |
+| show or hide quotations, MoEDict, Wiktionary  | `x`, `c`, `E`                   | `x`, `c`, `E`                   | click `x c E` at the bottom right                   |
+| cancel                                        | Esc                             | Esc                             | click Cancel; it asks first if you changed the card |
+| answer a question                             | its key                         | its key                         | click the answer, as "y: yes"                       |
+| list every key                                | F1                              | `gh`                            | —                                                   |
 
 ## Reader options
 

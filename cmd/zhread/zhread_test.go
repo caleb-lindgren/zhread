@@ -310,7 +310,8 @@ func TestPane(t *testing.T) {
 		t.Errorf("English not shown after e")
 	}
 	keys(v, "gh")
-	if !onScreen(s, "pipe the selection") || onScreen(s, "enterprise") {
+	if !onScreen(s, "character left, line down") ||
+		onScreen(s, "enterprise") {
 		t.Errorf("gh does not show the keys:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -1938,8 +1939,31 @@ func TestControls(t *testing.T) {
 		t.Errorf("詞 is not green as a button")
 	}
 
+	// The keys gh lists are those of the ways left.
+	help := func(v *view, h []helpKey) string {
+		var b strings.Builder
+		for _, l := range v.keyLines(h) {
+			b.WriteString(string(l.text) + "\n")
+		}
+		return b.String()
+	}
+	if h := help(v, keyHelp); strings.Contains(h, "PgUp") ||
+		strings.Contains(h, "F1") || !strings.Contains(h, "gh") ||
+		!strings.Contains(h, "J K ") {
+		t.Errorf("gh without the arrows lists:\n%s", h)
+	}
+	v.noArrows, v.noVi = false, true
+	if h := help(v, cardKeyHelp); strings.Contains(h, "[ ] { }") ||
+		strings.Contains(h, "dd cc") || !strings.Contains(h, "S-←") ||
+		!strings.Contains(h, "type themselves") {
+		t.Errorf("the card's keys without vi's list:\n%s", h)
+	}
+
 	v, s = newTestView(t, book)
 	v.noMouse = true
+	if h := help(v, keyHelp); strings.Contains(h, "double-click") {
+		t.Errorf("gh without the mouse lists:\n%s", h)
+	}
 	keys(v, "/企业⏎⏎⏎")
 	if x, _ := find(s, "menu"); x >= 0 {
 		t.Errorf("a menu button without the mouse")

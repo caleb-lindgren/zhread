@@ -764,7 +764,7 @@ func width(ps []piece) int {
 func (v *view) pane() []styled {
 	v.marks = ""
 	if v.help {
-		return helpLines()
+		return v.helpLines()
 	}
 	word, p := v.lookup()
 	if word == "" {
@@ -1093,82 +1093,132 @@ func (v *view) reading(py string) string {
 	return zhdict.Preferred(py)
 }
 
+// helpKey is a line of the keys gh shows: its keys, what they do, and
+// which of -controls' ways of working they belong to. With no ways the
+// line is always shown. Otherwise the keys are one alternative per way,
+// separated by |, each shown while its way is on: a for the arrows, v for
+// vi's keys, m for the mouse, and V for without vi's keys. Keys "" make
+// the text a heading.
+type helpKey struct{ keys, does, ways string }
+
 // keyHelp is what gh shows in the pane.
-var keyHelp = [][2]string{
-	{"h j k l", "character left, line down, line up, right"},
-	{"w b", "next word, previous word"},
-	{"0 $  g0 g$", "start, end of the line; of the screen row"},
-	{"gj gk", "screen row down, up"},
-	{"gg G", "first line, last line (or line N with a count)"},
-	{"^D ^U ^F ^B", "half page down, up; page down, up"},
-	{"/ ?  n N", "search forward, back (a Go regexp); repeat"},
-	{"* #", "search for the word under the cursor"},
-	{"v V", "select by character, by line"},
-	{"Enter", "make a card of the word, or of the selection"},
-	{"u", "undo the last card made or updated (asks first)"},
-	{":>cmd", "in v or V: pipe the selection to a shell command"},
-	{"m '", "bookmark this line, go to the bookmark"},
-	{"e", "hide or show English definitions"},
-	{"x", "show or hide quotations (on cards too)"},
-	{"c", "show or hide MoEDict beside 兩岸詞典"},
-	{"E", "show or hide Wiktionary beside CC-CEDICT"},
-	{"t", "show or hide the other reading (Taiwan)"},
-	{"s", "single characters, not words; s again for words"},
-	{"J K", "scroll the definitions down, up"},
-	{"M-PgDn M-PgUp", "the same"},
-	{"Tab S-Tab", "move into the definitions; back up"},
-	{"gh F1", "show this help"},
-	{"Esc", "hide it; end a selection; back to the book"},
-	{"q", "quit"},
-	{"← →  ^← ^→", "word back, forward; character left, right"},
-	{"↑ ↓  ^↑ ^↓", "screen row up, down; paragraph back, forward"},
-	{"Home End", "start, end of the screen row; with ^, of the text"},
-	{"PgUp PgDn", "page up, down"},
-	{"Shift-", "with any of the last four: select as it moves"},
-	{"M-", "Alt (Option) as Ctrl with the arrows; M-f M-b words"},
-	{"click wheel", "move the cursor there; scroll the text"},
-	{"double-click", "make a card of the word"},
-	{"wheel on pane", "scroll the definitions"},
-	{"drag", "select from where the button was pressed"},
-	{"click a key", "on the rule or status line: that key"},
+var keyHelp = []helpKey{
+	{"h j k l", "character left, line down, line up, right", "v"},
+	{"w b", "next word, previous word", "v"},
+	{"0 $  g0 g$", "start, end of the line; of the screen row", "v"},
+	{"gj gk", "screen row down, up", "v"},
+	{"gg G", "first line, last line (or line N with a count)", "v"},
+	{"^D ^U ^F ^B", "half page down, up; page down, up", "v"},
+	{"← →  ^← ^→", "word back, forward; character left, right", "a"},
+	{"↑ ↓  ^↑ ^↓", "screen row up, down; paragraph back, forward", "a"},
+	{"Home End", "start, end of the screen row; with ^, of the text",
+		"a"},
+	{"PgUp PgDn", "page up, down", "a"},
+	{"M-", "Alt (Option) as Ctrl with the arrows; M-f M-b words",
+		"a"},
+	{"/ ?  n N", "search forward, back (a Go regexp); repeat", ""},
+	{"* #", "search for the word under the cursor", "v"},
+	{"v V", "select by character, by line", "v"},
+	{"Shift-", "with an arrow, Home, End, PgUp or PgDn: select", "a"},
+	{"Enter", "make a card of the word, or of the selection", ""},
+	{"u", "undo the last card made or updated (asks first)", ""},
+	{":>cmd", "in a selection: pipe it to a shell command", ""},
+	{"m '", "bookmark this line, go to the bookmark", ""},
+	{"e", "hide or show English definitions", ""},
+	{"x", "show or hide quotations (on cards too)", ""},
+	{"c", "show or hide MoEDict beside 兩岸詞典", ""},
+	{"E", "show or hide Wiktionary beside CC-CEDICT", ""},
+	{"t", "show or hide the other reading (Taiwan)", ""},
+	{"s", "single characters, not words; s again for words", ""},
+	{"J K", "scroll the definitions down, up", "v"},
+	{"M-PgDn M-PgUp", "scroll the definitions down, up", "a"},
+	{"Tab S-Tab", "move into the definitions; back up", ""},
+	{"gh|F1", "show this help", "va"},
+	{"Esc", "hide it; end a selection; back to the book", ""},
+	{"q", "quit", ""},
+	{"click wheel", "move the cursor there; scroll the text", "m"},
+	{"double-click", "make a card of the word", "m"},
+	{"drag", "select from where the button was pressed", "m"},
+	{"click in pane", "move into the definitions, as Tab", "m"},
+	{"wheel on pane", "scroll the definitions", "m"},
+	{"green", "a button: a click is its key", "m"},
+	{"menu", "undo, bookmarks, this help, quit", "m"},
 }
 
 // cardKeyHelp is what gh shows below a card.
-var cardKeyHelp = [][2]string{
-	{"j k ↑ ↓", "move over the contexts and definitions"},
-	{"PgDn PgUp", "the same, ten at a time"},
-	{"space", "tick the definition or context, or untick it"},
-	{"[ ] { }", "move the context's left edge, right edge"},
-	{"S-← S-→", "the same as [ ]; M-← M-→ or ^← ^→ as { }"},
-	{"i", "edit the context under the cursor"},
-	{"Enter y", "save the card (again if already carded)"},
-	{"u", "edit the word's card instead (1-9: which)"},
-	{"< >", "move the context up, down the card's order"},
-	{"n", "skip to the selection's next card"},
-	{"Esc q", "cancel the card and those after it"},
-	{"Esc Esc", "the same, asking first if it is edited"},
-	{"click", "go to the line; on its [ ], tick or untick it"},
-	{"x", "show or hide quotations (on the card too)"},
-	{"c", "show or hide MoEDict beside 兩岸詞典"},
-	{"E", "show or hide Wiktionary beside CC-CEDICT"},
-	{"J K", "scroll these keys down, up"},
-	{"gh F1", "show or hide these keys; Esc hides them"},
-	{"", "In the editor on a context:"},
-	{"h l w b e", "move by character, by word"},
-	{"0 ^ $", "move to the start, first character, end"},
-	{"i a I A", "insert before, after; at the start, end"},
-	{"x X r s", "delete, delete back, replace, substitute"},
-	{"d c D C", "delete, change over a motion; to the end"},
-	{"dd cc u", "delete, change it all; undo"},
-	{"Esc j k", "out of insert mode; back to the list"},
-	{"other keys", "type themselves, starting insert mode"},
-	{"Bksp Del", "delete back, delete"},
+var cardKeyHelp = []helpKey{
+	{"j k|↑ ↓", "move over the contexts and definitions", "va"},
+	{"PgDn PgUp", "the same, ten at a time", "a"},
+	{"space", "tick the definition or context, or untick it", ""},
+	{"[ ] { }", "move the context's left edge, right edge", "v"},
+	{"S-← S-→", "move the context's left edge", "a"},
+	{"M-← M-→ ^← ^→", "move the context's right edge", "a"},
+	{"i", "edit the context under the cursor", ""},
+	{"Enter y", "save the card (again if already carded)", ""},
+	{"u", "edit the word's card instead (1-9: which)", ""},
+	{"< >", "move the context up, down the card's order", ""},
+	{"n", "skip to the selection's next card", ""},
+	{"Esc q", "cancel the card and those after it", ""},
+	{"Esc Esc", "the same, asking first if it is edited", ""},
+	{"x", "show or hide quotations (on the card too)", ""},
+	{"c", "show or hide MoEDict beside 兩岸詞典", ""},
+	{"E", "show or hide Wiktionary beside CC-CEDICT", ""},
+	{"J K", "scroll these keys down, up", "v"},
+	{"gh|F1", "show or hide these keys; Esc hides them", "va"},
+	{"click", "go to the line; on its [ ], tick or untick it", "m"},
+	{"green", "a button: a click is its key", "m"},
+	{"", "In the editor on a context:", ""},
+	{"h l w b e", "move by character, by word", "v"},
+	{"0 ^ $", "move to the start, first character, end", "v"},
+	{"i a I A", "insert before, after; at the start, end", "v"},
+	{"x X r s", "delete, delete back, replace, substitute", "v"},
+	{"d c D C", "delete, change over a motion; to the end", "v"},
+	{"dd cc u", "delete, change it all; undo", "v"},
+	{"Esc j k", "out of insert mode; back to the list", "v"},
+	{"other keys", "type themselves, starting insert mode", "v"},
+	{"keys", "type themselves", "V"},
+	{"← → Home End", "move", ""},
+	{"Bksp Del", "delete back, delete", ""},
+	{"Esc", "back to the list", "V"},
 }
 
-func helpLines() []styled { return keyLines(keyHelp) }
+func (v *view) helpLines() []styled { return v.keyLines(keyHelp) }
 
-// keyLines lists keys and what they do, as gh shows them.
-func keyLines(keys [][2]string) []styled {
+// on reports whether -controls leaves way w: a, v, m or V, as in helpKey.
+func (v *view) on(w byte) bool {
+	switch w {
+	case 'a':
+		return !v.noArrows
+	case 'v':
+		return !v.noVi
+	case 'm':
+		return !v.noMouse
+	case 'V':
+		return v.noVi
+	}
+	return true
+}
+
+// keyLines lists keys and what they do, as gh shows them, leaving out
+// those of the ways of working -controls leaves out.
+func (v *view) keyLines(help []helpKey) []styled {
+	var keys [][2]string
+	for _, k := range help {
+		if k.ways == "" {
+			keys = append(keys, [2]string{k.keys, k.does})
+			continue
+		}
+		var shown []string
+		for i, alt := range strings.Split(k.keys, "|") {
+			if v.on(k.ways[i]) {
+				shown = append(shown, alt)
+			}
+		}
+		if len(shown) > 0 {
+			alts := strings.Join(shown, "  ")
+			keys = append(keys, [2]string{alts, k.does})
+		}
+	}
 	w := 12
 	for _, k := range keys {
 		w = max(w, zhdict.Width(k[0])+1)
@@ -2835,7 +2885,7 @@ func (v *view) drawCard() {
 	var keys []styled
 	ph := 0
 	if v.chelp && v.h >= 6 {
-		keys = keyLines(cardKeyHelp)
+		keys = v.keyLines(cardKeyHelp)
 		ph = min(v.need(keys), max(v.h-9, v.h/2))
 		maxY -= ph
 	}
