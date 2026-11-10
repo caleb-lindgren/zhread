@@ -1,8 +1,8 @@
 # zhread
 
-An integrated reader, dictionary, and Anki card context miner for Chinese text
-files. Anki cards created by zhread include the sentence context the word came
-from.
+An integrated reader, dictionary, and Anki sentence miner for Chinese text
+files. Definitions are shown as you read, and if you select a word and make an
+Anki card, the card includes the sentence it came from.
 
 ![zhread reading Lu Xun's 故鄉 and carding 禁不住](demo/reader.gif)
 
