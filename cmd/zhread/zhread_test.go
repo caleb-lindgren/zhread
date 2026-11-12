@@ -464,7 +464,7 @@ func TestMakeCard(t *testing.T) {
 	// The same word again is a duplicate: the first Enter warns, offering
 	// to add to the card instead, the second saves.
 	keys(v, "/头发⏎vl⏎⏎")
-	if v.mode != card || !onScreen(s, "u: edit") {
+	if v.mode != card || !onScreen(s, "e: edit") {
 		t.Fatalf("no duplicate warning:\n%s",
 			strings.Join(screen(s), "\n"))
 	}
@@ -496,7 +496,7 @@ func TestUpdateCard(t *testing.T) {
 	if err := v.rec.update(guid, func([]string) {}); err != nil {
 		t.Fatal(err)
 	}
-	keys(v, "gg/头发⏎n⏎u")
+	keys(v, "gg/头发⏎n⏎e")
 	dr := v.dr
 	if v.mode != card || dr.guid != guid ||
 		!onScreen(s, "edit card: 頭髮") {
@@ -1124,7 +1124,7 @@ func TestEnglishOnly(t *testing.T) {
 
 // TestOtherContexts checks that a new card carries only the context it
 // was made from, and that each card made for the same word after it that
-// is added to it with u adds its context, keeping those before, so the
+// is added to it with e adds its context, keeping those before, so the
 // card's contexts grow by one each time.
 func TestOtherContexts(t *testing.T) {
 	v, _ := newTestView(t, "他散发传单给路人。\n\n"+
@@ -1153,9 +1153,9 @@ func TestOtherContexts(t *testing.T) {
 		if v.mode != card || !v.dr.saving {
 			t.Fatalf("no duplicate warning at place %d", n)
 		}
-		keys(v, "u")
+		keys(v, "e")
 		if v.dr.guid != guid {
-			t.Fatalf("u did not open the card")
+			t.Fatalf("e did not open the card")
 		}
 		keys(v, "⏎")
 		if v.mode != normal || len(v.rec.cards) != 1 ||
@@ -1187,7 +1187,7 @@ func TestOtherContexts(t *testing.T) {
 
 	// The edges and the editor work on the context under the cursor,
 	// and the other script follows an edit of the text's own.
-	keys(v, "gg/散发⏎⏎⏎u")
+	keys(v, "gg/散发⏎⏎⏎e")
 	dr = v.dr
 	if len(dr.others) != 2 || !dr.osel[0] || !dr.osel[1] {
 		t.Fatalf("others %d %v", len(dr.others), dr.osel)
@@ -1305,9 +1305,9 @@ func TestDiscard(t *testing.T) {
 func TestCardMode(t *testing.T) {
 	v, s := newTestView(t, "他散发传单给路人。\n\n"+
 		"她身上散发香味，又散发热气。\n")
-	// the card made from the first, edited from the second with u, has
+	// the card made from the first, edited from the second with e, has
 	// the second's context below its definitions, for jjjj to reach
-	keys(v, "lvl⏎⏎gg/散发⏎n⏎u")
+	keys(v, "lvl⏎⏎gg/散发⏎n⏎e")
 	mode := func() string {
 		rows := screen(s)
 		return strings.Fields(rows[len(rows)-1])[1]
@@ -1823,6 +1823,52 @@ func TestCardScroll(t *testing.T) {
 	}
 }
 
+// TestCardListKeys checks the card maker's keys that follow the reader's:
+// counts, gg and G (with a count, a line), Home and End, and t, which
+// shows the other reading on the card's definitions as on the reader's.
+func TestCardListKeys(t *testing.T) {
+	v, _ := newTestView(t, "他打了我。\n")
+	keys(v, "/打⏎⏎")
+	dr := v.dr
+	top, last := -len(dr.ctxLines(dr.forms(v.conv))), dr.rows()-1
+	for _, c := range []struct {
+		keys string
+		want int
+	}{
+		{"gg", top}, {"3j", top + 3}, {"2k", top + 1}, {"G", last},
+		{"12k", last - 12}, {"gg", top}, {"5G", top + 4},
+		{"3gg", top + 2}, {"999j", last},
+	} {
+		keys(v, c.keys)
+		if dr.cur != c.want {
+			t.Errorf("after %q: cursor %d, want %d", c.keys,
+				dr.cur, c.want)
+		}
+	}
+	special(v, tcell.KeyHome, tcell.ModNone)
+	if dr.cur != top {
+		t.Errorf("Home: cursor %d, want %d", dr.cur, top)
+	}
+	special(v, tcell.KeyEnd, tcell.ModNone)
+	if dr.cur != last {
+		t.Errorf("End: cursor %d, want %d", dr.cur, last)
+	}
+
+	// 垃圾 is lājī, and lèsè in Taiwan
+	v, s := newTestView(t, "他倒垃圾。\n")
+	keys(v, "/垃圾⏎⏎")
+	if v.showTW || !strings.HasSuffix(v.cardToggles(), "t") ||
+		onScreen(s, "TW") {
+		t.Fatalf("before t: toggles %q\n%s", v.cardToggles(),
+			strings.Join(screen(s), "\n"))
+	}
+	keys(v, "t")
+	if !v.showTW || !onScreen(s, "TW") {
+		t.Errorf("t: shown %v\n%s", v.showTW,
+			strings.Join(screen(s), "\n"))
+	}
+}
+
 // TestManyContexts checks that the preview stays quick with thousands of
 // other contexts on a card, the cursor at the last of them.
 func TestManyContexts(t *testing.T) {
@@ -1904,7 +1950,7 @@ func TestUndoCard(t *testing.T) {
 	}
 	guid := v.rec.cards[0].guid
 	before, _ := v.rec.row(guid)
-	keys(v, "gg/散发⏎n⏎⏎u⏎")
+	keys(v, "gg/散发⏎n⏎⏎e⏎")
 	if after, _ := v.rec.row(guid); after[12] == "" {
 		t.Fatalf("the update added no context")
 	}

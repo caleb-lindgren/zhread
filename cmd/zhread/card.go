@@ -282,9 +282,10 @@ type draft struct {
 	// cursor moves into view rather than they to the cursor.
 	shown int
 	wheel bool
+	count int // the count typed so far, as 3 of 3j
 	dups  []carded
-	// exact are the dups for the word itself, which u adds the card to
-	// instead of saving it as a new one; which is set while u asks
+	// exact are the dups for the word itself, which e adds the card to
+	// instead of saving it as a new one; which is set while e asks
 	// which of several.
 	exact  []carded
 	which  bool

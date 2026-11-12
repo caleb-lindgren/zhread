@@ -417,7 +417,7 @@ func (v *view) menuItems() []menuItem {
 			}
 		}
 		if len(dr.exact) > 0 {
-			add("edit the word's card instead", "u")
+			add("edit the word's card instead", "e")
 		}
 		if len(v.queue) > 0 {
 			add("skip to the next word", "n")
@@ -558,14 +558,15 @@ func isViKey(ev *tcell.EventKey) bool {
 }
 
 // isCardViKey is isViKey in the card maker's list: j k, ^D ^U ^F ^B, the
-// edges' [ ] { }, g for gh, and J K, which scroll its keys.
+// edges' [ ] { }, g for gg and gh, G, counts, and J K, which scroll its
+// keys.
 func isCardViKey(ev *tcell.EventKey) bool {
 	switch ev.Key() {
 	case tcell.KeyCtrlB, tcell.KeyCtrlF, tcell.KeyCtrlU, tcell.KeyCtrlD:
 		return true
 	}
 	return ev.Key() == tcell.KeyRune &&
-		strings.ContainsRune("jk[]{}gJK", ev.Rune())
+		strings.ContainsRune("jk[]{}gGJK0123456789", ev.Rune())
 }
 
 // downUp reads ev as a move down or up a list, the menu's or the divide
@@ -970,15 +971,17 @@ func marks(x, c, e, E bool) string {
 	return strings.Join(out, " ")
 }
 
-// cardToggles are those of x, c and E that would change the card: x when
-// a definition ticked has quotations, c when MoEDict has a definition
-// beside 兩岸詞典, and E when Wiktionary has one beside CC-CEDICT. e is
-// never one, as the card lists its English definitions whatever e says.
+// cardToggles are those of x, c, E and t that would change the card: x
+// when a definition ticked has quotations, c when MoEDict has a definition
+// beside 兩岸詞典, E when Wiktionary has one beside CC-CEDICT, and t when a
+// definition has the other side's reading. e is never one, as the card
+// lists its English definitions whatever e says.
 func (v *view) cardToggles() string {
 	dr := v.dr
-	var x, c, E bool
+	var x, c, E, t bool
 	for i, o := range dr.opts {
 		x = x || dr.sel[i] && len(o.s.Cites) > 0
+		t = t || zhdict.Preferred(o.py) != o.py
 	}
 	for i := range dr.g.Rows {
 		if dr.g.Extra[i] && i < dr.g.Zh {
@@ -987,7 +990,7 @@ func (v *view) cardToggles() string {
 			E = true
 		}
 	}
-	return marks(x, c, false, E)
+	return strings.TrimSpace(marks(x, c, false, E) + tMark(t))
 }
 
 // shows reports whether row i of g is shown: a fallback dictionary's
@@ -1211,6 +1214,8 @@ var keyHelp = []helpKey{
 // cardKeyHelp is what gh shows below a card.
 var cardKeyHelp = []helpKey{
 	{"j k|↑ ↓", "move over the contexts and definitions", "va"},
+	{"gg G", "first line, last line (or line N with a count)", "v"},
+	{"Home End", "first line, last line", "a"},
 	{"PgDn PgUp", "page down, up", "a"},
 	{"^D ^U ^F ^B", "half page down, up; page down, up", "v"},
 	{"space", "tick the definition or context, or untick it", ""},
@@ -1219,7 +1224,7 @@ var cardKeyHelp = []helpKey{
 	{"M-← M-→ ^← ^→", "move the context's right edge", "a"},
 	{"i", "edit the context under the cursor", ""},
 	{"Enter y", "save the card (again if already carded)", ""},
-	{"u", "edit the word's card instead (1-9: which)", ""},
+	{"e", "edit the word's card instead (1-9: which)", ""},
 	{"< >", "move the context up, down the card's order", ""},
 	{"n", "skip to the selection's next card", ""},
 	{"Esc q", "cancel the card and those after it", ""},
@@ -1227,6 +1232,7 @@ var cardKeyHelp = []helpKey{
 	{"x", "show or hide quotations (on the card too)", ""},
 	{"c", "show or hide MoEDict beside 兩岸詞典", ""},
 	{"E", "show or hide Wiktionary beside CC-CEDICT", ""},
+	{"t", "show or hide the other reading (on the card too)", ""},
 	{"J K", "scroll these keys down, up", "v"},
 	{"M-PgDn M-PgUp", "scroll these keys down, up", "a"},
 	{"gh|F1", "show or hide these keys; Esc hides them", "va"},
@@ -1746,6 +1752,7 @@ var hintKeys = map[string]*tcell.EventKey{
 	"Esc":           tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone),
 	"y":             runeKey('y'),
 	"u":             runeKey('u'),
+	"e":             runeKey('e'),
 	"any other key": runeKey('n'),
 }
 
@@ -2834,14 +2841,30 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	free := !dr.editing || !cv.insert && cv.pend == 0
 	g := dr.gPend
 	dr.gPend = false
+	// A count, as in the reader, before a move: 3j, 2]; before gg or G,
+	// the line to go to, counted from the card's own context.
+	count := dr.count
+	dr.count = 0
 	switch {
 	case ev.Key() == tcell.KeyF1 || g && r == 'h':
 		v.chelp, v.cscroll, dr.esc = !v.chelp, 0, false
 		return
+	case g && r == 'g':
+		dr.editing = false
+		dr.cur = -len(lines)
+		if count > 0 {
+			dr.cur = max(min(count-1-len(lines), dr.rows()-1),
+				-len(lines))
+		}
+		return
 	case g: // g and any other key does nothing
 		return
 	case r == 'g' && free:
-		dr.gPend = true
+		dr.gPend, dr.count = true, count
+		return
+	case !dr.editing && !dr.which && !v.noVi &&
+		(r >= '1' && r <= '9' || r == '0' && count > 0):
+		dr.count = count*10 + int(r-'0')
 		return
 	case esc && v.chelp && !dr.editing:
 		v.chelp, dr.esc = false, false
@@ -2878,8 +2901,9 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			dr.warn = ""
 			return
 		}
-		if r == 'j' || r == 'k' || ev.Key() == tcell.KeyDown ||
-			ev.Key() == tcell.KeyUp || cardPage(ev) != 0 {
+		if r == 'j' || r == 'k' || r == 'G' ||
+			ev.Key() == tcell.KeyDown || ev.Key() == tcell.KeyUp ||
+			cardPage(ev) != 0 {
 			dr.editing = false
 		}
 	}
@@ -2891,8 +2915,9 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 		return
 	}
+	n := max(count, 1)
 	switch {
-	case r == 'u' && len(dr.exact) > 0:
+	case r == 'e' && len(dr.exact) > 0:
 		if len(dr.exact) == 1 {
 			v.edit(dr.exact[0])
 		} else {
@@ -2938,13 +2963,17 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		v.undoBtn = err == nil
 		v.nextCard()
 	case strings.ContainsRune("[]{}", r) && r != 0 && o != nil:
-		o.span.move(r)
+		for range n {
+			o.span.move(r)
+		}
 		dr.changed = true
 		o.ed, o.vi = [2]*edited{}, vi{}
 		o.refresh(v.conv)
 	case strings.ContainsRune("[]{}", r) && r != 0:
 		// The edges move over the text as it was, so they undo edits.
-		dr.span.move(r)
+		for range n {
+			dr.span.move(r)
+		}
 		dr.changed = true
 		dr.ed, dr.vi = [2]*edited{}, vi{}
 		dr.saving = false
@@ -2956,21 +2985,31 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			dr.vi.insert = v.noVi
 		}
 	case (r == '<' || r == '>') && o != nil:
-		dr.moveOther(r == '>')
+		for range n {
+			dr.moveOther(r == '>')
+		}
 	case cardPage(ev) != 0:
 		// a page, as many options as are shown, or half of one; the
 		// options scroll as far as the cursor moves, as the text does
 		p := cardPage(ev)
-		n := max(dr.shown, 1) * p / 2
-		if n == 0 {
-			n = p // half a page of one option
+		d := max(dr.shown, 1) * p / 2
+		if d == 0 {
+			d = p // half a page of one option
 		}
-		dr.top = max(dr.top+n, 0)
-		dr.cur = max(min(dr.cur+n, dr.rows()-1), -len(lines))
+		dr.top = max(dr.top+n*d, 0)
+		dr.cur = max(min(dr.cur+n*d, dr.rows()-1), -len(lines))
 	case r == 'j' || ev.Key() == tcell.KeyDown:
-		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
+		dr.cur = max(min(dr.cur+n, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
-		dr.cur = max(dr.cur-1, -len(lines))
+		dr.cur = max(dr.cur-n, -len(lines))
+	case ev.Key() == tcell.KeyHome:
+		dr.cur = -len(lines)
+	case r == 'G' && count > 0:
+		dr.cur = max(min(count-1-len(lines), dr.rows()-1), -len(lines))
+	case r == 'G' || ev.Key() == tcell.KeyEnd:
+		dr.cur = max(dr.rows()-1, -1)
+	case r == 't':
+		v.showTW = !v.showTW
 	case r == ' ' && dr.cur >= 0 && dr.cur < dr.rows():
 		dr.tick(dr.cur)
 		dr.changed = true
@@ -3222,7 +3261,7 @@ func (v *view) drawCard() {
 		help, st = fmt.Sprintf("add to which card? 1-%d  "+
 			"any other key: none", len(dr.exact)), stWarn
 	case dr.saving && len(dr.exact) > 0:
-		help, st = "already carded. Enter: new card  u: edit it"+
+		help, st = "already carded. Enter: new card  e: edit it"+
 			"  Esc: cancel", stWarn
 	case dr.saving:
 		help, st = "already carded. Enter: save anyway  Esc: cancel",

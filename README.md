@@ -126,15 +126,17 @@ keys work too.
 | ---------------------------------------------- | ------------------------------- | ------------------------------- | --------------------------------------------------- |
 | move through the context and definitions       | ↑ ↓                             | `j k`                           | click a line                                        |
 | page down, up                                  | PgDn PgUp                       | `^F ^B` (`^D ^U`: half a page)  | wheel                                               |
+| first, last line                               | Home End                        | `gg G`                          | —                                                   |
 | tick or untick a definition or context         | Space                           | Space                           | click its `[ ]`                                     |
 | move the context's start a clause left, right  | Shift-← Shift-→                 | `[ ]`                           | click `<start` `start>`                             |
 | move the context's end a clause left, right    | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |
 | edit the context                               | `i`; Esc until back in the list | `i`; Esc until back in the list | double-click it; or menu                            |
 | move another context up, down the card's order | `< >`                           | `< >`                           | menu                                                |
 | save the card                                  | Enter                           | Enter                           | click save                                          |
-| edit the word's existing card instead          | `u`                             | `u`                             | click "u: edit it" when shown; or menu              |
+| edit the word's existing card instead          | `e`                             | `e`                             | click "e: edit it" when shown; or menu              |
 | skip to the next word of a selected phrase     | `n`                             | `n`                             | menu                                                |
 | show or hide quotations, MoEDict, Wiktionary   | `x`, `c`, `E`                   | `x`, `c`, `E`                   | click `x c E` at the bottom right                   |
+| show or hide Taiwan readings                   | `t`                             | `t`                             | click `t` at the bottom right                       |
 | cancel                                         | Esc                             | Esc                             | click cancel; it asks first if you changed the card |
 | answer a question                              | its key                         | its key                         | click the answer, as "y: yes"                       |
 | list every key                                 | F1                              | `gh`                            | menu                                                |

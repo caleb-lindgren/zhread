@@ -81,7 +81,7 @@ func ctxDraft(h, word string, trad bool) *draft {
 // for the same word: its definitions ticked as the card has them, any no
 // dictionary shown has kept as they are, its own context, then its other
 // contexts in their order, ticked, then last dr's context, ticked, unless
-// the card has it already. So each new card for a word that u adds to its
+// the card has it already. So each new card for a word that e adds to its
 // card instead adds one context to it, keeping those before. Every key of
 // the preview works on it as on a new card.
 func (v *view) editCard(dr *draft, k carded) error {

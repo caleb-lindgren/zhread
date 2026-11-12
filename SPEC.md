@@ -193,13 +193,13 @@ make a card", and in the card maker its buttons and toggles.
 `mouse`, comma-separated; all three by default. `arrows` are the arrows, Home,
 End, Page Up, Page Down and F1, with their modifiers, and Esc b and Esc f. `vi`
 are vi's motions and counts, `v V`, `J K`, `g` and the commands it begins, and
-in the card maker `j k`, `^D ^U ^F ^B`, `[ ] { }` and the editor's normal mode:
-without `vi`, `i` starts the editor typing and Esc leaves it. Keys in neither,
-such as Enter, Space, Esc, `/`, `n` and the letters that toggle what is shown,
-always work, as do the arrows and vi's keys in the search prompt and the
-editor, where they edit text. Without `mouse`, zhread leaves the mouse to the
-terminal, which selects its text as usual, and shows no buttons. The keys `gh`
-and F1 list, and the menu's, are only those of the ways left.
+in the card maker `j k`, `gg G`, counts, `^D ^U ^F ^B`, `[ ] { }` and the
+editor's normal mode: without `vi`, `i` starts the editor typing and Esc leaves
+it. Keys in neither, such as Enter, Space, Esc, `/`, `n` and the letters that
+toggle what is shown, always work, as do the arrows and vi's keys in the search
+prompt and the editor, where they edit text. Without `mouse`, zhread leaves the
+mouse to the terminal, which selects its text as usual, and shows no buttons.
+The keys `gh` and F1 list, and the menu's, are only those of the ways left.
 
 Counts work as in vi (`5j`, `3w`). `:>cmd` starts `cmd` with sh, the
 selected text on its standard input, and goes straight back to reading:
@@ -246,7 +246,7 @@ The preview shows:
   for a word A (看看, 看一看, 看了看), is marked and blanked whole rather than the word
   in its middle, though the card's word stays the one selected. A new card has
   this context alone; a card gets more only from later cards for the same word
-  added to it (see "Cards already made" below).  `k` from the first definition
+  added to it (see "Cards already made" below). `k` from the first definition
   goes up onto the context, in the list like the definitions. `i` starts vi's
   editor on it, in normal mode: `h l w b e 0 ^ $` move (a run of Chinese
   characters is one word, as in vi, so `dw` deletes to the next punctuation),
@@ -258,14 +258,16 @@ The preview shows:
   `j` and `k`, which move on as well; Enter saves. The bottom line starts with
   the mode: `-- LIST --`, `-- NORMAL --` or `-- INSERT --`; after it come only
   the card's questions and warnings, and at its right, as on the reader's rule,
-  which of `x` (a ticked definition has quotations), `c` and `E` would change
-  the card. `e` never would: the card lists the English definitions whatever it
-  says. The keys are listed instead by `gh` or F1, as in the reader, in a pane
-  below the card that `J` and `K`, Alt-PgDn and Alt-PgUp, and the wheel over
-  it scroll, as the reader's definitions. Esc in the list hides the keys before
-  it cancels. Editing the text's own script converts the other script's line
-  again, unless that line has been edited itself. The edge keys start again
-  from the text, undoing the edits.
+  which of `x` (a ticked definition has quotations), `c`, `E` and `t` (a
+  definition has the other side's reading) would change the card. The reader's
+  `e` never would, as the card lists the English definitions whatever it says;
+  here `e` edits the word's existing card instead (see below). The keys are
+  listed instead by `gh` or F1, as in the reader, in a pane below the card that
+  `J` and `K`, Alt-PgDn and Alt-PgUp, and the wheel over it scroll, as the
+  reader's definitions. Esc in the list hides the keys before it cancels.
+  Editing the text's own script converts the other script's line again, unless
+  that line has been edited itself. The edge keys start again from the text,
+  undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
@@ -274,24 +276,27 @@ The preview shows:
   cursor in view; PgDn and PgUp, `^F ^B`, and `^D ^U` move the cursor a page
   (as many options as are shown) or half of one and scroll the list as far; and
   the wheel scrolls the list under the cursor, which moves only to stay in
-  view. `j`/`k` move and Space ticks the ones that fit the context; the first
-  Chinese and first English are ticked to start with. `c` and `E` show or hide
-  MoEDict's and Wiktionary's definitions here too, keeping what is ticked. A
-  ticked sense's quotations go on the card if `x` is showing them when it is
-  saved, and are shown under it in the preview. The reading comes from the
-  first ticked one.
+  view. `j`/`k` move, with a count as in the reader (`3j`); `gg` and `G`, or
+  Home and End, go to the first line and the last, or with a count to line N
+  counted from the card's own context; and Space ticks the ones that fit the
+  context; the first Chinese and first English are ticked to start with. `c`
+  and `E` show or hide MoEDict's and Wiktionary's definitions here too, keeping
+  what is ticked. A ticked sense's quotations go on the card if `x` is showing
+  them when it is saved, and are shown under it in the preview. `t` shows or
+  hides the other side's reading, here and on the card, as in the reader. The
+  reading comes from the first ticked one.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are any,
   the first Enter does not save but asks again. For a card for the word itself,
   it offers the choice: a second Enter makes a new card, as for a sense the
-  cards so far do not have, and `u` adds this context to the existing card
-  instead. Cards for the word itself are numbered, and `u` (which works before
+  cards so far do not have, and `e` adds this context to the existing card
+  instead. Cards for the word itself are numbered, and `e` (which works before
   that first Enter too) asks which by number when there are several. It opens
   that card in the preview in place of the new one, filled in as the card has
   it: its definitions ticked (MoEDict's, Wiktionary's or the quotations shown
   if it has them, and any no dictionary has any more kept as they are, labeled
   "on the card"), its reading, Taiwan's too if it has that, and its own
-  context, then its other contexts in their order, then last the context `u`
+  context, then its other contexts in their order, then last the context `e`
   was pressed from, all ticked; a context the card has already is not added
   again. Everything works as for a new card: tick and untick definitions and
   contexts (an unticked context leaves the card), edit them with `i`, move
@@ -314,7 +319,7 @@ cancels, asking first when the card has been changed; a question or warning
 takes their room, and its answers, as "y: yes", are clicked instead. Last,
 where there is room, a menu button opens a menu of the actions that apply where
 the cursor is and have no button: edit this context (`i`), move it up or down
-(`< >`), edit the word's card instead (`u`), skip to the next word (`n`), and
+(`< >`), edit the word's card instead (`e`), skip to the next word (`n`), and
 show the keyboard shortcuts. In the reader, the keys the rule names (x c e E
 t), 詞 or 字 on the status line (s), and its hints in visual mode are clicked as
 those keys. Enter saves, Esc cancels. An Esc right after another, as from
