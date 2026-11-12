@@ -191,9 +191,9 @@ make a card", and in the card maker its buttons and toggles.
 
 `-controls` chooses the ways of working zhread, any of `arrows`, `vi` and
 `mouse`, comma-separated; all three by default. `arrows` are the arrows, Home,
-End, Page Up, Page Down and F1, with their modifiers, and Esc b and Esc f.
-`vi` are vi's motions and counts, `v V`, `J K`, `g` and the commands it
-begins, and in the card maker `j k`, `[ ] { }` and the editor's normal mode:
+End, Page Up, Page Down and F1, with their modifiers, and Esc b and Esc f. `vi`
+are vi's motions and counts, `v V`, `J K`, `g` and the commands it begins, and
+in the card maker `j k`, `^D ^U ^F ^B`, `[ ] { }` and the editor's normal mode:
 without `vi`, `i` starts the editor typing and Esc leaves it. Keys in neither,
 such as Enter, Space, Esc, `/`, `n` and the letters that toggle what is shown,
 always work, as do the arrows and vi's keys in the search prompt and the
@@ -261,20 +261,25 @@ The preview shows:
   which of `x` (a ticked definition has quotations), `c` and `E` would change
   the card. `e` never would: the card lists the English definitions whatever it
   says. The keys are listed instead by `gh` or F1, as in the reader, in a pane
-  below the card that `J` and `K` scroll. Esc in the list hides the keys before
+  below the card that `J` and `K`, Alt-PgDn and Alt-PgUp, and the wheel over
+  it scroll, as the reader's definitions. Esc in the list hides the keys before
   it cancels. Editing the text's own script converts the other script's line
   again, unless that line has been edited itself. The edge keys start again
   from the text, undoing the edits.
 - **The definitions** shown in the pane when the card was begun (so MoEDict's
   and Wiktionary's beside the main ones only after `c` or `E`), Chinese first,
   each sense an option of its own, with its examples, so a card carries the
-  sense the context uses rather than all of 打's. The list scrolls to keep the
-  cursor in view, and PgDn and PgUp move ten at a time. `j`/`k` move and Space
-  ticks the ones that fit the context; the first Chinese and first English are
-  ticked to start with. `c` and `E` show or hide MoEDict's and Wiktionary's
-  definitions here too, keeping what is ticked. A ticked sense's quotations go
-  on the card if `x` is showing them when it is saved, and are shown under it
-  in the preview. The reading comes from the first ticked one.
+  sense the context uses rather than all of 打's. The list, other contexts
+  included, scrolls as the reader's text does without `-pin`: only to keep the
+  cursor in view; PgDn and PgUp, `^F ^B`, and `^D ^U` move the cursor a page
+  (as many options as are shown) or half of one and scroll the list as far; and
+  the wheel scrolls the list under the cursor, which moves only to stay in
+  view. `j`/`k` move and Space ticks the ones that fit the context; the first
+  Chinese and first English are ticked to start with. `c` and `E` show or hide
+  MoEDict's and Wiktionary's definitions here too, keeping what is ticked. A
+  ticked sense's quotations go on the card if `x` is showing them when it is
+  saved, and are shown under it in the preview. The reading comes from the
+  first ticked one.
 - **Cards already made** for the same word, or for a word containing it or
   contained in it, in either script, with their context. When there are any,
   the first Enter does not save but asks again. For a card for the word itself,

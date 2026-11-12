@@ -1753,6 +1753,76 @@ func TestDemoMouse(t *testing.T) {
 	}
 }
 
+// TestCardScroll checks that the card maker's list, longer than the
+// screen, scrolls as the reader's text does: the wheel scrolls it under
+// the cursor, which moves only to stay in view; PgDn and ^U move the
+// cursor and the list a page or half of one; and Alt-PgDn and the wheel
+// over the keys scroll the keys.
+func TestCardScroll(t *testing.T) {
+	v, s := newTestView(t, "他打了我。\n")
+	s.SetSize(60, 14)
+	keys(v, "/打⏎⏎")
+	dr := v.dr
+	if dr.rows() <= dr.shown || dr.shown < 2 {
+		t.Fatalf("%d options, %d shown: not a long list", dr.rows(),
+			dr.shown)
+	}
+	wheel := func(y int, b tcell.ButtonMask) {
+		v.mouse(tcell.NewEventMouse(5, y, b, tcell.ModNone))
+		v.draw()
+	}
+	for i := 0; i < 3; i++ {
+		wheel(8, tcell.WheelDown)
+	}
+	if dr.top != 3 || dr.cur != 3 {
+		t.Errorf("wheel down 3: top %d, cursor %d; want 3, 3", dr.top,
+			dr.cur)
+	}
+	wheel(8, tcell.WheelUp)
+	if dr.top != 2 || dr.cur != 3 {
+		t.Errorf("wheel up: top %d, cursor %d; want 2, 3", dr.top,
+			dr.cur)
+	}
+	for i := 0; i < 100; i++ {
+		wheel(8, tcell.WheelDown)
+	}
+	if last := dr.rows() - 1; dr.cur > last || dr.top+dr.shown != last+1 {
+		t.Errorf("wheel to the end: top %d, %d shown, cursor %d, of "+
+			"%d", dr.top, dr.shown, dr.cur, dr.rows())
+	}
+	for i := 0; i < 100; i++ {
+		wheel(8, tcell.WheelUp)
+	}
+	if dr.top != 0 || dr.cur < 0 || dr.cur >= dr.shown {
+		t.Errorf("wheel to the start: top %d, cursor %d, %d shown",
+			dr.top, dr.cur, dr.shown)
+	}
+	keys(v, "j")
+	top, cur, page := dr.top, dr.cur, dr.shown
+	special(v, tcell.KeyPgDn, tcell.ModNone)
+	if dr.cur != cur+page || dr.top != top+page {
+		t.Errorf("PgDn: top %d, cursor %d; want %d, %d", dr.top,
+			dr.cur, top+page, cur+page)
+	}
+	top, cur, page = dr.top, dr.cur, dr.shown/2
+	special(v, tcell.KeyCtrlU, tcell.ModNone)
+	if dr.cur != cur-page || dr.top != top-page {
+		t.Errorf("^U: top %d, cursor %d; want %d, %d", dr.top, dr.cur,
+			top-page, cur-page)
+	}
+	special(v, tcell.KeyF1, tcell.ModNone)
+	special(v, tcell.KeyPgDn, tcell.ModAlt)
+	if v.cscroll != 1 {
+		t.Errorf("Alt-PgDn: keys scrolled %d, want 1", v.cscroll)
+	}
+	top = dr.top
+	wheel(v.h-2, tcell.WheelDown)
+	if v.cscroll != 2 || dr.top != top {
+		t.Errorf("wheel over the keys: keys scrolled %d, top %d; "+
+			"want 2, %d", v.cscroll, dr.top, top)
+	}
+}
+
 // TestManyContexts checks that the preview stays quick with thousands of
 // other contexts on a card, the cursor at the last of them.
 func TestManyContexts(t *testing.T) {
@@ -1765,8 +1835,9 @@ func TestManyContexts(t *testing.T) {
 		dr.others = append(dr.others, o)
 		dr.osel = append(dr.osel, true)
 	}
-	start := time.Now()
+	start, want := time.Now(), dr.cur+20
 	for range 20 {
+		want += dr.shown // PgDn goes down a page
 		v.key(tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModNone))
 		v.draw()
 	}
@@ -1774,8 +1845,8 @@ func TestManyContexts(t *testing.T) {
 	if d := time.Since(start); d > 2*time.Second {
 		t.Errorf("40 keys took %v", d)
 	}
-	if dr.cur != 220 || !onScreen(s, "↑") {
-		t.Errorf("cursor at %d:\n%s", dr.cur,
+	if dr.cur != want || !onScreen(s, "↑") {
+		t.Errorf("cursor at %d, want %d:\n%s", dr.cur, want,
 			strings.Join(screen(s), "\n"))
 	}
 }

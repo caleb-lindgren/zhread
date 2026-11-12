@@ -75,6 +75,7 @@ type view struct {
 	// hints, buttons, the divide screen's lines.
 	cardHits []cardHit
 	hits     []hit
+	ckeys    int // the row the card maker's keys start on, or 0
 	// down is that the first button is held, so that a press is told
 	// from the drag after it; lastPress, lastX and lastY are the press
 	// before, to tell a double click.
@@ -556,9 +557,13 @@ func isViKey(ev *tcell.EventKey) bool {
 	return false
 }
 
-// isCardViKey is isViKey in the card maker's list: j k, the edges' [ ] { },
-// g for gh, and J K, which scroll its keys.
+// isCardViKey is isViKey in the card maker's list: j k, ^D ^U ^F ^B, the
+// edges' [ ] { }, g for gh, and J K, which scroll its keys.
 func isCardViKey(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyCtrlB, tcell.KeyCtrlF, tcell.KeyCtrlU, tcell.KeyCtrlD:
+		return true
+	}
 	return ev.Key() == tcell.KeyRune &&
 		strings.ContainsRune("jk[]{}gJK", ev.Rune())
 }
@@ -1206,7 +1211,8 @@ var keyHelp = []helpKey{
 // cardKeyHelp is what gh shows below a card.
 var cardKeyHelp = []helpKey{
 	{"j k|↑ ↓", "move over the contexts and definitions", "va"},
-	{"PgDn PgUp", "the same, ten at a time", "a"},
+	{"PgDn PgUp", "page down, up", "a"},
+	{"^D ^U ^F ^B", "half page down, up; page down, up", "v"},
 	{"space", "tick the definition or context, or untick it", ""},
 	{"[ ] { }", "move the context's left edge, right edge", "v"},
 	{"S-← S-→", "move the context's left edge", "a"},
@@ -1222,8 +1228,10 @@ var cardKeyHelp = []helpKey{
 	{"c", "show or hide MoEDict beside 兩岸詞典", ""},
 	{"E", "show or hide Wiktionary beside CC-CEDICT", ""},
 	{"J K", "scroll these keys down, up", "v"},
+	{"M-PgDn M-PgUp", "scroll these keys down, up", "a"},
 	{"gh|F1", "show or hide these keys; Esc hides them", "va"},
 	{"click", "go to the line; on its [ ], tick or untick it", "m"},
+	{"wheel", "scroll the list; on these keys, them", "m"},
 	{"double-click", "on a context: edit it", "m"},
 	{"green", "a button: a click is its key", "m"},
 	{"", "in the editor on a context:", ""},
@@ -1786,13 +1794,28 @@ type cardHit struct {
 
 // cardMouse moves the card's cursor to the line clicked, a click on a
 // tick box ticks or unticks it, as Space does, and a double click on a
-// context starts editing it, as i does.
+// context starts editing it, as i does. The wheel scrolls the options and
+// other contexts under the cursor, which moves only to stay in view, or
+// over the keys, the keys, as J and K do.
 func (v *view) cardMouse(ev *tcell.EventMouse, press bool) {
 	dr := v.dr
+	x, y := ev.Position()
+	wheel := tcell.WheelDown | tcell.WheelUp
+	if b := ev.Buttons(); dr != nil && b&wheel != 0 {
+		n := 1
+		if b&tcell.WheelUp != 0 {
+			n = -1
+		}
+		if v.ckeys > 0 && y >= v.ckeys {
+			v.cscroll = max(v.cscroll+n, 0)
+		} else {
+			dr.top, dr.wheel = max(dr.top+n, 0), true
+		}
+		return
+	}
 	if !press || dr == nil || dr.discard || dr.which {
 		return
 	}
-	x, y := ev.Position()
 	// a second press at the same place soon after: a double click
 	dbl := x == v.lastX && y == v.lastY &&
 		ev.When().Sub(v.lastPress) < doubleClick
@@ -2823,10 +2846,10 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	case esc && v.chelp && !dr.editing:
 		v.chelp, dr.esc = false, false
 		return
-	case v.chelp && !dr.editing && r == 'J':
+	case v.chelp && !dr.editing && (r == 'J' || altPg(ev, tcell.KeyPgDn)):
 		v.cscroll++
 		return
-	case v.chelp && !dr.editing && r == 'K':
+	case v.chelp && !dr.editing && (r == 'K' || altPg(ev, tcell.KeyPgUp)):
 		v.cscroll--
 		return
 	}
@@ -2856,7 +2879,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 			return
 		}
 		if r == 'j' || r == 'k' || ev.Key() == tcell.KeyDown ||
-			ev.Key() == tcell.KeyUp {
+			ev.Key() == tcell.KeyUp || cardPage(ev) != 0 {
 			dr.editing = false
 		}
 	}
@@ -2934,10 +2957,16 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 	case (r == '<' || r == '>') && o != nil:
 		dr.moveOther(r == '>')
-	case ev.Key() == tcell.KeyPgDn:
-		dr.cur = max(min(dr.cur+10, dr.rows()-1), dr.cur)
-	case ev.Key() == tcell.KeyPgUp:
-		dr.cur = max(dr.cur-10, -len(lines))
+	case cardPage(ev) != 0:
+		// a page, as many options as are shown, or half of one; the
+		// options scroll as far as the cursor moves, as the text does
+		p := cardPage(ev)
+		n := max(dr.shown, 1) * p / 2
+		if n == 0 {
+			n = p // half a page of one option
+		}
+		dr.top = max(dr.top+n, 0)
+		dr.cur = max(min(dr.cur+n, dr.rows()-1), -len(lines))
 	case r == 'j' || ev.Key() == tcell.KeyDown:
 		dr.cur = max(min(dr.cur+1, dr.rows()-1), dr.cur)
 	case r == 'k' || ev.Key() == tcell.KeyUp:
@@ -2955,6 +2984,32 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		}
 		dr.setOpts(v.shows)
 	}
+}
+
+// cardPage reads ev as a page key of the card maker's list: 2 for a page
+// down, PgDn or ^F, 1 for half of one, ^D, and -2 and -1 for those up,
+// PgUp, ^B and ^U; otherwise 0. Alt with PgDn or PgUp scrolls the keys
+// instead.
+func cardPage(ev *tcell.EventKey) int {
+	if ev.Modifiers()&tcell.ModAlt != 0 {
+		return 0
+	}
+	switch ev.Key() {
+	case tcell.KeyPgDn, tcell.KeyCtrlF:
+		return 2
+	case tcell.KeyCtrlD:
+		return 1
+	case tcell.KeyCtrlU:
+		return -1
+	case tcell.KeyPgUp, tcell.KeyCtrlB:
+		return -2
+	}
+	return 0
+}
+
+// altPg reports whether ev is Alt (Option) with k, Page Up or Down.
+func altPg(ev *tcell.EventKey, k tcell.Key) bool {
+	return ev.Key() == k && ev.Modifiers()&tcell.ModAlt != 0
 }
 
 // edit gives a key to the editor on context line k of the draft, whose
@@ -2993,6 +3048,10 @@ func (v *view) drawCard() {
 		keys = v.keyLines(cardKeyHelp)
 		ph = min(v.need(keys), max(v.h-9, v.h/2))
 		maxY -= ph
+	}
+	v.ckeys = 0
+	if ph > 0 {
+		v.ckeys = maxY
 	}
 	head := " new card: " + headword(f.wordT, f.wordS)
 	if dr.guid != "" {
@@ -3057,29 +3116,53 @@ func (v *view) drawCard() {
 		}
 		return n
 	}
-	cur := max(dr.cur, 0)
-	dr.top = min(dr.top, cur)
-	// The first in view is the one furthest up, from the cursor's, that
-	// lets the rows down to the cursor's fit, with a row for the note of
+	// fit is the first option in view, no further up than floor, that
+	// lets the rows down to option c's fit, with a row for the note of
 	// options scrolled past, once there are any. It is worked out back
-	// from the cursor, so that only what fits is measured, however many
-	// contexts the card has.
-	if dr.top < cur {
-		t, n := cur, rows(cur)
-		for t > dr.top {
+	// from c, so that only what fits is measured, however many contexts
+	// the card has.
+	fit := func(c, floor int) int {
+		t, n := c, rows(c)
+		for t > floor {
 			h := rows(t - 1)
 			if y+1+n+h > end {
 				break
 			}
 			t, n = t-1, n+h
 		}
-		dr.top = t
+		return t
 	}
+	if dr.rows() > 0 {
+		// no further down than shows the last option at the bottom
+		dr.top = max(min(dr.top, fit(dr.rows()-1, 0)), 0)
+	}
+	switch {
+	case dr.wheel && dr.cur >= 0:
+		// The wheel scrolled the options: the cursor moves only as far
+		// as stays in view, to the last option that fits from the top.
+		last, n := dr.top, rows(dr.top)
+		for last+1 < dr.rows() && y+1+n+rows(last+1) <= end {
+			last++
+			n += rows(last)
+		}
+		if c := min(max(dr.cur, dr.top), last); c != dr.cur {
+			dr.cur, dr.editing = c, false
+		}
+	case dr.cur >= 0:
+		// The options scroll only as far as keeps the cursor in view.
+		dr.top = min(dr.top, dr.cur)
+		dr.top = fit(dr.cur, dr.top)
+	}
+	dr.wheel = false
 	if dr.top > 0 {
 		y = v.put(0, y, end, []rune(fmt.Sprintf("  ↑ %d more",
 			dr.top)), plain(stHint))
 	}
+	dr.shown = 0
 	for i := dr.top; i < dr.rows() && y < end; i++ {
+		if y+rows(i) <= end {
+			dr.shown++
+		}
 		h := cardHit{cur: i, by: -1}
 		for _, l := range v.optLines(i) {
 			if h.by < 0 && isBox(l.text) {

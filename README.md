@@ -96,6 +96,7 @@ means there is none.
 | page down, up                                       | PgDn PgUp          | `^F ^B` (`^D ^U`: half a page) | wheel                                           |
 | start, end of the text                              | Ctrl-Home Ctrl-End | `gg G`                         | —                                               |
 | search forward, back; repeat                        | `/ ?`, `n N`       | `/ ?`, `n N`                   | —                                               |
+| search for the word under the cursor                | —                  | `* #`                          | —                                               |
 | select                                              | Shift-arrows       | `v V`                          | drag                                            |
 | end a selection                                     | Esc                | Esc                            | click                                           |
 | make a card for the word or selection               | Enter              | Enter                          | double-click a word; click "Enter: make a card" |
@@ -123,7 +124,8 @@ keys work too.
 
 | Action                                         | Arrows                          | vi                              | Mouse                                               |
 | ---------------------------------------------- | ------------------------------- | ------------------------------- | --------------------------------------------------- |
-| move through the context and definitions       | ↑ ↓ (PgUp PgDn: ten)            | `j k`                           | click a line                                        |
+| move through the context and definitions       | ↑ ↓                             | `j k`                           | click a line                                        |
+| page down, up                                  | PgDn PgUp                       | `^F ^B` (`^D ^U`: half a page)  | wheel                                               |
 | tick or untick a definition or context         | Space                           | Space                           | click its `[ ]`                                     |
 | move the context's start a clause left, right  | Shift-← Shift-→                 | `[ ]`                           | click `<start` `start>`                             |
 | move the context's end a clause left, right    | Alt-← Alt-→                     | `{ }`                           | click `<end` `end>`                                 |

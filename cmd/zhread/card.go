@@ -275,9 +275,14 @@ type draft struct {
 	// cur is the option under the cursor, or with the cursor on a
 	// context, its line counted back from the options: -1 the line just
 	// above them, -2 the one above that.
-	cur  int
-	top  int // the first option in view
-	dups []carded
+	cur int
+	top int // the first option in view
+	// shown is how many options the last draw showed, a page of them;
+	// wheel is that the wheel has scrolled them since, so that the
+	// cursor moves into view rather than they to the cursor.
+	shown int
+	wheel bool
+	dups  []carded
 	// exact are the dups for the word itself, which u adds the card to
 	// instead of saving it as a new one; which is set while u asks
 	// which of several.
