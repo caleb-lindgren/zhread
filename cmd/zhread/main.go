@@ -42,7 +42,7 @@ type convs struct{ s2t, t2s *opencc.Converter }
 
 func main() {
 	var o struct{ dict, cards, pron, deck, demo, gif string }
-	var chars bool
+	var chars, pin bool
 	ctl := "arrows,vi,mouse"
 	flag.StringVar(&o.dict, "dict", "",
 		"path to the dict directory (default:\n"+
@@ -58,6 +58,12 @@ func main() {
 	flag.BoolVar(&chars, "chars", false,
 		"look up single characters rather than words, as for\n"+
 			"classical Chinese (s switches while reading)")
+	flag.BoolVar(&pin, "pin", false,
+		"keep the cursor's line a quarter of the way down the\n"+
+			"screen, scrolling the text under it, so the text\n"+
+			"does not shift as the definitions change height\n"+
+			"(default: the text scrolls only to keep the\n"+
+			"cursor in view)")
 	flag.StringVar(&ctl, "controls", ctl,
 		"the ways to work zhread, any of arrows (the arrows,\n"+
 			"Home, End, PgUp, PgDn and F1), vi (vi's keys) and\n"+
@@ -139,7 +145,8 @@ func main() {
 	})
 	v := &view{s: s, level: &level{d: d}, dict: dict, rec: rec, reqs: reqs,
 		convDir: filepath.Join(dir, "opencc"), deck: o.deck,
-		pron: o.pron, showEn: true, chars: chars, controls: cs}
+		pron: o.pron, showEn: true, chars: chars, pin: pin,
+		controls: cs}
 	if l := d.getMark(); l >= 0 {
 		v.cl = l
 		v.msg = fmt.Sprintf("opened at the bookmark, line %d", l+1)

@@ -68,6 +68,7 @@ type view struct {
 	deck    string
 	pron    string
 	chars   bool // single characters, not words: -chars, s
+	pin     bool // keep the cursor's row fixed in the book: -pin
 	controls
 	// cardHits are where drawCard put each line of the card a click can
 	// go to, and hits the other things a click does something on: key
@@ -240,22 +241,45 @@ func (v *view) clamp() {
 	v.cc = max(v.cc, 0)
 }
 
-// scroll keeps the cursor's row a fixed number of rows from the top, so the
-// text stays put as the definitions pane below it grows and shrinks; only
-// near the start of the file is it higher. The row is the middle of the
-// least text the pane leaves, a quarter of the way down; the keys, which
-// may leave less, can cover it.
+// scroll keeps the cursor in view. With -pin it keeps the cursor's row in
+// the book a fixed number of rows from the top, so the text stays put as
+// the definitions pane below it grows and shrinks; only near the start of
+// the file is it higher. The row is the middle of the least text the pane
+// leaves, a quarter of the way down; the keys, which may leave less, can
+// cover it.
 //
-// A pane moved into scrolls only as far as keeps the cursor in view.
+// Otherwise, and in a pane moved into, the text scrolls only as far as
+// keeps the cursor in view, so a move within the screen moves only the
+// cursor. In the book, a jump to more than half a screen out of view, as
+// a search's or G's, puts the cursor's row where -pin would, so that it
+// has text on both sides.
 func (v *view) scroll() {
 	ri := v.rowOf(v.cl, v.cc)
-	if len(v.stack) == 0 {
+	if v.anchored() {
 		v.top = max(ri-v.anchor(), 0)
 		return
 	}
 	th := v.textH()
-	v.top = max(min(v.top, len(v.rows)-th), 0)
+	fit := func() { v.top = max(min(v.top, len(v.rows)-th), 0) }
+	fit()
+	if len(v.stack) == 0 && (ri < v.top-th/2 || ri >= v.top+th+th/2) {
+		v.top = ri - v.anchor()
+		fit()
+	}
 	v.top = min(max(v.top, ri-th+1), ri)
+}
+
+// anchored reports whether scroll keeps the cursor's row fixed: in the
+// book, with -pin.
+func (v *view) anchored() bool { return v.pin && len(v.stack) == 0 }
+
+// page moves the cursor n rows, and unless anchored keeps the cursor's row
+// fixed anyway, scrolls the text n rows with it, as vi's ^F and ^D do.
+func (v *view) page(n int) {
+	if !v.anchored() {
+		v.top += n
+	}
+	v.byRows(n)
 }
 
 // anchor is how many rows below the top of the screen scroll keeps the
@@ -1501,13 +1525,13 @@ func (v *view) key(ev *tcell.EventKey) {
 		v.openCard()
 		return
 	case tcell.KeyCtrlD:
-		v.byRows(n * v.textH() / 2)
+		v.page(n * v.textH() / 2)
 	case tcell.KeyCtrlU:
-		v.byRows(-n * v.textH() / 2)
+		v.page(-n * v.textH() / 2)
 	case tcell.KeyCtrlF:
-		v.byRows(n * v.textH())
+		v.page(n * v.textH())
 	case tcell.KeyCtrlB:
-		v.byRows(-n * v.textH())
+		v.page(-n * v.textH())
 	case tcell.KeyLeft, tcell.KeyRight, tcell.KeyUp, tcell.KeyDown,
 		tcell.KeyHome, tcell.KeyEnd, tcell.KeyPgUp, tcell.KeyPgDn:
 		v.pend = 0
@@ -1588,10 +1612,10 @@ func (v *view) navKey(ev *tcell.EventKey, n int) {
 		v.byRows(n)
 		return
 	case k == tcell.KeyPgUp:
-		v.byRows(-n * v.textH())
+		v.page(-n * v.textH())
 		return
 	case k == tcell.KeyPgDn:
-		v.byRows(n * v.textH())
+		v.page(n * v.textH())
 		return
 	case k == tcell.KeyHome && ctrl:
 		v.cl, v.cc = 0, 0
@@ -1896,7 +1920,8 @@ func (v *view) mouse(ev *tcell.EventMouse) {
 }
 
 // wheel scrolls by n rows what is at row y: the definitions pane, as J
-// and K do, or else the text.
+// and K do, or else the text: with -pin, by moving the cursor n rows, and
+// otherwise under the cursor, which moves only as far as stays in view.
 func (v *view) wheel(y, n int) {
 	for _, bl := range v.blocks {
 		if bl.lv == nil && y >= bl.y && y < bl.y+bl.n {
@@ -1904,7 +1929,19 @@ func (v *view) wheel(y, n int) {
 			return
 		}
 	}
-	v.byRows(n)
+	if v.anchored() {
+		v.byRows(n)
+		return
+	}
+	// The text scrolls under the cursor, which moves only to stay in
+	// view.
+	th := v.textH()
+	v.top = max(min(v.top+n, len(v.rows)-th), 0)
+	if ri := v.rowOf(v.cl, v.cc); ri < v.top {
+		v.byRows(v.top - ri)
+	} else if ri >= v.top+th {
+		v.byRows(v.top + th - 1 - ri)
+	}
 }
 
 // descend moves the cursor into the definitions pane, at the start of its

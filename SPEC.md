@@ -78,9 +78,18 @@ Readings are Mainland (see "Taiwan and Mainland readings" below); `t` adds the
 Taiwan reading where it differs, as "qǐ yè (TW qì yè)", and a card made while
 it is shown carries both. `-pron tw` reverses the two. Words already carded are
 colored. The cursor is white, and the rest of the word under it blue, except
-in visual mode, where only the selection is colored. Its line stays a quarter
-of the way down the screen, except near the start of the file, so the text does
-not shift as the definitions pane changes height.
+in visual mode, where only the selection is colored.
+
+The text scrolls only as far as keeps the cursor in view, as in vi: a move
+within the screen moves only the cursor, `^D ^U ^F ^B`, PgUp and PgDn scroll
+the text as far as they move the cursor, and the wheel scrolls the text under
+the cursor, which moves only to stay in view. A jump to more than half a screen
+out of view, as a search's, the bookmark's or `G`'s, puts the cursor's line a
+quarter of the way down the screen, with text on both sides of it. With `-pin`,
+the cursor's line stays a quarter of the way down whatever the cursor does,
+except near the start of the file, so the text does not shift as the
+definitions pane changes height, and the wheel moves the cursor a row a notch.
+A pane moved into with Tab always scrolls as without `-pin`.
 
 The colors are those of Zenburn, Jani Nurminen's color scheme for Vim
 (<https://github.com/jnurmine/Zenburn>), as the vis editor's port of it

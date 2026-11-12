@@ -264,11 +264,12 @@ func TestNavigation(t *testing.T) {
 	}
 }
 
-// TestAnchored checks that the cursor's row stays the same number of rows
-// from the top whatever the definitions pane below needs, except near the
-// start, and at the end too.
+// TestAnchored checks that with -pin the cursor's row stays the same
+// number of rows from the top whatever the definitions pane below needs,
+// except near the start, and at the end too.
 func TestAnchored(t *testing.T) {
 	v, _ := newTestView(t, strings.Repeat("好。\n须臾。\n", 100))
+	v.pin = true
 	row := func() int { return v.rowOf(v.cl, v.cc) - v.top }
 	if keys(v, "j"); v.top != 0 || row() != 1 {
 		t.Errorf("near the start: top %d, row %d", v.top, row())
@@ -287,6 +288,67 @@ func TestAnchored(t *testing.T) {
 	}
 	if v.cl != 199 {
 		t.Errorf("G: at line %d", v.cl)
+	}
+}
+
+// TestUnpinned checks that without -pin the text scrolls only to keep
+// the cursor in view, that a jump puts the cursor where -pin would, that
+// paging scrolls the text with the cursor, and that the wheel scrolls the
+// text under the cursor. Every line is the same, so the pane keeps one
+// height.
+func TestUnpinned(t *testing.T) {
+	v, _ := newTestView(t, strings.Repeat("须臾。\n", 200))
+	row := func() int { return v.rowOf(v.cl, v.cc) - v.top }
+	inView := func(what string) {
+		t.Helper()
+		if r := row(); r < 0 || r >= v.textH() {
+			t.Errorf("after %s: row %d, text %d rows", what, r,
+				v.textH())
+		}
+	}
+	if keys(v, "jjj"); v.top != 0 || row() != 3 {
+		t.Errorf("jjj: top %d, row %d", v.top, row())
+	}
+	keys(v, "100j")
+	inView("100j")
+	if row() != v.anchor() {
+		t.Errorf("a jump: row %d, want %d", row(), v.anchor())
+	}
+	top := v.top
+	if keys(v, "kk"); v.top != top || row() != v.anchor()-2 {
+		t.Errorf("kk: top %d, row %d; want %d, %d", v.top, row(),
+			top, v.anchor()-2)
+	}
+	for i := 0; i < 30; i++ {
+		keys(v, "j")
+		inView("j")
+	}
+	top, r := v.top, row()
+	special(v, tcell.KeyCtrlD, tcell.ModNone)
+	inView("^D")
+	if half := v.textH() / 2; v.top != top+half {
+		t.Errorf("^D: top %d, want %d", v.top, top+half)
+	}
+	if row() != r {
+		t.Errorf("^D: row %d, want %d", row(), r)
+	}
+	top, l := v.top, v.cl
+	v.mouse(tcell.NewEventMouse(0, 0, tcell.WheelDown, tcell.ModNone))
+	v.draw()
+	if v.top != top+1 || v.cl != l {
+		t.Errorf("wheel: top %d, line %d; want %d, %d", v.top, v.cl,
+			top+1, l)
+	}
+	for i := 0; i < 40; i++ {
+		v.mouse(tcell.NewEventMouse(0, 0, tcell.WheelDown,
+			tcell.ModNone))
+		v.draw()
+		inView("the wheel")
+	}
+	keys(v, "G")
+	if v.cl != 199 || v.top+v.textH() != len(v.rows) {
+		t.Errorf("G: line %d, top %d, %d rows of %d", v.cl, v.top,
+			v.textH(), len(v.rows))
 	}
 }
 

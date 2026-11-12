@@ -61,17 +61,15 @@ Wiktionary, and streams a 1.2 GB download, which takes several minutes.
    Enter to save. See [Making a card](#making-a-card) for its key commands and
    mouse controls.
 5. **Study:** in Anki, File > Import your card file,
-   `~/.local/share/zhread/cards.tsv`. Import the whole file each time: cards
-   Anki already has are updated, not duplicated, and keep their review
-   history.
-
-To fix a card, edit it in the card file, not in Anki: the next import
-overwrites Anki's copy. Back the card file up; it's the record of everything
-you've carded.
+   `~/.local/share/zhread/cards.tsv` on macOS and Linux alike; see [The card
+   file](#the-card-file) for Windows and for finding it in Anki's file dialog.
+   Import the whole file each time: cards Anki already has are updated, not
+   duplicated, and keep their review history.
 
 zhread is made for modern Chinese. In classical Chinese, its default word
 splitting often joins characters that are separate words. To only look up
-individual characters, press `s`, or start zhread with `-chars`. In this mode,
+individual characters, press `s` or click 詞 at the right of the status line,
+or start zhread with `-chars`; `s` or a click on 字 switches back. In this mode,
 you can still select multiple characters with Shift, `v`, or the mouse to look
 up a longer word.
 
@@ -150,6 +148,7 @@ zhread [options] FILE
 | `-cards FILE`    | the card file (default: `~/.local/share/zhread/cards.tsv`)                              |
 | `-dict DIR`      | the dictionary directory (default: `$ZHREAD_DICT`, else the checkout's `dict/`)         |
 | `-chars`         | look up single characters instead of words, as for classical Chinese                    |
+| `-pin`           | keep the cursor's line a quarter of the way down the screen (default: scroll as needed) |
 | `-controls LIST` | the ways to work zhread: any of `arrows`, `vi`, `mouse`, comma-separated (default: all) |
 | `-pron cn`, `tw` | show Mainland readings first (the default), or Taiwan ones                              |
 | `-deck NAME`     | the Anki deck a new card file imports into (default: `main`)                            |
@@ -163,9 +162,36 @@ zhread [options] FILE
 | `XDG_DATA_HOME`  | moves the default card file to `$XDG_DATA_HOME/zhread/cards.tsv`      |
 | `XDG_STATE_HOME` | moves bookmarks to `$XDG_STATE_HOME/zhread/bookmarks`                 |
 
+Without `-pin`, the text scrolls only when the cursor would leave the screen,
+and the wheel scrolls the text under the cursor. With `-pin`, every move
+scrolls the text instead, so the cursor's line never moves and the text stays
+put while the definitions below it change height; the wheel then moves the
+cursor a line a notch.
+
 zhread runs in the terminal you start it from. If you have
 [st](https://st.suckless.org) and a graphical desktop, it opens in an st window
 of its own instead, and gives you your shell back at once.
+
+## The card file
+
+zhread saves cards to `cards.tsv` in `.local/share/zhread` in your home folder:
+
+| System  | Card file                                                |
+| ------- | -------------------------------------------------------- |
+| macOS   | `~/.local/share/zhread/cards.tsv`, in `/Users/NAME`      |
+| Linux   | `~/.local/share/zhread/cards.tsv`, in `/home/NAME`       |
+| Windows | `%USERPROFILE%\.local\share\zhread\cards.tsv` (untested) |
+
+`-cards FILE` uses another file, and `XDG_DATA_HOME` moves the default.
+
+`.local` is a hidden folder on macOS and Linux, so Anki's File > Import
+dialog doesn't list it. Type the path instead: on macOS, press Cmd-Shift-G and
+paste `~/.local/share/zhread/cards.tsv`; on Linux, type it into the dialog's
+file name box.
+
+To fix a card, edit it in the card file, not in Anki: the next import
+overwrites Anki's copy. Back the card file up; it's the record of everything
+you've carded.
 
 ## Optional: the Kai font
 
