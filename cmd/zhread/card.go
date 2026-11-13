@@ -286,9 +286,10 @@ type draft struct {
 	dups  []carded
 	// exact are the dups for the word itself, which e adds the card to
 	// instead of saving it as a new one; which is set while e asks
-	// which of several.
+	// which of several, and pick is the number typed so far.
 	exact  []carded
 	which  bool
+	pick   int
 	src    string
 	trad   bool // the text is traditional, so simplified is converted
 	saving bool // the duplicate warning has been shown once

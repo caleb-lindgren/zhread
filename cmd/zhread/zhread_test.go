@@ -172,7 +172,8 @@ func newTestView(t *testing.T, text string) (*view,
 	return v, s
 }
 
-// keys sends each rune of ks as a key press; ⏎ is Enter, ⎋ Escape.
+// keys sends each rune of ks as a key press; ⏎ is Enter, ⎋ Escape, ⌫
+// Backspace.
 func keys(v *view, ks string) {
 	for _, r := range ks {
 		k := tcell.KeyRune
@@ -181,6 +182,8 @@ func keys(v *view, ks string) {
 			k = tcell.KeyEnter
 		case '⎋':
 			k = tcell.KeyEscape
+		case '⌫':
+			k = tcell.KeyBackspace2
 		}
 		v.key(tcell.NewEventKey(k, r, tcell.ModNone))
 		v.draw()
@@ -2348,5 +2351,69 @@ func TestChooseMouse(t *testing.T) {
 	if v.mode != card || !onScreen(s, "(1 of 2)") {
 		t.Errorf("click on 牟取 · 暴利: mode %d\n%s", v.mode,
 			strings.Join(screen(s), "\n"))
+	}
+}
+
+// TestPickMany checks that e asks which card by a number of any length
+// when the word has more than nine: 1 waits for a second digit, as 10-12
+// begin with it, and Enter takes it alone; 12 is taken at its second
+// digit; Backspace takes a digit back; and 0 cancels.
+func TestPickMany(t *testing.T) {
+	v, _ := newTestView(t, "他散发传单给路人。\n")
+	for i := range 12 {
+		keys(v, "gg/散发⏎⏎⏎")
+		if i > 0 {
+			keys(v, "⏎")
+		}
+		if v.mode != normal || len(v.rec.cards) != i+1 {
+			t.Fatalf("card %d: mode %d, %d cards", i+1, v.mode,
+				len(v.rec.cards))
+		}
+	}
+	// guids are the cards e numbers, in their order, as the draft's
+	// exact is replaced once one is opened.
+	var guids []string
+	open := func() {
+		t.Helper()
+		keys(v, "gg/散发⏎⏎")
+		if v.mode != card || len(v.dr.exact) != 12 {
+			t.Fatalf("mode %d, %d exact", v.mode, len(v.dr.exact))
+		}
+		guids = nil
+		for _, k := range v.dr.exact {
+			guids = append(guids, k.guid)
+		}
+		keys(v, "e")
+		if !v.dr.which {
+			t.Fatalf("e did not ask which")
+		}
+	}
+	open()
+	keys(v, "1")
+	if !v.dr.which || v.dr.pick != 1 || v.dr.guid != "" {
+		t.Fatalf("1 of 12: which %v, pick %d, guid %q", v.dr.which,
+			v.dr.pick, v.dr.guid)
+	}
+	keys(v, "⏎")
+	if v.dr.which || v.dr.guid != guids[0] {
+		t.Fatalf("1⏎ did not open the first card")
+	}
+	keys(v, "q")
+	open()
+	keys(v, "12")
+	if v.dr.which || v.dr.guid != guids[11] {
+		t.Fatalf("12 did not open the twelfth card")
+	}
+	keys(v, "q")
+	open()
+	keys(v, "1⌫10")
+	if v.dr.which || v.dr.guid != guids[9] {
+		t.Fatalf("1 ⌫ 10 did not open the tenth card")
+	}
+	keys(v, "q")
+	open()
+	keys(v, "0")
+	if v.dr.which || v.dr.guid != "" {
+		t.Fatalf("0 did not cancel")
 	}
 }

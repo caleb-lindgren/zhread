@@ -291,9 +291,12 @@ The preview shows:
   it offers the choice: a second Enter makes a new card, as for a sense the
   cards so far do not have, and `e` adds this context to the existing card
   instead. Cards for the word itself are numbered, and `e` (which works before
-  that first Enter too) asks which by number when there are several. It opens
-  that card in the preview in place of the new one, filled in as the card has
-  it: its definitions ticked (MoEDict's, Wiktionary's or the quotations shown
+  that first Enter too) asks which by number when there are several, or a
+  click on the card's line. A number is taken as soon as no further digit
+  could make another card's number, so at once with nine cards or fewer; with
+  more, 1 waits for a second digit, and Enter takes it alone. It opens that
+  card in the preview in place of the new one, filled in as the card has it:
+  its definitions ticked (MoEDict's, Wiktionary's or the quotations shown
   if it has them, and any no dictionary has any more kept as they are, labeled
   "on the card"), its reading, Taiwan's too if it has that, and its own
   context, then its other contexts in their order, then last the context `e`

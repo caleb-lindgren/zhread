@@ -1224,7 +1224,7 @@ var cardKeyHelp = []helpKey{
 	{"M-← M-→ ^← ^→", "move the context's right edge", "a"},
 	{"i", "edit the context under the cursor", ""},
 	{"Enter y", "save the card (again if already carded)", ""},
-	{"e", "edit the word's card instead (1-9: which)", ""},
+	{"e", "edit the word's card instead (then its number)", ""},
 	{"< >", "move the context up, down the card's order", ""},
 	{"n", "skip to the selection's next card", ""},
 	{"Esc q", "cancel the card and those after it", ""},
@@ -2751,6 +2751,41 @@ func (v *view) nextCard() {
 
 // edit opens the existing card k in the preview, in place of the new card
 // for its word: see editCard.
+// pickKey takes a key while e asks which card: a digit adds to the
+// number typed, which is taken as soon as no further digit could make
+// another card's number (at once, with nine cards or fewer), Enter takes
+// the number as typed, Backspace takes back a digit, and any other key,
+// or a digit that makes no card's number, cancels.
+func (v *view) pickKey(ev *tcell.EventKey, r rune) {
+	dr := v.dr
+	n := len(dr.exact)
+	switch k := ev.Key(); {
+	case r >= '0' && r <= '9':
+		p := dr.pick*10 + int(r-'0')
+		switch {
+		case p == 0 || p > n:
+			dr.which = false
+		case p*10 > n:
+			v.pickCard(dr.exact[p-1])
+		default:
+			dr.pick = p
+		}
+	case k == tcell.KeyEnter && dr.pick > 0:
+		v.pickCard(dr.exact[dr.pick-1])
+	case (k == tcell.KeyBackspace || k == tcell.KeyBackspace2) &&
+		dr.pick > 0:
+		dr.pick /= 10
+	default:
+		dr.which = false
+	}
+}
+
+// pickCard ends the question of which card and opens k.
+func (v *view) pickCard(k carded) {
+	v.dr.which, v.dr.pick = false, 0
+	v.edit(k)
+}
+
 func (v *view) edit(k carded) {
 	if err := v.editCard(v.dr, k); err != nil {
 		v.dr.warn = err.Error()
@@ -2909,10 +2944,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 	}
 	dr.warn = ""
 	if dr.which {
-		dr.which = false
-		if r >= '1' && int(r-'1') < len(dr.exact) {
-			v.edit(dr.exact[r-'1'])
-		}
+		v.pickKey(ev, r)
 		return
 	}
 	n := max(count, 1)
@@ -2921,7 +2953,7 @@ func (v *view) cardKey(ev *tcell.EventKey) {
 		if len(dr.exact) == 1 {
 			v.edit(dr.exact[0])
 		} else {
-			dr.which = true
+			dr.which, dr.pick = true, 0
 		}
 	case esc && again && dr.edited():
 		dr.discard = true
@@ -3230,9 +3262,10 @@ func (v *view) drawCard() {
 			if slices.ContainsFunc(dr.exact, isK) {
 				n++
 				line = fmt.Sprintf("%d  %s", n, line[3:])
-				if dr.which && n <= 9 {
-					v.keyHit(y, 0, v.w,
-						runeKey('0'+rune(n)))
+				if dr.which {
+					k := k
+					v.hits = append(v.hits, hit{y, 0, v.w,
+						func() { v.pickCard(k) }})
 				}
 			}
 			if k.ctx != "" {
@@ -3260,6 +3293,11 @@ func (v *view) drawCard() {
 	case dr.which:
 		help, st = fmt.Sprintf("add to which card? 1-%d  "+
 			"any other key: none", len(dr.exact)), stWarn
+		if dr.pick > 0 {
+			help = fmt.Sprintf("add to which card? 1-%d  %d  "+
+				"Enter: that one  any other key: none",
+				len(dr.exact), dr.pick)
+		}
 	case dr.saving && len(dr.exact) > 0:
 		help, st = "already carded. Enter: new card  e: edit it"+
 			"  Esc: cancel", stWarn

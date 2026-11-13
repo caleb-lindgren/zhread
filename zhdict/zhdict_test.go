@@ -797,3 +797,27 @@ func TestZhuyin(t *testing.T) {
 		}
 	}
 }
+
+// TestPointerLast checks that an English definition that only points
+// elsewhere goes after a fallback's real one: CC-CEDICT has 山西 only as
+// "see 山西省[Shān xī Shěng]", and Wiktionary's "Shanxi" comes first, as
+// the card maker ticks the first English definition to start with.
+func TestPointerLast(t *testing.T) {
+	p := newTestProbe(t, "山西")
+	if err := p.LoadExtra(testDict(t)); err != nil {
+		t.Skipf("extra sources unavailable: %v", err)
+	}
+	g := p.Rows("山西")
+	var defs []string
+	for i := g.Zh; i < len(g.Rows); i++ {
+		defs = append(defs, g.Rows[i][NFields-1])
+	}
+	if len(defs) < 2 || !pointerOnly(defs[len(defs)-1]) {
+		t.Fatalf("山西: English %q, want the see row last", defs)
+	}
+	for _, d := range defs[:len(defs)-1] {
+		if pointerOnly(d) {
+			t.Errorf("山西: %q before a definition", d)
+		}
+	}
+}

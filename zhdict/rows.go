@@ -78,7 +78,9 @@ func pointerOnly(def string) bool {
 // Rows builds the output lines for one word: every matching entry, Chinese
 // before English, main sources before fallbacks, and longest definition
 // first within each, except that an English definition that only points
-// elsewhere ("see …", "CL:…") goes after the rest. Sorting the two languages
+// elsewhere ("see …", "CL:…") goes after the rest, a fallback's
+// included: 山西's CC-CEDICT entry is only "see 山西省[Shān xī Shěng]",
+// and Wiktionary's "Shanxi" is the definition. Sorting the two languages
 // separately rather than the group as a whole is what keeps them from
 // interleaving, since a short Chinese definition is often shorter than a
 // long English one. Entries whose definitions are the same display width
@@ -161,10 +163,8 @@ func (p *Probe) Rows(word string) Group {
 		}
 		rs = kept
 		slices.SortStableFunc(rs, func(a, b row) int {
-			if d := sources[a.src].tier -
-				sources[b.src].tier; d != 0 {
-				return d
-			}
+			// before the tier, so that a fallback shown because
+			// the main entry only points elsewhere comes first
 			if lang == LangEn {
 				pa, pb := pointerOnly(a.f[NFields-1]),
 					pointerOnly(b.f[NFields-1])
@@ -174,6 +174,10 @@ func (p *Probe) Rows(word string) Group {
 					}
 					return -1
 				}
+			}
+			if d := sources[a.src].tier -
+				sources[b.src].tier; d != 0 {
+				return d
 			}
 			return Width(b.f[NFields-1]) - Width(a.f[NFields-1])
 		})
