@@ -42,11 +42,12 @@ on the Mainland (★) or in Taiwan (▲) are spelled out as 〈大陸〉 and
 〈臺灣〉; MoEDict defines the words 兩岸詞典 lacks, and `c` adds its
 definitions of the rest. English comes from CC-CEDICT; Wiktionary defines
 the words CC-CEDICT lacks or only points elsewhere for ("variant of …",
-"see …"), and `E` adds its definitions of the rest. A fallback's
-definition shown beside the main one is labeled with its name, under the
-word. 兩岸詞典 and Wiktionary are optional extras (see "Dictionaries"
-below); without them, MoEDict is the main Chinese dictionary and CC-CEDICT
-the only English one. See [dict/README.md](dict/README.md) for the files.
+"see …"), in which case a "see …" is left out, and `E` adds its definitions
+of the rest. A fallback's definition shown beside the main one is labeled
+with its name, under the word. 兩岸詞典 and Wiktionary are optional extras
+(see "Dictionaries" below); without them, MoEDict is the main Chinese
+dictionary and CC-CEDICT the only English one. See
+[dict/README.md](dict/README.md) for the files.
 
 A word is shown in traditional, with the simplified form after it in brackets
 when it differs and the characters the two share as ～: 企業（～业）. An entry that is

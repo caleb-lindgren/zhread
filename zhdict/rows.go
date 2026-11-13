@@ -76,16 +76,15 @@ func pointerOnly(def string) bool {
 }
 
 // Rows builds the output lines for one word: every matching entry, Chinese
-// before English, main sources before fallbacks, and longest definition
-// first within each, except that an English definition that only points
-// elsewhere ("see …", "CL:…") goes after the rest, a fallback's
-// included: 山西's CC-CEDICT entry is only "see 山西省[Shān xī Shěng]",
+// before English, main sources before fallbacks, and longest definition first
+// within each, except that an English definition that only points elsewhere
+// ("see …", "CL:…") goes after the rest, or is left out when another
+// dictionary defines the word: 山西's CC-CEDICT entry is only "see 山西省",
 // and Wiktionary's "Shanxi" is the definition. Sorting the two languages
 // separately rather than the group as a whole is what keeps them from
-// interleaving, since a short Chinese definition is often shorter than a
-// long English one. Entries whose definitions are the same display width
-// keep their load order, which is source order and then position in the
-// file.
+// interleaving, since a short Chinese definition is often shorter than a long
+// English one. Entries whose definitions are the same display width keep
+// their load order, which is source order and then position in the file.
 //
 // An entry that is only a variant of another of the group's, with the same
 // reading, is left out (see variants.go), and when the word as written is
@@ -162,9 +161,12 @@ func (p *Probe) Rows(word string) Group {
 			}
 		}
 		rs = kept
+		if lang == LangEn {
+			rs = dropPointers(rs, func(r row) (int32, string) {
+				return r.src, r.f[NFields-1]
+			})
+		}
 		slices.SortStableFunc(rs, func(a, b row) int {
-			// before the tier, so that a fallback shown because
-			// the main entry only points elsewhere comes first
 			if lang == LangEn {
 				pa, pb := pointerOnly(a.f[NFields-1]),
 					pointerOnly(b.f[NFields-1])
@@ -192,6 +194,30 @@ func (p *Probe) Rows(word string) Group {
 		}
 	}
 	return g
+}
+
+// dropPointers leaves out the rows whose definitions only point elsewhere
+// when a row of another dictionary has a definition. One of the same
+// dictionary does not count: a second entry of the word there, as for
+// another reading, is no reason to hide where the first one points.
+func dropPointers[R any](rs []R, f func(R) (int32, string)) []R {
+	defined := map[string]bool{}
+	for _, r := range rs {
+		if src, d := f(r); !pointerOnly(d) {
+			defined[sources[src].name] = true
+		}
+	}
+	out := rs[:0]
+	for _, r := range rs {
+		src, d := f(r)
+		other := len(defined) > 1 ||
+			len(defined) == 1 && !defined[sources[src].name]
+		if pointerOnly(d) && other {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 func cmpOr(a, b string) string {
